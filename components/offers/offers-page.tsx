@@ -1,1001 +1,579 @@
 "use client";
 
-/* Frontend-only offer records hydrate from browser storage until the backend is added. */
-/* eslint-disable react-hooks/set-state-in-effect */
-
 import {
-  ArrowRight,
   CalendarDays,
   Check,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsUpDown,
   ClipboardList,
-  Download,
   Edit3,
   Eye,
   FileText,
-  Mail,
   Plus,
-  RotateCcw,
-  Search,
   Send,
+  Tag,
   Trash2,
   UsersRound,
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { Badge, CountPill, offerTone } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, StatTile, SummaryCard } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Field, FilterSelect, Input, SearchInput, Select } from "@/components/ui/field";
+import { Alert, Modal } from "@/components/ui/modal";
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { Pagination, paginate } from "@/components/ui/pagination";
+import { Avatar, DataTable, SortButton, TBody, Td, Th, THead, Tr } from "@/components/ui/table";
+import { useCompanies, useOffers } from "@/lib/data";
+import { offerStatuses, type Company, type Offer, type OfferStatus } from "@/lib/demo-data";
+import { isoToLabel, labelToIso, money, todayIso } from "@/lib/format";
+import { useNotice, useSort } from "@/lib/hooks";
+import { cn, compareTr, includesQuery, initials } from "@/lib/utils";
 
-type OfferStatus = "Taslak" | "Gönderildi" | "Görüşülüyor" | "Onaylandı" | "Reddedildi" | "Süresi doldu";
-type Offer = {
-  id: number;
-  number: string;
-  company: string;
-  title: string;
-  status: OfferStatus;
-  total: number;
-  validUntil: string;
-  createdAt: string;
-  items: number;
-  contact: string;
-};
-type CompanyOption = { id: number; name: string; contact: string; email?: string };
-type FormState = { company: string; title: string; validUntil: string; total: string; items: string; contact: string };
 type SortKey = "number" | "company" | "status" | "total" | "validUntil";
+type FormState = { companyId: string; title: string; validUntil: string; total: string; items: string; contact: string };
+type FormErrors = Partial<Record<keyof FormState, string>>;
 
-const initialOffers: Offer[] = [
-  {
-    id: 1,
-    number: "TEK-2026-004",
-    company: "Artemis Otomotiv A.Ş.",
-    title: "2026 periyodik sağlık taraması",
-    status: "Görüşülüyor",
-    total: 86800,
-    validUntil: "30 Eyl 2026",
-    createdAt: "26 Ağu 2026",
-    items: 4,
-    contact: "Murat Şahin",
-  },
-  {
-    id: 2,
-    number: "TEK-2026-003",
-    company: "Nova Gıda Üretim",
-    title: "Yıllık OSGB hizmet paketi",
-    status: "Gönderildi",
-    total: 126500,
-    validUntil: "15 Eyl 2026",
-    createdAt: "22 Ağu 2026",
-    items: 6,
-    contact: "Emre Yıldız",
-  },
-  {
-    id: 3,
-    number: "TEK-2026-002",
-    company: "Mavi Hat Lojistik",
-    title: "Mobil tarama hizmeti",
-    status: "Onaylandı",
-    total: 44100,
-    validUntil: "05 Eyl 2026",
-    createdAt: "14 Ağu 2026",
-    items: 3,
-    contact: "Büşra Aydın",
-  },
-  {
-    id: 4,
-    number: "TEK-2026-001",
-    company: "Eksen Yapı Proje",
-    title: "İşe giriş sağlık taraması",
-    status: "Taslak",
-    total: 22800,
-    validUntil: "20 Eyl 2026",
-    createdAt: "09 Ağu 2026",
-    items: 2,
-    contact: "Zeynep Koç",
-  },
-];
-const defaultCompanies: CompanyOption[] = [
-  { id: 1, name: "Artemis Otomotiv A.Ş.", contact: "Murat Şahin" },
-  { id: 2, name: "Mavi Hat Lojistik", contact: "Büşra Aydın" },
-  { id: 3, name: "Nova Gıda Üretim", contact: "Emre Yıldız" },
-  { id: 4, name: "Eksen Yapı Proje", contact: "Zeynep Koç" },
-  { id: 5, name: "Meridyen Tekstil", contact: "Can Erdem" },
-];
-const emptyForm: FormState = { company: "", title: "", validUntil: "", total: "", items: "1", contact: "" };
-const statuses: OfferStatus[] = ["Taslak", "Gönderildi", "Görüşülüyor", "Onaylandı", "Reddedildi", "Süresi doldu"];
-const labelToDate = (value: string) => {
-  const months = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
-  const match = value.match(/^(\d{1,2})\s+([^\s]+)\s+(\d{4})$/);
-  if (!match) return "";
-  const month = months.indexOf(match[2]) + 1;
-  return month ? `${match[3]}-${String(month).padStart(2, "0")}-${String(match[1]).padStart(2, "0")}` : "";
+const emptyForm: FormState = { companyId: "", title: "", validUntil: "", total: "", items: "1", contact: "" };
+const statusFilters = ["Tümü", ...offerStatuses] as const;
+const openStatuses: OfferStatus[] = ["Gönderildi", "Görüşülüyor"];
+
+const sortValue = (offer: Offer, key: SortKey) => (key === "validUntil" ? labelToIso(offer.validUntil) : offer[key]);
+const isExpired = (offer: Offer) => {
+  const iso = labelToIso(offer.validUntil);
+  return Boolean(iso) && iso < todayIso() && offer.status !== "Süresi doldu";
 };
-const dateToLabel = (value: string) => {
-  if (!value) return "";
-  const date = new Date(`${value}T12:00:00`);
-  return new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "short", year: "numeric" })
-    .format(date)
-    .replace(".", "");
-};
+
+function validateForm(form: FormState): FormErrors {
+  const errors: FormErrors = {};
+  if (!form.companyId) errors.companyId = "Firma seçin.";
+  if (!form.title.trim()) errors.title = "Teklif başlığı zorunludur.";
+  if (!form.validUntil) errors.validUntil = "Geçerlilik tarihi seçin.";
+  if (form.total === "" || Number(form.total) < 0) errors.total = "Geçerli bir toplam tutar girin.";
+  if (Number(form.items) < 1) errors.items = "En az 1 hizmet kalemi olmalıdır.";
+  return errors;
+}
 
 export default function OffersPage() {
-  const router = useRouter();
-  const [offers, setOffers] = useState(initialOffers);
-  const [companies, setCompanies] = useState(defaultCompanies);
+  const [offers, setOffers] = useOffers();
+  const [companies] = useCompanies();
+  const [notice, showNotice] = useNotice();
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<OfferStatus | "Tümü">("Tümü");
+  const [status, setStatus] = useState<(typeof statusFilters)[number]>("Tümü");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
-  const [sortKey, setSortKey] = useState<SortKey>("number");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
-  const [formOpen, setFormOpen] = useState(false);
-  const [form, setForm] = useState(emptyForm);
+  const { sortKey, direction, toggle } = useSort<SortKey>("number", "desc");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [hydrated, setHydrated] = useState(false);
-  const [notice, setNotice] = useState("");
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem("hantech-offers");
-      const storedCompanies = window.localStorage.getItem("hantech-companies");
-      if (stored) {
-        const parsed = JSON.parse(stored) as Offer[];
-        if (Array.isArray(parsed)) setOffers(parsed);
-      }
-      if (storedCompanies) {
-        const parsed = JSON.parse(storedCompanies) as Array<{
-          id: number;
-          name: string;
-          contact: string;
-          email?: string;
-        }>;
-        if (Array.isArray(parsed) && parsed.length > 0)
-          setCompanies(parsed.map(({ id, name, contact, email }) => ({ id, name, contact, email })));
-      }
-    } catch {
-      /* Keep demo records when storage is unavailable. */
-    }
-    setHydrated(true);
-  }, []);
-  useEffect(() => {
-    if (hydrated) window.localStorage.setItem("hantech-offers", JSON.stringify(offers));
-  }, [offers, hydrated]);
+
   const filtered = useMemo(() => {
     const result = offers.filter(
       (offer) =>
         (status === "Tümü" || offer.status === status) &&
-        `${offer.number} ${offer.company} ${offer.title} ${offer.contact}`
-          .toLocaleLowerCase("tr-TR")
-          .includes(query.toLocaleLowerCase("tr-TR")),
+        includesQuery(`${offer.number} ${offer.company} ${offer.title} ${offer.contact}`, query),
     );
     return result.sort((a, b) => {
-      const first =
-        sortKey === "number"
-          ? a.number
-          : sortKey === "company"
-            ? a.company
-            : sortKey === "status"
-              ? a.status
-              : sortKey === "total"
-                ? a.total
-                : a.validUntil;
-      const second =
-        sortKey === "number"
-          ? b.number
-          : sortKey === "company"
-            ? b.company
-            : sortKey === "status"
-              ? b.status
-              : sortKey === "total"
-                ? b.total
-                : b.validUntil;
-      const comparison =
-        typeof first === "number" && typeof second === "number"
-          ? first - second
-          : String(first).localeCompare(String(second), "tr");
-      return sortDirection === "asc" ? comparison : -comparison;
+      const comparison = compareTr(sortValue(a, sortKey), sortValue(b, sortKey));
+      return direction === "asc" ? comparison : -comparison;
     });
-  }, [offers, query, sortKey, sortDirection, status]);
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const safePage = Math.min(page, pageCount);
-  const paged = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
-  const totalValue = offers
-    .filter((offer) => offer.status !== "Reddedildi")
+  }, [offers, query, status, sortKey, direction]);
+  const { safePage, items: paged } = paginate(filtered, page, pageSize);
+  const selected = offers.find((offer) => offer.id === selectedId);
+  const editing = offers.find((offer) => offer.id === editingId);
+  const openCount = offers.filter((offer) => openStatuses.includes(offer.status)).length;
+  const approvedVolume = offers
+    .filter((offer) => offer.status === "Onaylandı")
     .reduce((sum, offer) => sum + offer.total, 0);
-  const updateForm = (key: keyof FormState, value: string) => setForm((current) => ({ ...current, [key]: value }));
-  const showNotice = (message: string) => {
-    setNotice(message);
-    window.setTimeout(() => setNotice(""), 2200);
-  };
+
   const changeSort = (key: SortKey) => {
-    if (sortKey === key) setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
-    else {
-      setSortKey(key);
-      setSortDirection("asc");
-    }
+    toggle(key);
     setPage(1);
   };
-  const openNew = () => router.push("/teklifler/yeni");
-  const openEdit = (offer: Offer) => {
-    setForm({
-      company: offer.company,
-      title: offer.title,
-      validUntil: labelToDate(offer.validUntil),
-      total: String(offer.total),
-      items: String(offer.items),
-      contact: offer.contact,
-    });
-    setEditingId(offer.id);
-    setFormOpen(true);
+  const resetFilters = () => {
+    setQuery("");
+    setStatus("Tümü");
+    setPage(1);
   };
-  const saveOffer = () => {
-    if (!form.company || !form.title.trim() || !form.validUntil || !form.total || Number(form.total) < 0) return;
-    if (editingId !== null)
-      setOffers((current) =>
-        current.map((offer) =>
-          offer.id === editingId
-            ? {
-                ...offer,
-                company: form.company,
-                title: form.title.trim(),
-                validUntil: dateToLabel(form.validUntil),
-                total: Number(form.total),
-                items: Number(form.items) || 1,
-                contact: form.contact,
-              }
-            : offer,
-        ),
-      );
-    else
-      setOffers((current) => [
-        ...current,
-        {
-          id: Date.now(),
-          number: `TEK-${new Date().getFullYear()}-${String(current.length + 1).padStart(3, "0")}`,
-          company: form.company,
-          title: form.title.trim(),
-          status: "Taslak",
-          total: Number(form.total),
-          validUntil: dateToLabel(form.validUntil),
-          createdAt: dateToLabel(new Date().toISOString().slice(0, 10)),
-          items: Number(form.items) || 1,
-          contact: form.contact,
-        },
-      ]);
-    setFormOpen(false);
+  const saveEdit = (offer: Offer) => {
+    setOffers((current) => current.map((item) => (item.id === offer.id ? offer : item)));
     setEditingId(null);
-    showNotice("Teklif bilgileri demo olarak kaydedildi.");
+    showNotice("Teklif bilgileri kaydedildi.");
   };
   const removeOffer = (offer: Offer) => {
     if (!window.confirm(`${offer.number} numaralı teklifi silmek istediğinize emin misiniz?`)) return;
     setOffers((current) => current.filter((item) => item.id !== offer.id));
-    setSelectedId(null);
+    if (selectedId === offer.id) setSelectedId(null);
     showNotice("Teklif silindi.");
   };
   const updateStatus = (offer: Offer, nextStatus: OfferStatus) => {
     setOffers((current) => current.map((item) => (item.id === offer.id ? { ...item, status: nextStatus } : item)));
     showNotice("Teklif durumu güncellendi.");
   };
+  const actions = { onSelect: setSelectedId, onEdit: setEditingId, onDelete: removeOffer, onStatus: updateStatus };
+
   return (
-    <main className="mx-auto max-w-[1440px] pb-10">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div>
-          <p className="text-sm font-medium text-[#6f8982] dark:text-[#9ebbb3]">Teklif ve fiyatlandırma merkezi</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-[-0.04em] text-[#103c3a] dark:text-[#ecfaf5]">
-            Teklifler
-          </h1>
-          <p className="mt-2 text-sm text-[#81958f] dark:text-[#91b0a6]">
-            Firmalarınıza sunduğunuz OSGB hizmet tekliflerini ve dönüş süreçlerini yönetin.
-          </p>
-        </div>
-        <button
-          className="inline-flex w-fit items-center gap-2 rounded-xl bg-[#103c3a] px-4 py-3 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(16,60,58,0.14)] hover:bg-[#174e4b]"
-          onClick={openNew}
-          type="button"
-        >
-          <Plus className="size-4" /> Yeni teklif oluştur
-        </button>
-      </div>
+    <Page>
+      <PageHeader
+        eyebrow="Teklif ve fiyatlandırma merkezi"
+        title="Teklifler"
+        description="Firmalarınıza sunduğunuz OSGB hizmet tekliflerini ve dönüş süreçlerini yönetin."
+        actions={
+          <Button asChild>
+            <Link href="/teklifler/yeni">
+              <Plus /> Yeni teklif oluştur
+            </Link>
+          </Button>
+        }
+      />
       {notice && (
-        <p className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#e5f5ec] px-3 py-2 text-xs font-semibold text-[#278b70] dark:bg-[#174638] dark:text-[#a7f3d0]">
+        <Alert className="mt-4 w-fit" icon={Check}>
           {notice}
-        </p>
+        </Alert>
       )}
       <div className="mt-7 grid gap-3 sm:grid-cols-3">
-        <Summary label="Toplam teklif" value={offers.length} icon={FileText} />
-        <Summary
-          label="Açık teklifler"
-          value={offers.filter((offer) => ["Gönderildi", "Görüşülüyor"].includes(offer.status)).length}
-          icon={Send}
-        />
-        <Summary label="Teklif hacmi" value={money(totalValue)} icon={ClipboardList} />
+        <SummaryCard label="Toplam teklif" value={offers.length} icon={FileText} />
+        <SummaryCard label="Açık teklifler" value={openCount} icon={Send} />
+        <SummaryCard label="Onaylanan hacim" value={money(approvedVolume)} icon={ClipboardList} />
       </div>
-      <section
-        aria-label="Teklif listesi filtreleri"
-        className="mt-7 rounded-2xl border border-[#e0ece8] bg-white p-4 sm:p-5 dark:border-[#1d4941] dark:bg-[#0e2927]"
-      >
+      <Card aria-label="Teklif listesi filtreleri" className="mt-7 p-4 sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold text-[#31534f] dark:text-[#d3ebe2]">Teklif listesi</h2>
-              <span className="rounded-full bg-[#e5f5ec] px-2 py-1 text-[10px] font-bold text-[#278b70] dark:bg-[#174638] dark:text-[#a7f3d0]">
-                {filtered.length} kayıt
-              </span>
+              <h2 className="text-sm font-semibold text-foreground">Teklif listesi</h2>
+              <CountPill>{filtered.length} kayıt</CountPill>
             </div>
-            <p className="mt-1 text-xs text-[#91a49f]">Teklifleri arayın, durumlarına göre filtreleyin ve sıralayın.</p>
+            <p className="mt-1 text-xs text-subtle">Teklifleri arayın, durumlarına göre filtreleyin ve sıralayın.</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <FilterSelect
-              label="Durum"
-              value={status}
-              options={["Tümü", ...statuses]}
-              onChange={(value) => {
-                setStatus(value as OfferStatus | "Tümü");
-                setPage(1);
-              }}
-            />
-          </div>
-        </div>
-        <div className="relative mt-4">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[#9ab1ab]" />
-          <input
-            aria-label="Teklif ara"
-            className="h-11 w-full rounded-xl border border-[#dbe9e4] bg-[#fbfdfc] pr-3 pl-9 text-sm outline-none focus:border-[#55b99c] dark:border-[#1d4941] dark:bg-[#102f2d] dark:text-white"
-            onChange={(event) => {
-              setQuery(event.target.value);
+          <FilterSelect
+            label="Durum"
+            onChange={(value) => {
+              setStatus(value as (typeof statusFilters)[number]);
               setPage(1);
             }}
-            placeholder="Teklif no, firma, başlık veya yetkili ara..."
-            value={query}
+            options={statusFilters}
+            value={status}
           />
         </div>
-      </section>
-      {selectedId !== null && (
-        <OfferDetail
-          offer={offers.find((offer) => offer.id === selectedId)}
-          onClose={() => setSelectedId(null)}
-          onEdit={openEdit}
-          onDelete={removeOffer}
-          onStatus={updateStatus}
+        <SearchInput
+          aria-label="Teklif ara"
+          className="mt-4"
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setPage(1);
+          }}
+          placeholder="Teklif no, firma, başlık veya yetkili ara..."
+          value={query}
         />
-      )}
+      </Card>
+      {selected && <OfferDetail offer={selected} onClose={() => setSelectedId(null)} {...actions} />}
       {paged.length > 0 ? (
-        <OfferTable
-          offers={paged}
-          sortKey={sortKey}
-          sortDirection={sortDirection}
-          onSort={changeSort}
-          onSelect={setSelectedId}
-          onEdit={openEdit}
-          onDelete={removeOffer}
-          onStatus={updateStatus}
-        />
+        <OfferTable direction={direction} offers={paged} onSort={changeSort} sortKey={sortKey} {...actions} />
       ) : (
-        <div className="mt-6 rounded-2xl border border-dashed border-[#dceee4] py-16 text-center dark:border-[#1d4941]">
-          <FileText className="mx-auto size-8 text-[#9ab1ab]" />
-          <p className="mt-3 text-sm font-semibold text-[#52776d] dark:text-[#c4dfd5]">
-            Filtrelerle eşleşen teklif yok
-          </p>
-          <button
-            className="mt-3 text-xs font-semibold text-[#278b70]"
-            onClick={() => {
-              setQuery("");
-              setStatus("Tümü");
-            }}
-            type="button"
-          >
-            Filtreleri temizle
-          </button>
-        </div>
+        <EmptyState
+          action={
+            <Button onClick={resetFilters} size="sm" variant="outline">
+              Filtreleri temizle
+            </Button>
+          }
+          className="mt-6"
+          description="Arama veya durum filtresini değiştirerek tekrar deneyin."
+          icon={FileText}
+          title="Filtrelerle eşleşen teklif yok"
+        />
       )}
       <Pagination
-        page={safePage}
-        pageCount={pageCount}
-        pageSize={pageSize}
-        total={filtered.length}
+        noun="teklif"
         onPage={setPage}
         onPageSize={(value) => {
           setPageSize(value);
           setPage(1);
         }}
+        page={safePage}
+        pageSize={pageSize}
+        total={filtered.length}
       />
-      {formOpen && (
-        <OfferForm
-          form={form}
-          companies={companies}
-          editing={editingId !== null}
-          setField={updateForm}
-          onClose={() => setFormOpen(false)}
-          onSave={saveOffer}
-        />
+      {editing && (
+        <OfferEditModal companies={companies} offer={editing} onClose={() => setEditingId(null)} onSave={saveEdit} />
       )}
-    </main>
+    </Page>
   );
 }
 
-const money = (value: number) =>
-  new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(value);
-function Summary({ label, value, icon: Icon }: { label: string; value: number | string; icon: typeof FileText }) {
-  return (
-    <div className="rounded-2xl border border-[#e5eee9] bg-[#fbfdfc] p-4 dark:border-[#1d4941] dark:bg-[#102f2d]">
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-[#81958f]">{label}</p>
-        <Icon className="size-4 text-[#299b7c]" />
-      </div>
-      <p className="mt-2 text-xl font-semibold text-[#173e3b] dark:text-[#e8f7f1]">{value}</p>
-    </div>
-  );
-}
-function FilterSelect({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: string[];
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="relative">
-      <span className="sr-only">{label}</span>
-      <select
-        aria-label={label}
-        className="h-10 appearance-none rounded-xl border border-[#dbe9e4] bg-white pr-8 pl-3 text-xs font-medium text-[#52776d] outline-none dark:border-[#1d4941] dark:bg-[#102f2d] dark:text-[#c4dfd5]"
-        onChange={(event) => onChange(event.target.value)}
-        value={value}
-      >
-        {options.map((option) => (
-          <option key={option}>{option}</option>
-        ))}
-      </select>
-      <ChevronDown className="pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 text-[#81958f]" />
-    </label>
-  );
-}
+type RowActions = {
+  onSelect: (id: number) => void;
+  onEdit: (id: number) => void;
+  onDelete: (offer: Offer) => void;
+  onStatus: (offer: Offer, status: OfferStatus) => void;
+};
+
 function OfferTable({
   offers,
   sortKey,
-  sortDirection,
+  direction,
   onSort,
-  onSelect,
-  onEdit,
-  onDelete,
-  onStatus,
-}: {
+  ...actions
+}: RowActions & {
   offers: Offer[];
   sortKey: SortKey;
-  sortDirection: "asc" | "desc";
+  direction: "asc" | "desc";
   onSort: (key: SortKey) => void;
-  onSelect: (id: number) => void;
-  onEdit: (offer: Offer) => void;
-  onDelete: (offer: Offer) => void;
-  onStatus: (offer: Offer, status: OfferStatus) => void;
 }) {
+  const sortProps = { sortKey, direction, onSort };
   return (
-    <div className="mt-6 overflow-hidden rounded-2xl border border-[#e0ece8] bg-white dark:border-[#1d4941] dark:bg-[#0e2927]">
-      <div className="hidden overflow-x-auto md:block">
-        <table className="w-full text-left">
-          <thead className="border-b border-[#edf3f0] bg-[#fbfdfc] dark:border-[#1d4941] dark:bg-[#102f2d]">
-            <tr>
-              <th className="px-5 py-4">
-                <SortButton
-                  label="Teklif"
-                  active={sortKey === "number"}
-                  direction={sortDirection}
-                  onClick={() => onSort("number")}
-                />
-              </th>
-              <th className="px-5 py-4">
-                <SortButton
-                  label="Firma"
-                  active={sortKey === "company"}
-                  direction={sortDirection}
-                  onClick={() => onSort("company")}
-                />
-              </th>
-              <th className="px-5 py-4 text-[10px] font-bold tracking-[0.12em] text-[#91a49f] uppercase">
-                Hizmet kapsamı
-              </th>
-              <th className="px-5 py-4">
-                <SortButton
-                  label="Durum"
-                  active={sortKey === "status"}
-                  direction={sortDirection}
-                  onClick={() => onSort("status")}
-                />
-              </th>
-              <th className="px-5 py-4">
-                <SortButton
-                  label="Toplam"
-                  active={sortKey === "total"}
-                  direction={sortDirection}
-                  onClick={() => onSort("total")}
-                />
-              </th>
-              <th className="px-5 py-4">
-                <SortButton
-                  label="Geçerlilik"
-                  active={sortKey === "validUntil"}
-                  direction={sortDirection}
-                  onClick={() => onSort("validUntil")}
-                />
-              </th>
-              <th />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#edf3f0] dark:divide-[#1d4941]">
-            {offers.map((offer) => (
-              <OfferRow
-                key={offer.id}
-                offer={offer}
-                onSelect={onSelect}
-                onEdit={onEdit}
-                onDelete={onDelete}
-                onStatus={onStatus}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="divide-y divide-[#edf3f0] md:hidden dark:divide-[#1d4941]">
+    <DataTable
+      className="mt-6"
+      mobile={offers.map((offer) => (
+        <OfferCard key={offer.id} offer={offer} {...actions} />
+      ))}
+    >
+      <THead>
+        <tr>
+          <Th>
+            <SortButton column="number" label="Teklif" {...sortProps} />
+          </Th>
+          <Th>
+            <SortButton column="company" label="Firma" {...sortProps} />
+          </Th>
+          <Th>Hizmet kapsamı</Th>
+          <Th>
+            <SortButton column="status" label="Durum" {...sortProps} />
+          </Th>
+          <Th>
+            <SortButton column="total" label="Toplam" {...sortProps} />
+          </Th>
+          <Th>
+            <SortButton column="validUntil" label="Geçerlilik" {...sortProps} />
+          </Th>
+          <Th>
+            <span className="sr-only">İşlemler</span>
+          </Th>
+        </tr>
+      </THead>
+      <TBody>
         {offers.map((offer) => (
-          <div className="flex items-start justify-between gap-3 p-4" key={offer.id}>
-            <div className="min-w-0">
-              <p className="text-[10px] font-bold tracking-[0.08em] text-[#278b70]">{offer.number}</p>
-              <button
-                className="mt-1 text-left text-sm font-semibold text-[#31534f] dark:text-[#d3ebe2]"
-                onClick={() => onSelect(offer.id)}
-                type="button"
-              >
-                {offer.company}
-              </button>
-              <p className="mt-1 truncate text-xs text-[#81958f]">{offer.title}</p>
-              <div className="mt-2 flex items-center gap-2">
-                <StatusBadge status={offer.status} />
-                <span className="text-xs font-semibold text-[#52776d] dark:text-[#bed8cf]">{money(offer.total)}</span>
-              </div>
-            </div>
-            <button
-              aria-label={`${offer.number} düzenle`}
-              className="rounded-lg p-2 text-[#81958f]"
-              onClick={() => onEdit(offer)}
-              type="button"
-            >
-              <Edit3 className="size-4" />
-            </button>
-          </div>
+          <OfferRow key={offer.id} offer={offer} {...actions} />
         ))}
-      </div>
-    </div>
+      </TBody>
+    </DataTable>
   );
 }
-function OfferRow({
-  offer,
-  onSelect,
-  onEdit,
-  onDelete,
-  onStatus,
-}: {
-  offer: Offer;
-  onSelect: (id: number) => void;
-  onEdit: (offer: Offer) => void;
-  onDelete: (offer: Offer) => void;
-  onStatus: (offer: Offer, status: OfferStatus) => void;
-}) {
+
+function StatusSelect({ offer, onStatus }: { offer: Offer; onStatus: RowActions["onStatus"] }) {
   return (
-    <tr className="transition hover:bg-[#f8fcfa] dark:hover:bg-[#12372f]">
-      <td className="px-5 py-4">
+    <Select
+      aria-label={`${offer.number} durumu`}
+      className="h-8 w-auto px-2 pr-7 text-[11px] font-semibold"
+      onChange={(event) => onStatus(offer, event.target.value as OfferStatus)}
+      value={offer.status}
+    >
+      {offerStatuses.map((item) => (
+        <option key={item}>{item}</option>
+      ))}
+    </Select>
+  );
+}
+
+function ValidUntil({ offer, className }: { offer: Offer; className?: string }) {
+  return (
+    <span className={cn("block text-xs text-muted", className)}>
+      <span className="flex items-center gap-1">
+        <CalendarDays className="size-3.5" />
+        {offer.validUntil}
+      </span>
+      {isExpired(offer) && <span className="mt-1 block text-[10px] font-semibold text-warning">Süresi geçti</span>}
+    </span>
+  );
+}
+
+function OfferRow({ offer, onSelect, onEdit, onDelete, onStatus }: RowActions & { offer: Offer }) {
+  return (
+    <Tr>
+      <Td>
         <button className="text-left" onClick={() => onSelect(offer.id)} type="button">
-          <p className="text-xs font-bold tracking-[0.08em] text-[#278b70]">{offer.number}</p>
-          <p className="mt-1 text-[11px] text-[#91a49f]">Oluşturuldu: {offer.createdAt}</p>
+          <span className="block text-xs font-bold tracking-[0.08em] text-brand">{offer.number}</span>
+          <span className="mt-1 block text-[11px] text-subtle">Oluşturuldu: {offer.createdAt}</span>
         </button>
-      </td>
-      <td className="px-5 py-4">
+      </Td>
+      <Td>
         <button className="flex items-center gap-3 text-left" onClick={() => onSelect(offer.id)} type="button">
-          <span className="flex size-9 items-center justify-center rounded-xl bg-[#d8f0e4] text-xs font-bold text-[#1f8068] dark:bg-[#174638] dark:text-[#a7f3d0]">
-            {offer.company
-              .split(" ")
-              .slice(0, 2)
-              .map((part) => part[0])
-              .join("")}
-          </span>
+          <Avatar size="sm" text={initials(offer.company)} />
           <span>
-            <span className="block text-sm font-semibold text-[#31534f] dark:text-[#d3ebe2]">{offer.company}</span>
-            <span className="mt-1 block text-xs text-[#91a49f]">Yetkili: {offer.contact}</span>
+            <span className="block text-sm font-semibold text-foreground">{offer.company}</span>
+            <span className="mt-1 block text-xs text-subtle">Yetkili: {offer.contact || "—"}</span>
           </span>
         </button>
-      </td>
-      <td className="px-5 py-4">
-        <p className="max-w-[210px] truncate text-xs font-medium text-[#486761] dark:text-[#bed8cf]">{offer.title}</p>
-        <p className="mt-1 flex items-center gap-1 text-[11px] text-[#91a49f]">
+      </Td>
+      <Td>
+        <p className="max-w-[210px] truncate text-xs font-medium text-foreground">{offer.title}</p>
+        <p className="mt-1 flex items-center gap-1 text-[11px] text-subtle">
           <ClipboardList className="size-3" />
           {offer.items} hizmet kalemi
         </p>
-      </td>
-      <td className="px-5 py-4">
-        <select
-          aria-label={`${offer.number} durumu`}
-          className="h-8 max-w-[125px] rounded-full border-0 bg-transparent px-2 text-[10px] font-semibold text-[#52776d] outline-none dark:text-[#c4dfd5]"
-          onChange={(event) => onStatus(offer, event.target.value as OfferStatus)}
-          value={offer.status}
-        >
-          {statuses.map((item) => (
-            <option key={item}>{item}</option>
-          ))}
-        </select>
-      </td>
-      <td className="px-5 py-4 text-sm font-semibold text-[#31534f] dark:text-[#d3ebe2]">{money(offer.total)}</td>
-      <td className="px-5 py-4 text-xs text-[#718783] dark:text-[#a7c9be]">
-        <span className="flex items-center gap-1">
-          <CalendarDays className="size-3.5" />
-          {offer.validUntil}
-        </span>
-      </td>
-      <td className="px-5 py-4">
+      </Td>
+      <Td>
+        <StatusSelect offer={offer} onStatus={onStatus} />
+      </Td>
+      <Td className="text-sm font-semibold text-foreground">{money(offer.total)}</Td>
+      <Td>
+        <ValidUntil offer={offer} />
+      </Td>
+      <Td>
         <div className="flex justify-end gap-1">
-          <button
-            aria-label={`${offer.number} detaylarını gör`}
-            className="rounded-lg p-2 text-[#81958f] hover:bg-[#ebf6f0] hover:text-[#258b71]"
-            onClick={() => onSelect(offer.id)}
-            type="button"
-          >
-            <Eye className="size-4" />
-          </button>
-          <button
-            aria-label={`${offer.number} düzenle`}
-            className="rounded-lg p-2 text-[#81958f] hover:bg-[#ebf6f0] hover:text-[#258b71]"
-            onClick={() => onEdit(offer)}
-            type="button"
-          >
-            <Edit3 className="size-4" />
-          </button>
-          <button
-            aria-label={`${offer.number} sil`}
-            className="rounded-lg p-2 text-[#a66f60] hover:bg-[#fff1ed] dark:hover:bg-[#49302c]"
-            onClick={() => onDelete(offer)}
-            type="button"
-          >
-            <Trash2 className="size-4" />
-          </button>
+          <Button aria-label={`${offer.number} detaylarını gör`} onClick={() => onSelect(offer.id)} size="icon-sm" variant="ghost">
+            <Eye />
+          </Button>
+          <Button aria-label={`${offer.number} düzenle`} onClick={() => onEdit(offer.id)} size="icon-sm" variant="ghost">
+            <Edit3 />
+          </Button>
+          <Button aria-label={`${offer.number} sil`} onClick={() => onDelete(offer)} size="icon-sm" variant="danger">
+            <Trash2 />
+          </Button>
         </div>
-      </td>
-    </tr>
+      </Td>
+    </Tr>
   );
 }
-function SortButton({
-  label,
-  active,
-  direction,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  direction: "asc" | "desc";
-  onClick: () => void;
-}) {
+
+function OfferCard({ offer, onSelect, onEdit, onDelete, onStatus }: RowActions & { offer: Offer }) {
   return (
-    <button
-      className="inline-flex items-center gap-1 text-[10px] font-bold tracking-[0.12em] text-[#91a49f] uppercase hover:text-[#278b70]"
-      onClick={onClick}
-      type="button"
-    >
-      {label}
-      <ChevronsUpDown className={`size-3 ${active ? "text-[#299b7c]" : "text-[#b5c4bf]"}`} />
-      {active && <span className="sr-only">{direction === "asc" ? "artan" : "azalan"}</span>}
-    </button>
-  );
-}
-function StatusBadge({ status }: { status: OfferStatus }) {
-  const style =
-    status === "Onaylandı"
-      ? "bg-[#dff6eb] text-[#258b71] dark:bg-[#174638] dark:text-[#a7f3d0]"
-      : status === "Reddedildi" || status === "Süresi doldu"
-        ? "bg-[#f1e8e5] text-[#a66f60] dark:bg-[#49302c] dark:text-[#f0b3a5]"
-        : status === "Görüşülüyor"
-          ? "bg-[#fff1e2] text-[#a16c3e] dark:bg-[#4b3825] dark:text-[#f4c994]"
-          : "bg-[#e7f0ed] text-[#52776d] dark:bg-[#24423a] dark:text-[#c4dfd5]";
-  return <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold ${style}`}>{status}</span>;
-}
-function Pagination({
-  page,
-  pageCount,
-  pageSize,
-  total,
-  onPage,
-  onPageSize,
-}: {
-  page: number;
-  pageCount: number;
-  pageSize: number;
-  total: number;
-  onPage: (page: number) => void;
-  onPageSize: (size: number) => void;
-}) {
-  const pages = Array.from({ length: pageCount }, (_, index) => index + 1);
-  return (
-    <div className="mt-4 flex flex-col gap-3 text-xs text-[#81958f] sm:flex-row sm:items-center sm:justify-between">
-      <p>
-        <strong className="text-[#486761] dark:text-[#bed8cf]">
-          {total === 0 ? 0 : (page - 1) * pageSize + 1}-{Math.min(page * pageSize, total)}
-        </strong>{" "}
-        / {total} teklif gösteriliyor
-      </p>
-      <div className="flex items-center gap-2">
-        <label className="flex items-center gap-2">
-          Sayfa başı
-          <select
-            aria-label="Sayfa başına teklif"
-            className="h-9 rounded-lg border border-[#dbe9e4] bg-white px-2 text-xs dark:border-[#1d4941] dark:bg-[#102f2d] dark:text-[#c4dfd5]"
-            onChange={(event) => onPageSize(Number(event.target.value))}
-            value={pageSize}
-          >
-            <option value="5">5</option>
-            <option value="10">10</option>
-            <option value="20">20</option>
-          </select>
-        </label>
-        <button
-          aria-label="Önceki sayfa"
-          className="rounded-lg border border-[#dbe9e4] p-2 disabled:opacity-40 dark:border-[#1d4941]"
-          disabled={page === 1}
-          onClick={() => onPage(page - 1)}
-          type="button"
-        >
-          <ChevronLeft className="size-4" />
+    <div className="p-4">
+      <div className="flex items-start justify-between gap-3">
+        <button className="min-w-0 text-left" onClick={() => onSelect(offer.id)} type="button">
+          <span className="block text-[10px] font-bold tracking-[0.08em] text-brand">{offer.number}</span>
+          <span className="mt-1 block text-sm font-semibold text-foreground">{offer.company}</span>
+          <span className="mt-1 block truncate text-xs text-muted">{offer.title}</span>
         </button>
-        {pages.map((item) => (
-          <button
-            aria-current={item === page ? "page" : undefined}
-            className={`size-8 rounded-lg text-xs font-semibold ${item === page ? "bg-[#299b7c] text-white" : "border border-[#dbe9e4] hover:bg-[#ebf6f0] dark:border-[#1d4941]"}`}
-            key={item}
-            onClick={() => onPage(item)}
-            type="button"
-          >
-            {item}
-          </button>
-        ))}
-        <button
-          aria-label="Sonraki sayfa"
-          className="rounded-lg border border-[#dbe9e4] p-2 disabled:opacity-40 dark:border-[#1d4941]"
-          disabled={page === pageCount}
-          onClick={() => onPage(page + 1)}
-          type="button"
-        >
-          <ChevronRight className="size-4" />
-        </button>
+        <div className="flex shrink-0 gap-1">
+          <Button aria-label={`${offer.number} düzenle`} onClick={() => onEdit(offer.id)} size="icon-sm" variant="ghost">
+            <Edit3 />
+          </Button>
+          <Button aria-label={`${offer.number} sil`} onClick={() => onDelete(offer)} size="icon-sm" variant="danger">
+            <Trash2 />
+          </Button>
+        </div>
       </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <StatusSelect offer={offer} onStatus={onStatus} />
+        <span className="text-sm font-semibold text-foreground">{money(offer.total)}</span>
+      </div>
+      <ValidUntil className="mt-2" offer={offer} />
     </div>
   );
 }
+
 function OfferDetail({
   offer,
   onClose,
   onEdit,
   onDelete,
   onStatus,
-}: {
-  offer?: Offer;
-  onClose: () => void;
-  onEdit: (offer: Offer) => void;
-  onDelete: (offer: Offer) => void;
-  onStatus: (offer: Offer, status: OfferStatus) => void;
-}) {
-  if (!offer) return null;
+}: Omit<RowActions, "onSelect"> & { offer: Offer; onClose: () => void }) {
   return (
-    <section className="mt-6 rounded-2xl border border-[#bfe3d0] bg-[#f7fcf9] p-5 sm:p-6 dark:border-[#1d4941] dark:bg-[#12372f]">
+    <Card className="mt-6 border-border-strong p-5 sm:p-6">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-        <div>
-          <p className="text-xs font-bold tracking-[0.14em] text-[#299b7c] uppercase">Teklif detayı · {offer.number}</p>
-          <h2 className="mt-2 text-xl font-semibold text-[#173e3b] dark:text-[#e8f7f1]">{offer.title}</h2>
-          <p className="mt-1 text-sm text-[#718783] dark:text-[#a7c9be]">
-            {offer.company} · Yetkili: {offer.contact}
+        <div className="min-w-0">
+          <p className="text-xs font-bold tracking-[0.14em] text-brand uppercase">Teklif detayı · {offer.number}</p>
+          <h2 className="mt-2 text-xl font-semibold text-heading">{offer.title}</h2>
+          <p className="mt-1 text-sm text-muted">
+            {offer.company} · Yetkili: {offer.contact || "Belirtilmedi"}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <StatusBadge status={offer.status} />
-          <button
-            aria-label="Teklif detayını kapat"
-            className="rounded-lg p-2 text-[#81958f] hover:bg-[#e5f5ec] dark:hover:bg-[#174638]"
-            onClick={onClose}
-            type="button"
-          >
-            <X className="size-4" />
-          </button>
+          <Badge tone={offerTone[offer.status]}>{offer.status}</Badge>
+          {isExpired(offer) && <Badge tone="warning">Süresi geçti</Badge>}
+          <Button aria-label="Teklif detayını kapat" onClick={onClose} size="icon-sm" variant="ghost">
+            <X />
+          </Button>
         </div>
       </div>
-      <div className="mt-5 grid gap-3 sm:grid-cols-4">
-        <Info label="Teklif toplamı" value={money(offer.total)} icon={ClipboardList} />
-        <Info label="Hizmet kalemi" value={`${offer.items} kalem`} icon={FileText} />
-        <Info label="Geçerlilik" value={offer.validUntil} icon={CalendarDays} />
-        <Info label="Oluşturulma" value={offer.createdAt} icon={UsersRound} />
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <StatTile label="Teklif toplamı" value={money(offer.total)} icon={ClipboardList} />
+        <StatTile label="Hizmet kalemi" value={`${offer.items} kalem`} icon={FileText} />
+        <StatTile label="Teklif türü" value={offer.offerType ?? "Belirtilmedi"} icon={Tag} />
+        <StatTile label="Geçerlilik" value={offer.validUntil} icon={CalendarDays} />
+        <StatTile label="Oluşturulma" value={offer.createdAt} icon={UsersRound} />
       </div>
-      <div className="mt-5 flex flex-wrap gap-2">
-        <button
-          className="inline-flex items-center gap-2 rounded-xl bg-[#103c3a] px-3 py-2 text-xs font-semibold text-white hover:bg-[#174e4b]"
-          onClick={() => onEdit(offer)}
-          type="button"
-        >
-          <Edit3 className="size-3.5" /> Düzenle
-        </button>
-        <button
-          className="inline-flex items-center gap-2 rounded-xl border border-[#cfe6da] bg-white px-3 py-2 text-xs font-semibold text-[#278b70] dark:border-[#37685a] dark:bg-[#153c36] dark:text-[#a7f3d0]"
-          onClick={() => onStatus(offer, "Gönderildi")}
-          type="button"
-        >
-          <Send className="size-3.5" /> Gönderildi olarak işaretle
-        </button>
-        <button
-          className="inline-flex items-center gap-2 rounded-xl border border-[#f0d5cc] px-3 py-2 text-xs font-semibold text-[#a66f60] hover:bg-[#fff1ed] dark:border-[#59362f] dark:hover:bg-[#49302c]"
-          onClick={() => onDelete(offer)}
-          type="button"
-        >
-          <Trash2 className="size-3.5" /> Sil
-        </button>
+      {offer.lines && offer.lines.length > 0 && (
+        <div className="mt-5 rounded-xl border border-border">
+          <div className="flex items-center justify-between border-b border-divider px-4 py-3">
+            <p className="text-xs font-semibold text-foreground">Hizmet kalemleri</p>
+            {(offer.discount !== undefined || offer.tax !== undefined) && (
+              <p className="text-[11px] text-subtle">
+                İndirim %{offer.discount ?? 0} · KDV %{offer.tax ?? 0}
+              </p>
+            )}
+          </div>
+          <ul className="divide-y divide-divider">
+            {offer.lines.map((line) => (
+              <li className="flex items-center justify-between gap-3 px-4 py-2.5 text-xs" key={line.testId}>
+                <span className="min-w-0 truncate text-foreground">
+                  {line.name}
+                  <span className="text-subtle">
+                    {" "}
+                    × {line.quantity} · {money(line.unitPrice)} birim
+                  </span>
+                </span>
+                <span className="shrink-0 font-semibold text-foreground">{money(line.unitPrice * line.quantity)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {offer.notes && (
+        <p className="mt-5 rounded-xl bg-card-muted p-4 text-xs leading-5 text-muted">
+          <span className="font-semibold text-foreground">Not:</span> {offer.notes}
+        </p>
+      )}
+      <div className="mt-5 flex flex-wrap items-center gap-2">
+        <Button onClick={() => onEdit(offer.id)} size="sm">
+          <Edit3 /> Düzenle
+        </Button>
+        {offer.status === "Taslak" && (
+          <Button onClick={() => onStatus(offer, "Gönderildi")} size="sm" variant="secondary">
+            <Send /> Gönderildi olarak işaretle
+          </Button>
+        )}
+        <Button onClick={() => onDelete(offer)} size="sm" variant="danger-outline">
+          <Trash2 /> Sil
+        </Button>
+        <label className="ml-auto flex items-center gap-2 text-xs text-muted">
+          Durum
+          <Select
+            className="h-9 w-auto text-xs"
+            onChange={(event) => onStatus(offer, event.target.value as OfferStatus)}
+            value={offer.status}
+          >
+            {offerStatuses.map((item) => (
+              <option key={item}>{item}</option>
+            ))}
+          </Select>
+        </label>
       </div>
-    </section>
-  );
-}
-function Info({ label, value, icon: Icon }: { label: string; value: string; icon: typeof ClipboardList }) {
-  return (
-    <div className="rounded-xl border border-[#dceee4] bg-white p-3 dark:border-[#1d4941] dark:bg-[#0e2927]">
-      <Icon className="size-4 text-[#299b7c]" />
-      <p className="mt-2 text-[10px] text-[#91a49f]">{label}</p>
-      <p className="mt-1 truncate text-xs font-semibold text-[#31534f] dark:text-[#d3ebe2]">{value}</p>
-    </div>
+    </Card>
   );
 }
 
-function OfferForm({
-  form,
+function OfferEditModal({
+  offer,
   companies,
-  editing,
-  setField,
   onClose,
   onSave,
 }: {
-  form: FormState;
-  companies: CompanyOption[];
-  editing: boolean;
-  setField: (key: keyof FormState, value: string) => void;
+  offer: Offer;
+  companies: Company[];
   onClose: () => void;
-  onSave: () => void;
+  onSave: (offer: Offer) => void;
 }) {
+  const knownCompany = companies.some((company) => company.id === offer.companyId);
+  const [form, setForm] = useState<FormState>({
+    ...emptyForm,
+    companyId: knownCompany ? String(offer.companyId) : offer.company ? "current" : "",
+    title: offer.title,
+    validUntil: labelToIso(offer.validUntil),
+    total: String(offer.total),
+    items: String(offer.items),
+    contact: offer.contact,
+  });
   const [submitted, setSubmitted] = useState(false);
-  const valid = Boolean(form.company && form.title.trim() && form.validUntil && form.total && Number(form.total) >= 0);
-  const save = () => {
-    if (!valid) {
-      setSubmitted(true);
-      return;
-    }
-    onSave();
+  const errors = submitted ? validateForm(form) : {};
+  const setField = (key: keyof FormState, value: string) => setForm((current) => ({ ...current, [key]: value }));
+  const chooseCompany = (value: string) => {
+    const company = companies.find((item) => String(item.id) === value);
+    setField("companyId", value);
+    if (company) setField("contact", company.contact);
+  };
+  const submit = () => {
+    setSubmitted(true);
+    if (Object.keys(validateForm(form)).length > 0) return;
+    const company = companies.find((item) => String(item.id) === form.companyId);
+    onSave({
+      ...offer,
+      companyId: company?.id ?? offer.companyId,
+      company: company?.name ?? offer.company,
+      title: form.title.trim(),
+      validUntil: isoToLabel(form.validUntil),
+      total: Math.round(Number(form.total)),
+      items: Number(form.items) || 1,
+      contact: form.contact.trim(),
+    });
   };
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#082421]/60 p-4 backdrop-blur-[3px]">
-      <section
-        aria-label="Teklif formu"
-        aria-modal="true"
-        className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl dark:bg-[#0e2927]"
-        role="dialog"
-      >
-        <div className="border-b border-[#dceee4] bg-[linear-gradient(135deg,#eef7f1_0%,#ffffff_72%)] px-6 py-5 sm:px-7 dark:border-[#1d4941] dark:bg-[linear-gradient(135deg,#173c34_0%,#0e2927_72%)]">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <span className="flex size-10 items-center justify-center rounded-xl bg-[#d8f0e4] text-[#278b70] dark:bg-[#174638] dark:text-[#a7f3d0]">
-                <FileText className="size-5" />
-              </span>
-              <div>
-                <p className="text-[10px] font-bold tracking-[0.14em] text-[#299b7c] uppercase">Teklif kaydı</p>
-                <h2 className="mt-1 text-xl font-semibold text-[#173e3b] dark:text-[#e8f7f1]">
-                  {editing ? "Teklifi düzenle" : "Yeni teklif oluştur"}
-                </h2>
-                <p className="mt-1 text-xs text-[#81958f]">
-                  Firma ve hizmet detaylarını belirleyerek teklif taslağı oluşturun.
-                </p>
-              </div>
-            </div>
-            <button
-              aria-label="Teklif formunu kapat"
-              className="rounded-xl p-2 text-[#81958f] hover:bg-[#ebf6f0] dark:hover:bg-[#174638]"
-              onClick={onClose}
-              type="button"
-            >
-              <X className="size-5" />
-            </button>
-          </div>
-        </div>
-        <div className="grid gap-4 px-6 py-6 sm:grid-cols-2 sm:px-7">
-          <label className="text-sm font-medium text-[#31534f] sm:col-span-2 dark:text-[#c4dfd5]">
-            Firma
-            <select
-              className={`mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none focus:border-[#55b99c] dark:border-[#1d4941] dark:bg-[#102f2d] dark:text-white ${submitted && !form.company ? "border-[#c47b69]" : "border-[#dbe9e4]"}`}
-              onChange={(event) => {
-                const company = companies.find((item) => item.name === event.target.value);
-                setField("company", event.target.value);
-                if (company) setField("contact", company.contact);
-              }}
-              value={form.company}
-            >
-              <option value="">Firma seçin</option>
-              {companies.map((company) => (
-                <option key={company.id}>{company.name}</option>
-              ))}
-            </select>
-          </label>
-          <label className="text-sm font-medium text-[#31534f] sm:col-span-2 dark:text-[#c4dfd5]">
-            Teklif başlığı
-            <input
-              className={`mt-2 h-11 w-full rounded-xl border bg-[#fbfdfc] px-3 text-sm outline-none focus:border-[#55b99c] dark:border-[#1d4941] dark:bg-[#102f2d] dark:text-white ${submitted && !form.title.trim() ? "border-[#c47b69]" : "border-[#dbe9e4]"}`}
-              onChange={(event) => setField("title", event.target.value)}
-              placeholder="Örn. 2026 yıllık sağlık taraması"
-              value={form.title}
-            />
-          </label>
-          <label className="text-sm font-medium text-[#31534f] dark:text-[#c4dfd5]">
-            Geçerlilik tarihi
-            <input
-              className={`mt-2 h-11 w-full rounded-xl border bg-[#fbfdfc] px-3 text-sm outline-none focus:border-[#55b99c] dark:border-[#1d4941] dark:bg-[#102f2d] dark:text-white ${submitted && !form.validUntil ? "border-[#c47b69]" : "border-[#dbe9e4]"}`}
-              onChange={(event) => setField("validUntil", event.target.value)}
-              type="date"
-              value={form.validUntil}
-            />
-          </label>
-          <label className="text-sm font-medium text-[#31534f] dark:text-[#c4dfd5]">
-            Toplam tutar (₺)
-            <input
-              className={`mt-2 h-11 w-full rounded-xl border bg-[#fbfdfc] px-3 text-sm outline-none focus:border-[#55b99c] dark:border-[#1d4941] dark:bg-[#102f2d] dark:text-white ${submitted && !form.total ? "border-[#c47b69]" : "border-[#dbe9e4]"}`}
-              min="0"
-              onChange={(event) => setField("total", event.target.value)}
-              placeholder="0"
-              type="number"
-              value={form.total}
-            />
-          </label>
-          <label className="text-sm font-medium text-[#31534f] dark:text-[#c4dfd5]">
-            Hizmet kalemi sayısı
-            <input
-              className="mt-2 h-11 w-full rounded-xl border border-[#dbe9e4] bg-[#fbfdfc] px-3 text-sm outline-none dark:border-[#1d4941] dark:bg-[#102f2d] dark:text-white"
-              min="1"
-              onChange={(event) => setField("items", event.target.value)}
-              type="number"
-              value={form.items}
-            />
-          </label>
-          <label className="text-sm font-medium text-[#31534f] dark:text-[#c4dfd5]">
-            Firma yetkilisi
-            <input
-              className="mt-2 h-11 w-full rounded-xl border border-[#dbe9e4] bg-[#fbfdfc] px-3 text-sm outline-none dark:border-[#1d4941] dark:bg-[#102f2d] dark:text-white"
-              onChange={(event) => setField("contact", event.target.value)}
-              value={form.contact}
-            />
-          </label>
-          {submitted && !valid && (
-            <p className="rounded-xl border border-[#f3c9bd] bg-[#fff7f4] px-3 py-2.5 text-xs text-[#a66f60] sm:col-span-2 dark:border-[#59362f] dark:bg-[#3b2925] dark:text-[#f0b3a5]">
-              Lütfen firma, başlık, geçerlilik tarihi ve geçerli bir toplam tutar girin.
-            </p>
-          )}
-        </div>
-        <div className="flex justify-end gap-3 border-t border-[#edf3f0] px-6 py-4 sm:px-7 dark:border-[#1d4941]">
-          <button
-            className="rounded-xl px-4 py-2.5 text-sm font-semibold text-[#718783] hover:bg-[#ebf6f0] dark:hover:bg-[#174638]"
-            onClick={onClose}
-            type="button"
-          >
+    <Modal
+      description="Teklif başlığını, geçerlilik tarihini ve tutar bilgilerini güncelleyin."
+      eyebrow={`Teklif kaydı · ${offer.number}`}
+      footer={
+        <>
+          <Button onClick={onClose} variant="ghost">
             Vazgeç
-          </button>
-          <button
-            className="inline-flex items-center gap-2 rounded-xl bg-[#103c3a] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#174e4b]"
-            onClick={save}
-            type="button"
-          >
-            <Check className="size-4" /> {editing ? "Değişiklikleri kaydet" : "Teklif taslağı oluştur"}
-            <ArrowRight className="size-4" />
-          </button>
-        </div>
-      </section>
-    </div>
+          </Button>
+          <Button onClick={submit}>
+            <Check /> Değişiklikleri kaydet
+          </Button>
+        </>
+      }
+      icon={FileText}
+      onClose={onClose}
+      open
+      size="lg"
+      title="Teklifi düzenle"
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field className="sm:col-span-2" error={errors.companyId} label="Firma" required>
+          <Select invalid={Boolean(errors.companyId)} onChange={(event) => chooseCompany(event.target.value)} value={form.companyId}>
+            <option value="">Firma seçin</option>
+            {!knownCompany && offer.company && <option value="current">{offer.company}</option>}
+            {companies.map((company) => (
+              <option key={company.id} value={company.id}>
+                {company.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field className="sm:col-span-2" error={errors.title} label="Teklif başlığı" required>
+          <Input
+            invalid={Boolean(errors.title)}
+            onChange={(event) => setField("title", event.target.value)}
+            placeholder="Örn. 2026 yıllık sağlık taraması"
+            value={form.title}
+          />
+        </Field>
+        <Field error={errors.validUntil} label="Geçerlilik tarihi" required>
+          <Input
+            invalid={Boolean(errors.validUntil)}
+            onChange={(event) => setField("validUntil", event.target.value)}
+            type="date"
+            value={form.validUntil}
+          />
+        </Field>
+        <Field error={errors.total} label="Toplam tutar (₺)" required>
+          <Input
+            invalid={Boolean(errors.total)}
+            min={0}
+            onChange={(event) => setField("total", event.target.value)}
+            placeholder="0"
+            type="number"
+            value={form.total}
+          />
+        </Field>
+        <Field error={errors.items} label="Hizmet kalemi sayısı">
+          <Input
+            invalid={Boolean(errors.items)}
+            min={1}
+            onChange={(event) => setField("items", event.target.value)}
+            type="number"
+            value={form.items}
+          />
+        </Field>
+        <Field label="Firma yetkilisi">
+          <Input onChange={(event) => setField("contact", event.target.value)} placeholder="Ad soyad" value={form.contact} />
+        </Field>
+        {Object.keys(errors).length > 0 && (
+          <Alert className="sm:col-span-2" tone="danger">
+            Lütfen işaretli alanları kontrol edin.
+          </Alert>
+        )}
+      </div>
+    </Modal>
   );
 }

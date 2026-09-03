@@ -1,24 +1,24 @@
 "use client";
 
-import { useTheme } from "next-themes";
 import { Moon, Sun } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
+import { Button } from "@/components/ui/button";
+import { useHydrated } from "@/lib/storage";
+import { cn } from "@/lib/utils";
 
-export default function ThemeToggle() {
+export default function ThemeToggle({ className }: { className?: string }) {
   const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  // Theme resolves in the browser; mount state avoids a hydration icon mismatch.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => setMounted(true), []);
-  const isDark = mounted && resolvedTheme === "dark";
+  const hydrated = useHydrated();
+  const isDark = hydrated && resolvedTheme === "dark";
   return (
-    <button
+    <Button
       aria-label={isDark ? "Aydınlık moda geç" : "Karanlık moda geç"}
-      className="inline-flex size-10 items-center justify-center rounded-xl border border-[#dbe9e4] bg-white text-[#52776d] transition-colors hover:border-[#8ed3b7] hover:text-[#208267] dark:border-[#2b5a50] dark:bg-[#12332f] dark:text-[#a7d7c7] dark:hover:border-[#5bc49f] dark:hover:text-[#bdf4df]"
+      className={cn("text-muted hover:border-brand-outline hover:text-brand", className)}
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      type="button"
+      size="icon-lg"
+      variant="outline"
     >
-      {isDark ? <Sun className="size-[18px]" /> : <Moon className="size-[18px]" />}
-    </button>
+      {isDark ? <Sun /> : <Moon />}
+    </Button>
   );
 }

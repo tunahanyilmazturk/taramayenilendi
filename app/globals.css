@@ -1,231 +1,235 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+  Semantic design tokens. Light values live on :root, dark values on .dark.
+  Components use the Tailwind utilities generated from @theme (bg-card, text-muted, border-brand...)
+  and never hardcode hex values, so both themes stay in sync automatically.
+*/
 :root {
   color-scheme: light;
+
+  --background: #f4f8f6;
+  --foreground: #173e3b;
+  --heading: #103c3a;
+  --muted: #718783;
+  --subtle: #91a49f;
+  --faint: #b5c4bf;
+
+  --card: #ffffff;
+  --card-muted: #fbfdfc;
+  --border: #e0ece8;
+  --border-strong: #cfe6da;
+  --divider: #edf3f0;
+
+  --brand: #299b7c;
+  --brand-strong: #1f8068;
+  --brand-fg: #ffffff;
+  --brand-soft: #e5f5ec;
+  --brand-soft-fg: #1f8068;
+  --brand-ring: #dff6ec;
+  --brand-outline: #55b99c;
+
+  --primary: #103c3a;
+  --primary-hover: #174e4b;
+  --primary-fg: #ffffff;
+
+  --warning: #a16c3e;
+  --warning-soft: #fff1e2;
+  --danger: #a66f60;
+  --danger-strong: #8c4f40;
+  --danger-soft: #fff1ed;
+  --danger-border: #f0d5cc;
+  --info: #6f5b9f;
+  --info-soft: #f0eafd;
+  --neutral: #52776d;
+  --neutral-soft: #e7f0ed;
+
+  --sidebar: #0f2926;
+  --sidebar-border: #1d4941;
+  --sidebar-fg: #a7c9be;
+  --sidebar-fg-strong: #e9faf3;
+  --sidebar-muted: #79aa99;
+  --sidebar-hover: #174238;
+  --sidebar-active: #1d5747;
+  --sidebar-active-fg: #dcfaea;
+  --sidebar-accent: #73d1a6;
+
+  --overlay: rgba(8, 36, 33, 0.6);
+  --shadow-card: 0 1px 2px rgba(16, 60, 58, 0.04), 0 8px 24px -12px rgba(16, 60, 58, 0.12);
+  --shadow-primary: 0 8px 18px rgba(16, 60, 58, 0.16);
 }
 
-/* Teklif sihirbazında kart ve alt aksiyonlar viewport içinde kalsın. */
-@media (min-width: 640px) {
-  main.mx-auto.max-w-6xl > div > section[class*="max-h-[calc(100vh-7rem)]"] {
-    max-height: calc(100vh - 9rem);
+.dark {
+  color-scheme: dark;
+
+  --background: #071b1a;
+  --foreground: #e8f7f1;
+  --heading: #ecfaf5;
+  --muted: #91b0a6;
+  --subtle: #78988e;
+  --faint: #4f6c65;
+
+  --card: #0e2927;
+  --card-muted: #102f2d;
+  --border: #1d4941;
+  --border-strong: #28554c;
+  --divider: #1b4039;
+
+  --brand: #3fb593;
+  --brand-strong: #a7f3d0;
+  --brand-fg: #071b1a;
+  --brand-soft: #174638;
+  --brand-soft-fg: #a7f3d0;
+  --brand-ring: #1d5a4b;
+  --brand-outline: #55b99c;
+
+  --primary: #299b7c;
+  --primary-hover: #33ad8c;
+  --primary-fg: #ffffff;
+
+  --warning: #f4c994;
+  --warning-soft: #4b3825;
+  --danger: #f0b3a5;
+  --danger-strong: #f6c7bc;
+  --danger-soft: #49302c;
+  --danger-border: #59362f;
+  --info: #d6c8f4;
+  --info-soft: #3a3152;
+  --neutral: #c4dfd5;
+  --neutral-soft: #24423a;
+
+  --overlay: rgba(2, 14, 13, 0.7);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
+  --shadow-primary: 0 8px 18px rgba(0, 0, 0, 0.35);
+}
+
+@theme inline {
+  --font-sans:
+    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-heading: var(--heading);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-faint: var(--faint);
+
+  --color-card: var(--card);
+  --color-card-muted: var(--card-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-divider: var(--divider);
+
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-fg: var(--brand-fg);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-soft-fg: var(--brand-soft-fg);
+  --color-brand-ring: var(--brand-ring);
+  --color-brand-outline: var(--brand-outline);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-fg: var(--primary-fg);
+
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-strong: var(--danger-strong);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-border: var(--danger-border);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-neutral: var(--neutral);
+  --color-neutral-soft: var(--neutral-soft);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-fg: var(--sidebar-fg);
+  --color-sidebar-fg-strong: var(--sidebar-fg-strong);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-hover: var(--sidebar-hover);
+  --color-sidebar-active: var(--sidebar-active);
+  --color-sidebar-active-fg: var(--sidebar-active-fg);
+  --color-sidebar-accent: var(--sidebar-accent);
+
+  --color-overlay: var(--overlay);
+
+  --shadow-card: var(--shadow-card);
+  --shadow-primary: var(--shadow-primary);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  a {
+    text-decoration: none;
+  }
+
+  ::selection {
+    background: var(--brand-soft);
+    color: var(--brand-soft-fg);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--brand-outline);
+    outline-offset: 2px;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    opacity: 0.55;
+    cursor: pointer;
+  }
+
+  .dark input[type="date"]::-webkit-calendar-picker-indicator,
+  .dark input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
   }
 }
 
-* {
-  box-sizing: border-box;
+/* Appearance preferences (managed from Ayarlar > Görünüm). */
+html[data-density="compact"] {
+  --panel-padding: 1rem;
+  --card-padding: 1rem;
 }
 
-body {
-  margin: 0;
-  background: #ffffff;
-  font-family: Arial, Helvetica, sans-serif;
-  transition:
-    background-color 180ms ease,
-    color 180ms ease;
+html[data-density="comfortable"],
+html:not([data-density]) {
+  --panel-padding: 1.5rem;
+  --card-padding: 1.25rem;
 }
 
-html {
-  scroll-behavior: smooth;
+html[data-motion="off"] *,
+html[data-motion="off"] *::before,
+html[data-motion="off"] *::after {
+  transition-duration: 0ms !important;
+  animation-duration: 0ms !important;
 }
 
-a {
-  text-decoration: none;
-}
-
-html.dark body {
-  background: #101918;
-}
-
-/* Keep green as an accent, while neutralizing repeated tinted surfaces. */
-[class*="bg-[#d8f0e4]"] {
-  background-color: #e8efeb !important;
-}
-[class*="bg-[#e5f5ec]"] {
-  background-color: #eef4f0 !important;
-}
-[class*="bg-[#ebf6f0]"] {
-  background-color: #f3f6f4 !important;
-}
-[class*="bg-[#f0faf4]"] {
-  background-color: #f5f8f6 !important;
-}
-[class*="bg-[#f7fcf9]"] {
-  background-color: #f8faf9 !important;
-}
-[class*="border-[#cfe6da]"] {
-  border-color: #d9e5df !important;
-}
-[class*="border-[#dceee4]"] {
-  border-color: #e2eae6 !important;
-}
-[class*="border-[#dbe9e4]"] {
-  border-color: #e1e8e4 !important;
-}
-
-/* The topbar shares the dark shell with the sidebar in both themes. */
-header[class*="bg-white/90"] {
-  background-color: rgba(15, 41, 38, 0.95) !important;
-  border-color: #1d4941 !important;
-  color: #d3ebe2 !important;
-}
-header[class*="bg-white/90"] [class*="bg-[#f8fbfa]"] {
-  background-color: #153c36 !important;
-  border-color: #37685a !important;
-  color: #e8f7f1 !important;
-}
-header[class*="bg-white/90"] [class*="hover:bg-[#ebf6f0]"]:hover {
-  background-color: #174238 !important;
-}
-header[class*="bg-white/90"] [class*="bg-[#e1ece8]"] {
-  background-color: #37685a !important;
-}
-header[class*="bg-white/90"] [class*="bg-white"] {
-  background-color: #153c36 !important;
-}
-header[class*="bg-white/90"] [class*="text-[#31534f]"] {
-  color: #d3ebe2 !important;
-}
-header[class*="bg-white/90"] [class*="text-[#8aa09c]"] {
-  color: #8db0a6 !important;
-}
-header[class*="bg-white/90"] input::placeholder {
-  color: #8db0a6 !important;
-}
-header[class*="bg-white/90"] button {
-  background-color: transparent !important;
-  color: #a7c9be !important;
-}
-header[class*="bg-white/90"] button[class*="border"] {
-  background-color: #153c36 !important;
-  border-color: #37685a !important;
-}
-header[class*="bg-white/90"] button:hover {
-  background-color: #174238 !important;
-  color: #dff8ea !important;
-}
-
-/* Dark surfaces use charcoal-teal instead of saturated green or legacy blue. */
-html.dark [class*="dark:bg-[#111827]"] {
-  background-color: #172321 !important;
-}
-html.dark [class*="dark:bg-[#18212f]"] {
-  background-color: #162422 !important;
-}
-html.dark [class*="dark:bg-[#202b3b]"] {
-  background-color: #20302c !important;
-}
-html.dark [class*="dark:bg-[#0b2422]"] {
-  background-color: #111e1d !important;
-}
-html.dark [class*="dark:bg-[#102f2d]"] {
-  background-color: #172523 !important;
-}
-html.dark [class*="dark:bg-[#0e2927]"] {
-  background-color: #142220 !important;
-}
-html.dark [class*="dark:bg-[#12372f]"] {
-  background-color: #1b302c !important;
-}
-html.dark [class*="dark:bg-[#174638]"] {
-  background-color: #214139 !important;
-}
-html.dark [class*="dark:border-[#26364a]"] {
-  border-color: #293b37 !important;
-}
-html.dark [class*="dark:border-[#2b4057]"] {
-  border-color: #30443f !important;
-}
-html.dark [class*="dark:border-[#1d4941]"] {
-  border-color: #29453e !important;
-}
-html.dark [class*="dark:bg-[#3d4d62]"] {
-  background-color: #344641 !important;
-}
-
-/* Normalize light-only controls that previously stayed white in dark mode. */
-html.dark button[class*="bg-white"],
-html.dark select[class*="bg-white"],
-html.dark input[class*="bg-white"],
-html.dark textarea[class*="bg-white"] {
-  background-color: #153c36 !important;
-  border-color: #37685a !important;
-  color: #d3ebe2 !important;
-}
-html.dark [class*="bg-[#fbfdfc]"],
-html.dark [class*="bg-[#f8fbfa]"],
-html.dark [class*="bg-[#f7fcf9]"] {
-  background-color: #172523 !important;
-}
-html.dark [class*="border-[#dbe9e4]"],
-html.dark [class*="border-[#e0ece8]"],
-html.dark [class*="border-[#e2eee9]"] {
-  border-color: #304b44 !important;
-}
-html.dark button[class*="text-[#81958f]"],
-html.dark button[class*="text-[#68837c]"],
-html.dark button[class*="text-[#718783]"] {
-  color: #a7c9be !important;
-}
-html.dark main button[class*="rounded-lg"],
-html.dark main button[class*="rounded-xl"] {
-  background-color: #153c36 !important;
-  border-color: #37685a !important;
-  color: #c7e4d8 !important;
-}
-html.dark main button[class*="rounded-lg"]:hover,
-html.dark main button[class*="rounded-xl"]:hover {
-  background-color: #1d5747 !important;
-  color: #effff6 !important;
-}
-
-@media (max-height: 820px) {
-  .login-screen > div {
-    padding-top: 0.5rem;
-    padding-bottom: 0.5rem;
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
   }
+}
 
-  .login-screen section[aria-label="Kullanıcı girişi"] {
-    padding-top: 1.25rem;
-    padding-bottom: 1.25rem;
-  }
-
-  .login-screen section[aria-label="Kullanıcı girişi"] > div > div:nth-child(2) {
-    margin-top: 0.75rem;
-    margin-bottom: 1rem;
-  }
-
-  .login-screen form {
-    row-gap: 0.75rem;
-  }
-
-  .login-screen form input {
-    height: 2.75rem;
-  }
-
-  .login-screen form + div {
-    margin-top: 0.75rem;
-    padding: 0.65rem;
-  }
-
-  .login-screen form + div p,
-  .login-screen form + div div div > span {
-    display: none;
-  }
-
-  .login-screen form + div button {
-    margin-top: 0.35rem;
-  }
-
-  .login-screen [aria-live="polite"] {
-    margin-top: 0.25rem;
-  }
-
-  .login-screen [aria-live="polite"] + div {
-    margin-top: 0.75rem;
-  }
-
-  .login-screen [aria-live="polite"] + div + p {
-    margin-top: 0.75rem;
-  }
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
 }

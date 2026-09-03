@@ -1,85 +1,40 @@
 "use client";
 
-import {
-  BarChart3,
-  Building2,
-  CalendarClock,
-  ChevronRight,
-  FileText,
-  LayoutDashboard,
-  PanelLeftClose,
-  PanelLeftOpen,
-  ScanLine,
-  Settings2,
-  UsersRound,
-  X,
-} from "lucide-react";
+import { ChevronRight, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { BrandMark } from "@/components/shared/brand-mark";
+import { isActivePath, navGroups, settingsNav, type NavItem } from "@/lib/navigation";
+import { cn } from "@/lib/utils";
 
-type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; badge?: string };
-const navGroups: { label: string; links: NavItem[] }[] = [
-  {
-    label: "Çalışma alanı",
-    links: [
-      { href: "/dashboard", label: "Genel Bakış", icon: LayoutDashboard },
-      { href: "/firmalar", label: "Firmalar", icon: Building2 },
-      { href: "/personeller", label: "Personeller", icon: UsersRound },
-    ],
-  },
-  {
-    label: "Operasyonlar",
-    links: [
-      { href: "/taramalar", label: "Taramalar", icon: ScanLine, badge: "24" },
-      { href: "/teklifler", label: "Teklifler", icon: FileText },
-      { href: "/istatistikler", label: "İstatistikler", icon: BarChart3 },
-      { href: "/takvim", label: "Takvim", icon: CalendarClock },
-    ],
-  },
-];
-
-export default function Sidebar({
-  open,
-  collapsed,
-  onClose,
-  onToggleCollapse,
-}: {
+type SidebarProps = {
   open: boolean;
   collapsed: boolean;
+  badges?: Partial<Record<string, number>>;
   onClose: () => void;
   onToggleCollapse: () => void;
-}) {
-  const pathname = usePathname();
-  const activeClass = "bg-[#1d5747] text-[#dcfaea] shadow-[inset_3px_0_0_#73d1a6]";
-  const inactiveClass = "text-[#a7c9be] hover:bg-[#174238] hover:text-[#e4faef]";
-  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
-  const linkClass = (active: boolean) =>
-    `group relative flex items-center rounded-xl py-3 text-sm font-medium transition-colors ${collapsed ? "justify-center px-2" : "gap-3 px-3"} ${active ? activeClass : inactiveClass}`;
+};
 
+export default function Sidebar({ open, collapsed, badges = {}, onClose, onToggleCollapse }: SidebarProps) {
+  const pathname = usePathname();
   return (
     <>
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col border-r border-[#1d4941] bg-[#0f2926] px-3 py-5 transition-[width,transform] duration-200 lg:translate-x-0 ${collapsed ? "lg:w-[84px]" : "lg:w-[260px]"} ${open ? "translate-x-0" : "-translate-x-full"}`}
+        className={cn(
+          "fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col border-r border-sidebar-border bg-sidebar px-3 py-5 transition-[width,transform] duration-200 lg:translate-x-0",
+          collapsed ? "lg:w-[84px]" : "lg:w-[260px]",
+          open ? "translate-x-0" : "-translate-x-full",
+        )}
       >
-        <div className={`flex items-center ${collapsed ? "justify-center" : "justify-between px-1"}`}>
-          <Link aria-label="HanTech ana sayfa" className="flex items-center gap-3" href="/dashboard" onClick={onClose}>
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#1a4a3d] text-lg font-bold text-[#a7f3d0]">
-              H
-            </span>
-            {!collapsed && (
-              <span className="leading-tight">
-                <span className="block text-sm font-bold text-[#e9faf3]">HanTech</span>
-                <span className="block text-[9px] font-semibold tracking-[0.12em] text-[#8db0a6]">
-                  OSGB YÖNETİM SİSTEMİ
-                </span>
-              </span>
-            )}
+        <div className={cn("flex items-center", collapsed ? "justify-center" : "justify-between px-1")}>
+          <Link aria-label="HanTech ana sayfa" href="/dashboard" onClick={onClose}>
+            <BrandMark compact={collapsed} variant="sidebar" />
           </Link>
           {!collapsed && (
             <button
-              className="rounded-lg p-1.5 text-[#8db0a6] hover:bg-[#174238] lg:hidden"
-              onClick={onClose}
               aria-label="Menüyü kapat"
+              className="rounded-lg p-1.5 text-sidebar-muted hover:bg-sidebar-hover lg:hidden"
+              onClick={onClose}
               type="button"
             >
               <X className="size-5" />
@@ -87,85 +42,116 @@ export default function Sidebar({
           )}
         </div>
         <button
-          aria-label={collapsed ? "Sidebarı genişlet" : "Sidebarı daralt"}
-          className="absolute top-[72px] -right-3 hidden size-7 items-center justify-center rounded-full border border-[#37685a] bg-[#153c36] text-[#a7f3d0] shadow-sm transition hover:bg-[#1d5747] lg:flex"
+          aria-label={collapsed ? "Menüyü genişlet" : "Menüyü daralt"}
+          className="absolute top-[72px] -right-3 hidden size-7 items-center justify-center rounded-full border border-sidebar-border bg-sidebar-hover text-brand-strong shadow-sm transition hover:bg-sidebar-active lg:flex"
           onClick={onToggleCollapse}
           type="button"
         >
           {collapsed ? <PanelLeftOpen className="size-3.5" /> : <PanelLeftClose className="size-3.5" />}
         </button>
-        <div className={`mt-9 flex-1 ${collapsed ? "overflow-visible" : "overflow-y-auto"}`}>
-          <nav aria-label="Panel navigasyonu" className="space-y-6">
-            {navGroups.map((group) => (
-              <div key={group.label}>
-                <p
-                  className={`px-3 text-[10px] font-bold tracking-[0.18em] text-[#79aa99] uppercase ${collapsed ? "sr-only" : ""}`}
-                >
-                  {group.label}
-                </p>
-                <div className="mt-3 space-y-1">
-                  {group.links.map(({ href, label, icon: Icon, badge }) => {
-                    const active = isActive(href);
-                    return (
-                      <Link
-                        aria-current={active ? "page" : undefined}
-                        className={linkClass(active)}
-                        href={href}
-                        key={href}
-                        onClick={onClose}
-                      >
-                        <Icon className="size-[18px] shrink-0" />
-                        <span className={collapsed ? "sr-only" : "min-w-0 flex-1"}>{label}</span>
-                        {badge && !collapsed && (
-                          <span
-                            className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${active ? "bg-[#d9f7e7] text-[#237d61]" : "bg-[#1b3b34] text-[#8db8a6]"}`}
-                          >
-                            {badge}
-                          </span>
-                        )}
-                        <ChevronRight
-                          className={`size-3.5 ${collapsed ? "sr-only" : active ? "opacity-70" : "opacity-0 group-hover:translate-x-0.5 group-hover:opacity-60"}`}
-                        />
-                        {collapsed && (
-                          <span className="pointer-events-none absolute left-[calc(100%+12px)] z-50 hidden rounded-lg bg-[#173c35] px-2.5 py-2 text-xs font-semibold whitespace-nowrap text-white opacity-0 shadow-lg transition-opacity group-hover:block group-hover:opacity-100">
-                            {label}
-                            {badge && <span className="ml-1.5 text-[#a7f3d0]">{badge}</span>}
-                          </span>
-                        )}
-                      </Link>
-                    );
-                  })}
-                </div>
+        <nav aria-label="Panel navigasyonu" className={cn("mt-9 flex-1 space-y-6", !collapsed && "overflow-y-auto")}>
+          {navGroups.map((group) => (
+            <div key={group.label}>
+              <p
+                className={cn(
+                  "px-3 text-[10px] font-bold tracking-[0.18em] text-sidebar-muted uppercase",
+                  collapsed && "sr-only",
+                )}
+              >
+                {group.label}
+              </p>
+              <div className="mt-3 space-y-1">
+                {group.links.map((item) => (
+                  <NavLink
+                    active={isActivePath(pathname, item.href)}
+                    badge={badges[item.href]}
+                    collapsed={collapsed}
+                    item={item}
+                    key={item.href}
+                    onClick={onClose}
+                  />
+                ))}
               </div>
-            ))}
-          </nav>
-        </div>
-        <div className="pt-5">
-          <Link
-            aria-current={isActive("/ayarlar") ? "page" : undefined}
-            className={linkClass(isActive("/ayarlar"))}
-            href="/ayarlar"
+            </div>
+          ))}
+        </nav>
+        <div className="border-t border-sidebar-border pt-4">
+          <NavLink
+            active={isActivePath(pathname, settingsNav.href)}
+            collapsed={collapsed}
+            item={settingsNav}
             onClick={onClose}
-          >
-            <Settings2 className="size-[18px] shrink-0" />
-            <span className={collapsed ? "sr-only" : "flex-1"}>Ayarlar</span>
-            {!collapsed && <ChevronRight className="size-3.5 opacity-60" />}
-            {collapsed && (
-              <span className="pointer-events-none absolute left-[calc(100%+12px)] z-50 hidden rounded-lg bg-[#173c35] px-2.5 py-2 text-xs font-semibold whitespace-nowrap text-white opacity-0 shadow-lg transition-opacity group-hover:block group-hover:opacity-100">
-                Ayarlar
-              </span>
-            )}
-          </Link>
+          />
         </div>
       </aside>
       {open && (
         <button
           aria-label="Menüyü kapat"
-          className="fixed inset-0 z-30 bg-[#082421]/45 lg:hidden"
+          className="fixed inset-0 z-30 bg-overlay lg:hidden"
           onClick={onClose}
           type="button"
         />
       )}
     </>
+  );
+}
+
+function NavLink({
+  item,
+  active,
+  collapsed,
+  badge,
+  onClick,
+}: {
+  item: NavItem;
+  active: boolean;
+  collapsed: boolean;
+  badge?: number;
+  onClick: () => void;
+}) {
+  const Icon = item.icon;
+  return (
+    <Link
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "group relative flex items-center rounded-xl py-3 text-sm font-medium transition-colors",
+        collapsed ? "justify-center px-2" : "gap-3 px-3",
+        active
+          ? "bg-sidebar-active text-sidebar-active-fg shadow-[inset_3px_0_0_var(--sidebar-accent)]"
+          : "text-sidebar-fg hover:bg-sidebar-hover hover:text-sidebar-fg-strong",
+      )}
+      href={item.href}
+      onClick={onClick}
+    >
+      <Icon className="size-[18px] shrink-0" />
+      <span className={collapsed ? "sr-only" : "min-w-0 flex-1 truncate"}>{item.label}</span>
+      {!collapsed && badge !== undefined && badge > 0 && (
+        <span
+          className={cn(
+            "rounded-md px-1.5 py-0.5 text-[10px] font-bold",
+            active ? "bg-brand-strong/20 text-sidebar-active-fg" : "bg-sidebar-hover text-sidebar-fg",
+          )}
+        >
+          {badge}
+        </span>
+      )}
+      {!collapsed && (
+        <ChevronRight
+          className={cn(
+            "size-3.5 transition",
+            active ? "opacity-70" : "opacity-0 group-hover:translate-x-0.5 group-hover:opacity-60",
+          )}
+        />
+      )}
+      {collapsed && (
+        <span
+          className="pointer-events-none absolute left-[calc(100%+12px)] z-50 hidden whitespace-nowrap rounded-lg bg-sidebar-hover px-2.5 py-2 text-xs font-semibold text-sidebar-fg-strong shadow-lg group-hover:block"
+          role="tooltip"
+        >
+          {item.label}
+          {badge !== undefined && badge > 0 && <span className="ml-1.5 text-brand-strong">{badge}</span>}
+        </span>
+      )}
+    </Link>
   );
 }

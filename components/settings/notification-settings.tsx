@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import SettingsCard from "./settings-card";
+import { Button } from "@/components/ui/button";
 
 const storageKey = "hantech-notification-preferences";
 type NotificationPreferences = {
@@ -63,18 +64,18 @@ function ToggleRow({
   return (
     <div className={`flex items-center justify-between gap-4 py-4 ${disabled ? "opacity-60" : ""}`}>
       <div className="flex min-w-0 items-start gap-3">
-        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#e5f5ec] text-[#278b70] dark:bg-[#174638] dark:text-[#a7f3d0]">
+        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand-soft-fg">
           <Icon className="size-4" />
         </span>
         <div>
-          <p className="text-sm font-semibold text-[#31534f] dark:text-[#d3ebe2]">{title}</p>
-          <p className="mt-1 text-xs leading-5 text-[#81958f] dark:text-[#91b0a6]">{description}</p>
+          <p className="text-sm font-semibold text-foreground">{title}</p>
+          <p className="mt-1 text-xs leading-5 text-muted">{description}</p>
         </div>
       </div>
       <button
         aria-pressed={checked}
         aria-label={`${title} ${checked ? "açık" : "kapalı"}`}
-        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${checked ? "bg-[#299b7c]" : "bg-[#c8d6d1] dark:bg-[#3d594f]"}`}
+        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${checked ? "bg-brand" : "bg-border-strong"}`}
         disabled={disabled}
         onClick={() => onChange(!checked)}
         type="button"
@@ -87,17 +88,9 @@ function ToggleRow({
   );
 }
 
-export default function NotificationSettings({
-  emailNotifications,
-  setEmailNotifications,
-  screeningReminders,
-  setScreeningReminders,
-}: {
-  emailNotifications: boolean;
-  setEmailNotifications: (value: boolean) => void;
-  screeningReminders: boolean;
-  setScreeningReminders: (value: boolean) => void;
-}) {
+export default function NotificationSettings() {
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [screeningReminders, setScreeningReminders] = useState(true);
   const [preferences, setPreferences] = useState<NotificationPreferences>(defaults);
   const [hydrated, setHydrated] = useState(false);
   const update = <K extends keyof NotificationPreferences>(key: K, value: NotificationPreferences[K]) =>
@@ -155,19 +148,19 @@ export default function NotificationSettings({
       description="OSGB operasyonlarındaki önemli gelişmelerden nasıl haberdar olacağınızı yönetin."
     >
       <div className="mt-6 space-y-7">
-        <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#dceee4] bg-[#f7fcf9] px-4 py-3 dark:border-[#1d4941] dark:bg-[#102f2d]">
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card-muted px-4 py-3">
           <div className="flex items-center gap-3">
-            <span className="flex size-9 items-center justify-center rounded-xl bg-[#d8f0e4] text-[#278b70] dark:bg-[#174638] dark:text-[#a7f3d0]">
+            <span className="flex size-9 items-center justify-center rounded-xl bg-brand-soft text-brand-soft-fg">
               <CheckCircle2 className="size-5" />
             </span>
             <div>
-              <p className="text-sm font-semibold text-[#31534f] dark:text-[#d3ebe2]">Bildirim merkezi aktif</p>
-              <p className="mt-1 text-xs text-[#81958f]">
+              <p className="text-sm font-semibold text-foreground">Bildirim merkezi aktif</p>
+              <p className="mt-1 text-xs text-muted">
                 {enabledCount} tercih açık · Değişiklikler otomatik kaydedilir.
               </p>
             </div>
           </div>
-          <span className="rounded-full bg-[#dff6eb] px-2.5 py-1 text-[10px] font-bold text-[#258b71] dark:bg-[#174638] dark:text-[#a7f3d0]">
+          <span className="rounded-full bg-brand-soft px-2.5 py-1 text-[10px] font-bold text-brand-soft-fg">
             Hazır
           </span>
         </div>
@@ -177,7 +170,7 @@ export default function NotificationSettings({
             title="Bildirim kanalları"
             description="Uyarıların hangi kanallardan size iletileceğini seçin."
           />
-          <div className="mt-3 divide-y divide-[#edf3f0] rounded-2xl border border-[#e5eee9] px-4 dark:divide-[#1d4941] dark:border-[#1d4941]">
+          <div className="mt-3 divide-y divide-divider rounded-2xl border border-border px-4">
             <ToggleRow
               icon={Mail}
               title="E-posta bildirimleri"
@@ -207,7 +200,7 @@ export default function NotificationSettings({
             title="Operasyon bildirimleri"
             description="Saha ve müşteri süreçlerinde hangi olayların izleneceğini belirleyin."
           />
-          <div className="mt-3 divide-y divide-[#edf3f0] rounded-2xl border border-[#e5eee9] px-4 dark:divide-[#1d4941]">
+          <div className="mt-3 divide-y divide-divider rounded-2xl border border-border px-4">
             <ToggleRow
               icon={CalendarClock}
               title="Tarama hatırlatıcıları"
@@ -251,12 +244,12 @@ export default function NotificationSettings({
             title="Özet ve sessiz saatler"
             description="Bildirim yoğunluğunu çalışma düzeninize göre ayarlayın."
           />
-          <div className="mt-3 grid gap-4 rounded-2xl border border-[#e5eee9] p-4 dark:border-[#1d4941]">
-            <label className="text-sm font-medium text-[#31534f] dark:text-[#d3ebe2]">
+          <div className="mt-3 grid gap-4 rounded-2xl border border-border p-4">
+            <label className="text-sm font-medium text-foreground">
               Bildirim özeti
               <select
                 aria-label="Bildirim özeti"
-                className="mt-2 h-11 w-full rounded-xl border border-[#dbe9e4] bg-white px-3 text-sm outline-none focus:border-[#55b99c] dark:border-[#1d4941] dark:bg-[#102f2d] dark:text-white"
+                className="mt-2 h-11 w-full rounded-xl border border-border bg-card-muted px-3 text-sm outline-none focus:border-brand-outline"
                 onChange={(event) => update("digest", event.target.value as NotificationPreferences["digest"])}
                 value={preferences.digest}
               >
@@ -273,22 +266,22 @@ export default function NotificationSettings({
               onChange={(value) => update("quietHours", value)}
             />
             {preferences.quietHours && (
-              <div className="grid gap-3 border-t border-[#edf3f0] pt-4 sm:grid-cols-2 dark:border-[#1d4941]">
-                <label className="text-xs font-semibold text-[#52776d] dark:text-[#a7c9be]">
+              <div className="grid gap-3 border-t border-divider pt-4 sm:grid-cols-2">
+                <label className="text-xs font-semibold text-muted">
                   Başlangıç
                   <input
                     aria-label="Sessiz saat başlangıcı"
-                    className="mt-2 h-10 w-full rounded-xl border border-[#dbe9e4] bg-[#fbfdfc] px-3 text-sm text-[#31534f] outline-none focus:border-[#55b99c] dark:border-[#1d4941] dark:bg-[#102f2d] dark:text-white"
+                    className="mt-2 h-10 w-full rounded-xl border border-border bg-card-muted px-3 text-sm text-foreground outline-none focus:border-brand-outline"
                     onChange={(event) => update("quietStart", event.target.value)}
                     type="time"
                     value={preferences.quietStart}
                   />
                 </label>
-                <label className="text-xs font-semibold text-[#52776d] dark:text-[#a7c9be]">
+                <label className="text-xs font-semibold text-muted">
                   Bitiş
                   <input
                     aria-label="Sessiz saat bitişi"
-                    className="mt-2 h-10 w-full rounded-xl border border-[#dbe9e4] bg-[#fbfdfc] px-3 text-sm text-[#31534f] outline-none focus:border-[#55b99c] dark:border-[#1d4941] dark:bg-[#102f2d] dark:text-white"
+                    className="mt-2 h-10 w-full rounded-xl border border-border bg-card-muted px-3 text-sm text-foreground outline-none focus:border-brand-outline"
                     onChange={(event) => update("quietEnd", event.target.value)}
                     type="time"
                     value={preferences.quietEnd}
@@ -298,12 +291,12 @@ export default function NotificationSettings({
             )}
           </div>
         </section>
-        <section className="rounded-2xl border border-[#f0ddd4] bg-[#fffaf8] p-4 dark:border-[#543d36] dark:bg-[#2d211e]">
+        <section className="rounded-2xl border border-warning-soft bg-warning-soft/40 p-4">
           <div className="flex items-start gap-3">
-            <ShieldAlert className="mt-0.5 size-4 shrink-0 text-[#b97967]" />
+            <ShieldAlert className="mt-0.5 size-4 shrink-0 text-warning" />
             <div>
-              <p className="text-xs font-semibold text-[#825548] dark:text-[#edb9aa]">Kritik güvenlik bildirimleri</p>
-              <p className="mt-1 text-xs leading-5 text-[#9b7064] dark:text-[#dca79a]">
+              <p className="text-xs font-semibold text-warning">Kritik güvenlik bildirimleri</p>
+              <p className="mt-1 text-xs leading-5 text-muted">
                 Güvenlik uyarıları, oturum ve hesap koruma bildirimleri sessiz saatlerden bağımsız olarak gösterilir.
               </p>
             </div>
@@ -318,20 +311,20 @@ export default function NotificationSettings({
             />
           </div>
         </section>
-        <div className="flex items-center justify-between gap-3 border-t border-[#edf3f0] pt-5 dark:border-[#1d4941]">
-          <p className="text-xs text-[#81958f]">Tercihleriniz bu cihazda saklanır.</p>
-          <button
-            className="inline-flex items-center gap-2 rounded-xl bg-[#103c3a] px-4 py-2.5 text-xs font-semibold text-white hover:bg-[#174e4b]"
+        <div className="flex items-center justify-between gap-3 border-t border-divider pt-5">
+          <p className="text-xs text-muted">Tercihleriniz bu cihazda saklanır.</p>
+          <Button
             onClick={() =>
               window.localStorage.setItem(
                 storageKey,
                 JSON.stringify({ ...preferences, emailNotifications, screeningReminders }),
               )
             }
-            type="button"
+            size="sm"
+            variant="secondary"
           >
             <Save className="size-3.5" /> Tercihleri kaydet
-          </button>
+          </Button>
         </div>
       </div>
     </SettingsCard>
@@ -341,12 +334,12 @@ export default function NotificationSettings({
 function SectionHeading({ icon: Icon, title, description }: { icon: typeof Bell; title: string; description: string }) {
   return (
     <div className="flex items-start gap-3">
-      <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#eef8f2] text-[#278b70] dark:bg-[#174638] dark:text-[#a7f3d0]">
+      <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand-soft-fg">
         <Icon className="size-4" />
       </span>
       <div>
-        <h2 className="text-sm font-semibold text-[#31534f] dark:text-[#d3ebe2]">{title}</h2>
-        <p className="mt-1 text-xs leading-5 text-[#81958f] dark:text-[#91b0a6]">{description}</p>
+        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+        <p className="mt-1 text-xs leading-5 text-muted">{description}</p>
       </div>
     </div>
   );

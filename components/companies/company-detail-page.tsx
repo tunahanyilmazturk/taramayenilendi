@@ -1,63 +1,40 @@
 "use client";
 
-/* Frontend-only offer list reads from browser storage. */
-/* eslint-disable react-hooks/set-state-in-effect */
-
 import {
   ArrowLeft,
   Building2,
   CalendarDays,
   CheckCircle2,
   ClipboardList,
+  Edit3,
   FileText,
+  Mail,
   MapPin,
-  MoreHorizontal,
   Phone,
+  Plus,
   ReceiptText,
   ShieldCheck,
+  StickyNote,
   UsersRound,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { applyCompanyForm, CompanyForm, type CompanyFormValues } from "@/components/companies/company-form";
+import { Badge, contractTone, CountPill, offerTone } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, StatTile } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Alert } from "@/components/ui/modal";
+import { Page } from "@/components/ui/page-header";
+import { Avatar } from "@/components/ui/table";
+import { useCompanies, useOffers, useSectors } from "@/lib/data";
+import { companyLocation, type Company, type Offer } from "@/lib/demo-data";
+import { labelToIso, money } from "@/lib/format";
+import { useNotice } from "@/lib/hooks";
+import { useHydrated } from "@/lib/storage";
+import { cn, initials } from "@/lib/utils";
 
-const companies = {
-  "1": {
-    name: "Artemis Otomotiv A.Ş.",
-    sector: "Otomotiv",
-    city: "Kocaeli · Gebze",
-    contact: "Murat Şahin",
-    phone: "+90 262 000 00 00",
-    employees: 248,
-    screenings: 18,
-    contract: "Aktif",
-    contractEnd: "31 Ara 2026",
-    code: "AO",
-  },
-  "2": {
-    name: "Mavi Hat Lojistik",
-    sector: "Lojistik",
-    city: "İstanbul · Tuzla",
-    contact: "Büşra Aydın",
-    phone: "+90 216 000 00 00",
-    employees: 126,
-    screenings: 12,
-    contract: "Aktif",
-    contractEnd: "18 Mar 2027",
-    code: "MH",
-  },
-  "3": {
-    name: "Nova Gıda Üretim",
-    sector: "Gıda üretimi",
-    city: "Tekirdağ · Çerkezköy",
-    contact: "Emre Yıldız",
-    phone: "+90 282 000 00 00",
-    employees: 384,
-    screenings: 24,
-    contract: "Yenileniyor",
-    contractEnd: "15 Eyl 2026",
-    code: "NG",
-  },
-};
 const tabs = [
   ["genel", "Genel bakış"],
   ["calisanlar", "Çalışanlar"],
@@ -66,284 +43,351 @@ const tabs = [
   ["sozlesme", "Sözleşme ve belgeler"],
   ["notlar", "Notlar"],
 ] as const;
+type TabId = (typeof tabs)[number][0];
+
+const recentActivity = [
+  ["02 Eyl 2026", "Mobil sağlık taraması başladı", "Ekip 04 · 84 çalışan"],
+  ["28 Ağu 2026", "Tarama sonuçları tamamlandı", "246 sonuç · Rapor hazır"],
+  ["15 Ağu 2026", "Sözleşme belgesi güncellendi", "Yönetici tarafından"],
+];
 
 export default function CompanyDetailPage({ companyId }: { companyId: string }) {
-  const company = companies[companyId as keyof typeof companies] ?? {
-    name: "Yeni firma",
-    sector: "Sektör bilgisi bekleniyor",
-    city: "Konum bilgisi bekleniyor",
-    contact: "-",
-    phone: "-",
-    employees: 0,
-    screenings: 0,
-    contract: "Aktif",
-    contractEnd: "-",
-    code: "NF",
+  const hydrated = useHydrated();
+  const [companies, setCompanies] = useCompanies();
+  const [sectors] = useSectors();
+  const [notice, showNotice] = useNotice();
+  const [activeTab, setActiveTab] = useState<TabId>("genel");
+  const [editing, setEditing] = useState(false);
+  const company = companies.find((item) => item.id === Number(companyId));
+
+  if (!hydrated) return <DetailSkeleton />;
+  if (!company) {
+    return (
+      <Page>
+        <BackLink />
+        <EmptyState
+          action={
+            <Button asChild variant="secondary">
+              <Link href="/firmalar">
+                <ArrowLeft /> Firma listesine dön
+              </Link>
+            </Button>
+          }
+          className="mt-6"
+          description="Aradığınız firma silinmiş veya bağlantı hatalı olabilir."
+          icon={Building2}
+          title="Firma bulunamadı"
+        />
+      </Page>
+    );
+  }
+
+  const saveCompany = (values: CompanyFormValues) => {
+    setCompanies(applyCompanyForm(companies, values, company.id));
+    setEditing(false);
+    showNotice("Firma bilgileri güncellendi.");
   };
-  const [activeTab, setActiveTab] = useState("genel");
+
   return (
-    <main className="mx-auto max-w-[1440px] pb-10">
-      <Link
-        className="inline-flex items-center gap-2 text-xs font-semibold text-[#718783] hover:text-[#258b71]"
-        href="/firmalar"
-      >
-        <ArrowLeft className="size-4" /> Firmalara dön
-      </Link>
-      <section className="mt-6 rounded-2xl border border-[#e0ece8] bg-white p-5 sm:p-7 dark:border-[#1d4941] dark:bg-[#0e2927]">
+    <Page>
+      <BackLink />
+      {notice && <Alert className="mt-4 w-fit">{notice}</Alert>}
+      <Card className="mt-6 p-5 sm:p-7">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex size-16 items-center justify-center rounded-2xl bg-[#d8f0e4] text-lg font-bold text-[#1f8068] dark:bg-[#174638] dark:text-[#a7f3d0]">
-              {company.code}
-            </div>
-            <div>
+            <Avatar size="lg" text={initials(company.name)} />
+            <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-2xl font-semibold tracking-[-0.04em] text-[#173e3b] dark:text-[#e8f7f1]">
-                  {company.name}
-                </h1>
-                <Status status={company.contract} />
+                <h1 className="text-2xl font-semibold tracking-[-0.04em] text-heading">{company.name}</h1>
+                <Badge tone={contractTone[company.contract]}>{company.contract}</Badge>
               </div>
-              <p className="mt-2 flex items-center gap-1.5 text-sm text-[#81958f] dark:text-[#a7c9be]">
-                <Building2 className="size-4" /> {company.sector}
+              <p className="mt-2 flex flex-wrap items-center gap-1.5 text-sm text-muted">
+                <Building2 className="size-4" /> {company.sector || "—"}
                 <span className="mx-1">·</span>
-                <MapPin className="size-4" /> {company.city}
+                <MapPin className="size-4" /> {companyLocation(company) || "—"}
               </p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <button
-              className="inline-flex items-center gap-2 rounded-xl border border-[#dbe9e4] px-3 py-2.5 text-xs font-semibold text-[#52776d] hover:bg-[#ebf6f0] dark:border-[#1d4941] dark:text-[#c4dfd5]"
-              type="button"
-            >
-              <MoreHorizontal className="size-4" /> İşlemler
-            </button>
-            <button
-              className="inline-flex items-center gap-2 rounded-xl bg-[#103c3a] px-3 py-2.5 text-xs font-semibold text-white hover:bg-[#174e4b]"
-              type="button"
-            >
-              <CalendarDays className="size-4" /> Yeni tarama
-            </button>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => setEditing(true)} size="sm" variant="secondary">
+              <Edit3 /> Firma bilgilerini düzenle
+            </Button>
+            <Button asChild size="sm">
+              <Link href="/taramalar">
+                <CalendarDays /> Yeni tarama
+              </Link>
+            </Button>
           </div>
         </div>
-        <div className="mt-7 grid gap-3 sm:grid-cols-4">
-          <Info label="Çalışan sayısı" value={String(company.employees)} icon={UsersRound} />
-          <Info label="Toplam tarama" value={String(company.screenings)} icon={ClipboardList} />
-          <Info label="Sözleşme bitişi" value={company.contractEnd} icon={FileText} />
-          <Info label="Firma yetkilisi" value={company.contact} icon={ShieldCheck} />
+        <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <StatTile icon={UsersRound} label="Çalışan sayısı" value={company.employees} />
+          <StatTile icon={ClipboardList} label="Toplam tarama" value={company.screenings} />
+          <StatTile icon={FileText} label="Sözleşme bitişi" value={company.contractEnd || "—"} />
+          <StatTile icon={ShieldCheck} label="Firma yetkilisi" value={company.contact || "—"} />
         </div>
-      </section>
-      <nav
-        className="mt-6 flex gap-5 overflow-x-auto border-b border-[#e0ece8] dark:border-[#1d4941]"
-        aria-label="Firma detay sekmeleri"
-      >
+      </Card>
+
+      <nav aria-label="Firma detay sekmeleri" className="mt-6 flex gap-5 overflow-x-auto border-b border-border">
         {tabs.map(([id, label]) => (
           <button
-            className={`shrink-0 border-b-2 px-1 pb-3 text-sm font-semibold ${activeTab === id ? "border-[#299b7c] text-[#1f8068] dark:text-[#a7f3d0]" : "border-transparent text-[#81958f] hover:text-[#52776d]"}`}
+            aria-selected={activeTab === id}
+            className={cn(
+              "shrink-0 border-b-2 px-1 pb-3 text-sm font-semibold transition-colors",
+              activeTab === id ? "border-brand text-brand-soft-fg" : "border-transparent text-muted hover:text-foreground",
+            )}
             key={id}
             onClick={() => setActiveTab(id)}
+            role="tab"
             type="button"
           >
             {label}
           </button>
         ))}
       </nav>
+
       <div className="mt-6">
         {activeTab === "genel" && <Overview company={company} />}
         {activeTab === "calisanlar" && (
-          <EmptyModule
-            title="Firma çalışanları"
+          <PlaceholderModule
             description="Bu firmaya bağlı çalışan kayıtları, görevler ve sağlık taraması geçmişi burada yönetilecek."
             icon={UsersRound}
+            title="Firma çalışanları"
           />
         )}
         {activeTab === "taramalar" && (
-          <EmptyModule
-            title="Tarama geçmişi"
+          <PlaceholderModule
             description="Firmaya ait planlanan, devam eden ve tamamlanan mobil sağlık taramaları burada listelenecek."
             icon={ClipboardList}
+            title="Tarama geçmişi"
           />
         )}
-        {activeTab === "teklifler" && <CompanyOffers companyName={company.name} />}
-        {activeTab === "sozlesme" && (
-          <EmptyModule
-            title="Sözleşme ve belgeler"
-            description="Sözleşme tarihleri, yenileme durumu ve firma belgeleri bu alandan takip edilecek."
-            icon={FileText}
-          />
-        )}
+        {activeTab === "teklifler" && <CompanyOffers company={company} />}
+        {activeTab === "sozlesme" && <ContractPanel company={company} onEdit={() => setEditing(true)} />}
         {activeTab === "notlar" && (
-          <EmptyModule
-            title="Firma notları"
+          <PlaceholderModule
             description="Operasyon ekibinin firma ile ilgili notları ve takip kayıtları burada tutulacak."
-            icon={FileText}
+            icon={StickyNote}
+            title="Firma notları"
           />
         )}
       </div>
-    </main>
+
+      <CompanyForm
+        company={company}
+        onClose={() => setEditing(false)}
+        onSave={saveCompany}
+        open={editing}
+        sectors={sectors}
+      />
+    </Page>
   );
 }
 
-function Overview({ company }: { company: (typeof companies)[keyof typeof companies] }) {
+function BackLink() {
+  return (
+    <Link className="inline-flex items-center gap-2 text-xs font-semibold text-muted hover:text-brand" href="/firmalar">
+      <ArrowLeft className="size-4" /> Firmalara dön
+    </Link>
+  );
+}
+
+function DetailSkeleton() {
+  return (
+    <Page className="animate-pulse">
+      <div className="h-4 w-28 rounded bg-card-muted" />
+      <Card className="mt-6 p-5 sm:p-7">
+        <div className="flex items-center gap-4">
+          <div className="size-16 rounded-2xl bg-card-muted" />
+          <div className="space-y-3">
+            <div className="h-6 w-56 rounded bg-card-muted" />
+            <div className="h-4 w-40 rounded bg-card-muted" />
+          </div>
+        </div>
+        <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }, (_, index) => (
+            <div className="h-20 rounded-xl bg-card-muted" key={index} />
+          ))}
+        </div>
+      </Card>
+      <div className="mt-6 h-10 rounded bg-card-muted" />
+      <div className="mt-6 h-48 rounded-2xl bg-card-muted" />
+    </Page>
+  );
+}
+
+function Overview({ company }: { company: Company }) {
   return (
     <div className="grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
-      <section className="rounded-2xl border border-[#e0ece8] bg-white p-5 sm:p-6 dark:border-[#1d4941] dark:bg-[#0e2927]">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-[#173e3b] dark:text-[#e8f7f1]">Son operasyonlar</h2>
-            <p className="mt-1 text-xs text-[#81958f]">Firma ile ilgili son hareketler</p>
-          </div>
-          <button className="text-xs font-semibold text-[#258b71]" type="button">
-            Tümünü gör
-          </button>
-        </div>
-        <div className="mt-5 divide-y divide-[#edf3f0] dark:divide-[#1d4941]">
-          {[
-            ["02 Eyl 2026", "Mobil sağlık taraması başladı", "Ekip 04 · 84 çalışan"],
-            ["28 Ağu 2026", "Tarama sonuçları tamamlandı", "246 sonuç · Rapor hazır"],
-            ["15 Ağu 2026", "Sözleşme belgesi güncellendi", "Yönetici tarafından"],
-          ].map(([date, title, detail]) => (
-            <div className="flex items-start gap-3 py-4 first:pt-0" key={title}>
-              <span className="mt-1 flex size-8 items-center justify-center rounded-lg bg-[#d8f0e4] text-[#1f8068] dark:bg-[#174638] dark:text-[#a7f3d0]">
+      <Card className="p-5 sm:p-6">
+        <CardHeader description="Firma ile ilgili son hareketler" title="Son operasyonlar" />
+        <div className="mt-5 divide-y divide-divider">
+          {recentActivity.map(([date, title, detail]) => (
+            <div className="flex items-start gap-3 py-4 first:pt-0 last:pb-0" key={title}>
+              <span className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand-soft-fg">
                 <CheckCircle2 className="size-4" />
               </span>
-              <div>
-                <p className="text-sm font-semibold text-[#31534f] dark:text-[#d3ebe2]">{title}</p>
-                <p className="mt-1 text-xs text-[#81958f]">{detail}</p>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground">{title}</p>
+                <p className="mt-1 text-xs text-muted">{detail}</p>
               </div>
-              <time className="ml-auto shrink-0 text-[10px] text-[#91a49f]">{date}</time>
+              <time className="ml-auto shrink-0 text-[10px] text-subtle">{date}</time>
             </div>
           ))}
         </div>
-      </section>
-      <section className="rounded-2xl border border-[#e0ece8] bg-white p-5 sm:p-6 dark:border-[#1d4941] dark:bg-[#0e2927]">
-        <h2 className="text-base font-semibold text-[#173e3b] dark:text-[#e8f7f1]">İletişim</h2>
+      </Card>
+      <Card className="p-5 sm:p-6">
+        <CardHeader title="İletişim" />
         <div className="mt-5 space-y-4 text-sm">
-          <p className="flex items-center gap-2 text-[#718783] dark:text-[#a7c9be]">
-            <UsersRound className="size-4 text-[#299b7c]" /> {company.contact}
-          </p>
-          <p className="flex items-center gap-2 text-[#718783] dark:text-[#a7c9be]">
-            <Phone className="size-4 text-[#299b7c]" /> {company.phone}
-          </p>
-          <p className="flex items-center gap-2 text-[#718783] dark:text-[#a7c9be]">
-            <MapPin className="size-4 text-[#299b7c]" /> {company.city}
-          </p>
+          <ContactLine icon={UsersRound} value={company.contact} />
+          <ContactLine icon={Phone} value={company.phone} />
+          <ContactLine icon={Mail} value={company.email} />
+          <ContactLine icon={MapPin} value={companyLocation(company)} />
         </div>
-      </section>
+      </Card>
     </div>
   );
 }
-function Info({ label, value, icon: Icon }: { label: string; value: string; icon: typeof UsersRound }) {
+
+function ContactLine({ icon: Icon, value }: { icon: LucideIcon; value: string }) {
   return (
-    <div className="rounded-xl border border-[#e0ece8] bg-[#fbfdfc] p-3 dark:border-[#1d4941] dark:bg-[#102f2d]">
-      <Icon className="size-4 text-[#299b7c]" />
-      <p className="mt-2 text-[10px] text-[#91a49f]">{label}</p>
-      <p className="mt-1 truncate text-sm font-semibold text-[#31534f] dark:text-[#d3ebe2]">{value}</p>
+    <p className="flex items-center gap-2 text-muted">
+      <Icon className="size-4 shrink-0 text-brand" />
+      <span className={cn("truncate", !value && "text-subtle")}>{value || "Belirtilmedi"}</span>
+    </p>
+  );
+}
+
+function PlaceholderModule({ title, description, icon }: { title: string; description: string; icon: LucideIcon }) {
+  return (
+    <EmptyState
+      action={<Badge tone="neutral">Modül hazırlanıyor</Badge>}
+      compact
+      description={description}
+      icon={icon}
+      title={title}
+    />
+  );
+}
+
+function daysUntil(label: string) {
+  const iso = labelToIso(label);
+  if (!iso) return null;
+  const target = new Date(`${iso}T00:00:00`);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((target.getTime() - today.getTime()) / 86_400_000);
+}
+
+function ContractPanel({ company, onEdit }: { company: Company; onEdit: () => void }) {
+  const remaining = daysUntil(company.contractEnd);
+  const remainingLabel =
+    remaining === null
+      ? "—"
+      : remaining < 0
+        ? `${Math.abs(remaining)} gün önce sona erdi`
+        : remaining === 0
+          ? "Bugün sona eriyor"
+          : `${remaining} gün kaldı`;
+  const remainingTone = remaining === null ? "neutral" : remaining < 0 ? "danger" : remaining <= 30 ? "warning" : "brand";
+  return (
+    <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
+      <Card className="p-5 sm:p-6">
+        <CardHeader
+          action={
+            <Button onClick={onEdit} size="sm" variant="secondary">
+              <Edit3 /> Düzenle
+            </Button>
+          }
+          description="Sözleşme durumu ve yenileme takibi"
+          icon={ShieldCheck}
+          title="Sözleşme bilgileri"
+        />
+        <dl className="mt-5 divide-y divide-divider text-sm">
+          <ContractRow label="Durum">
+            <Badge tone={contractTone[company.contract]}>{company.contract}</Badge>
+          </ContractRow>
+          <ContractRow label="Bitiş tarihi">{company.contractEnd || "Belirtilmedi"}</ContractRow>
+          <ContractRow label="Kalan süre">
+            <Badge tone={remainingTone}>{remainingLabel}</Badge>
+          </ContractRow>
+          <ContractRow label="Çalışan kapsamı">{company.employees} çalışan</ContractRow>
+        </dl>
+      </Card>
+      <EmptyState
+        action={<Badge tone="neutral">Modül hazırlanıyor</Badge>}
+        compact
+        description="Sözleşme kopyaları, ekler ve firma belgeleri bu alandan yüklenip takip edilecek."
+        icon={FileText}
+        title="Belgeler"
+      />
     </div>
   );
 }
-function Status({ status }: { status: string }) {
+
+function ContractRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <span
-      className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${status === "Aktif" ? "bg-[#dff6eb] text-[#258b71] dark:bg-[#174638] dark:text-[#a7f3d0]" : "bg-[#fff1e2] text-[#a16c3e] dark:bg-[#4b3825] dark:text-[#f4c994]"}`}
-    >
-      {status}
-    </span>
+    <div className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className="text-right font-medium text-foreground">{children}</dd>
+    </div>
   );
 }
-function EmptyModule({
-  title,
-  description,
-  icon: Icon,
-}: {
-  title: string;
-  description: string;
-  icon: typeof UsersRound;
-}) {
+
+function CompanyOffers({ company }: { company: Company }) {
+  const [allOffers] = useOffers();
+  const offers = allOffers.filter((offer) => offer.companyId === company.id || offer.company === company.name);
   return (
-    <section className="rounded-2xl border border-dashed border-[#cfe6da] bg-white p-10 text-center dark:border-[#1d4941] dark:bg-[#0e2927]">
-      <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-[#d8f0e4] text-[#1f8068] dark:bg-[#174638] dark:text-[#a7f3d0]">
-        <Icon className="size-6" />
-      </div>
-      <h2 className="mt-5 text-xl font-semibold text-[#173e3b] dark:text-[#e8f7f1]">{title}</h2>
-      <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-[#81958f]">{description}</p>
-      <span className="mt-5 inline-flex rounded-full bg-[#e5f5ec] px-3 py-2 text-xs font-semibold text-[#278b70] dark:bg-[#174638] dark:text-[#a7f3d0]">
-        Modül hazırlanıyor
-      </span>
-    </section>
-  );
-}
-function CompanyOffers({ companyName }: { companyName: string }) {
-  const [offers, setOffers] = useState<
-    Array<{ number?: string; title?: string; offerType?: string; status?: string; total?: number; validUntil?: string }>
-  >([]);
-  useEffect(() => {
-    try {
-      const stored = JSON.parse(window.localStorage.getItem("hantech-offers") ?? "[]") as Array<{
-        company?: string;
-        number?: string;
-        title?: string;
-        offerType?: string;
-        status?: string;
-        total?: number;
-        validUntil?: string;
-      }>;
-      setOffers(stored.filter((offer) => offer.company === companyName));
-    } catch {
-      setOffers([]);
-    }
-  }, [companyName]);
-  return (
-    <section className="rounded-2xl border border-[#e0ece8] bg-white p-5 sm:p-6 dark:border-[#1d4941] dark:bg-[#0e2927]">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="flex items-center gap-2 text-base font-semibold text-[#173e3b] dark:text-[#e8f7f1]">
-            <ReceiptText className="size-4 text-[#299b7c]" /> Firma teklifleri
-          </h2>
-          <p className="mt-1 text-xs text-[#81958f]">Bu firmaya hazırlanan ve gönderilen teklif kayıtları.</p>
-        </div>
-        <span className="rounded-full bg-[#e5f5ec] px-2.5 py-1 text-[10px] font-bold text-[#278b70] dark:bg-[#174638] dark:text-[#a7f3d0]">
-          {offers.length} teklif
-        </span>
-      </div>
+    <Card className="p-5 sm:p-6">
+      <CardHeader
+        action={
+          <>
+            <CountPill>{offers.length} teklif</CountPill>
+            <Button asChild size="sm">
+              <Link href={`/teklifler/yeni?firma=${company.id}`}>
+                <Plus /> Yeni teklif
+              </Link>
+            </Button>
+          </>
+        }
+        description="Bu firmaya hazırlanan ve gönderilen teklif kayıtları."
+        icon={ReceiptText}
+        title="Firma teklifleri"
+      />
       {offers.length === 0 ? (
-        <div className="mt-6 rounded-xl border border-dashed border-[#cfe6da] p-8 text-center dark:border-[#1d4941]">
-          <ReceiptText className="mx-auto size-7 text-[#7da99b]" />
-          <p className="mt-3 text-sm font-semibold text-[#31534f] dark:text-[#d3ebe2]">Henüz teklif bulunmuyor</p>
-          <p className="mt-1 text-xs text-[#81958f]">Bu firma için oluşturulan teklifler burada listelenecek.</p>
-        </div>
+        <EmptyState
+          className="mt-6"
+          compact
+          description="Bu firma için oluşturulan teklifler burada listelenecek."
+          icon={ReceiptText}
+          title="Henüz teklif bulunmuyor"
+        />
       ) : (
-        <div className="mt-5 divide-y divide-[#edf3f0] dark:divide-[#1d4941]">
-          {offers.map((offer, index) => (
-            <div
-              className="flex flex-col gap-3 py-4 first:pt-0 sm:flex-row sm:items-center sm:justify-between"
-              key={`${offer.number}-${index}`}
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-[#31534f] dark:text-[#d3ebe2]">
-                  {offer.title ?? "Teklif"}
-                </p>
-                <p className="mt-1 text-xs text-[#81958f]">
-                  {offer.number ?? "—"}
-                  {offer.offerType ? ` · ${offer.offerType}` : ""} · Geçerlilik: {offer.validUntil ?? "—"}
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-semibold text-[#278b70]">
-                  {typeof offer.total === "number"
-                    ? new Intl.NumberFormat("tr-TR", {
-                        style: "currency",
-                        currency: "TRY",
-                        maximumFractionDigits: 0,
-                      }).format(offer.total)
-                    : "—"}
-                </span>
-                <span className="rounded-full bg-[#e5f5ec] px-2.5 py-1 text-[10px] font-semibold text-[#278b70] dark:bg-[#174638] dark:text-[#a7f3d0]">
-                  {offer.status ?? "Taslak"}
-                </span>
-              </div>
-            </div>
+        <div className="mt-5 divide-y divide-divider">
+          {offers.map((offer) => (
+            <OfferRow key={offer.id} offer={offer} />
           ))}
         </div>
       )}
-    </section>
+    </Card>
+  );
+}
+
+function OfferRow({ offer }: { offer: Offer }) {
+  return (
+    <div className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <Link className="block truncate text-sm font-semibold text-foreground hover:text-brand" href="/teklifler">
+          {offer.title || "Teklif"}
+        </Link>
+        <p className="mt-1 text-xs text-muted">
+          {offer.number || "—"}
+          {offer.offerType ? ` · ${offer.offerType}` : ""} · Geçerlilik: {offer.validUntil || "—"}
+        </p>
+      </div>
+      <div className="flex items-center gap-3">
+        <span className="text-sm font-semibold text-brand-soft-fg">{money(offer.total ?? 0)}</span>
+        <Badge tone={offerTone[offer.status] ?? "neutral"}>{offer.status ?? "Taslak"}</Badge>
+      </div>
+    </div>
   );
 }

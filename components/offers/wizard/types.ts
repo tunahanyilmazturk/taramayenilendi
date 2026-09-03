@@ -1,9 +1,9 @@
-export type Company = { id: number; name: string; contact: string; email?: string; employees?: number };
-export type TestItem = { id: number; code: string; name: string; category: string; price: number; active: boolean };
+import type { OfferType, TestItem } from "@/lib/demo-data";
+
 export type SelectedTest = TestItem & { quantity: number; unitPrice?: number };
 export type Step = 1 | 2 | 3 | 4;
-export type OfferType = "Periyodik muayene" | "İşe giriş muayenesi";
 export type WizardState = {
+  companyId: number | null;
   company: string;
   offerType: OfferType | "";
   employeeCount: number;
@@ -16,7 +16,11 @@ export type WizardState = {
   tax: string;
   tests: SelectedTest[];
 };
+export type UpdateWizard = <K extends keyof WizardState>(key: K, value: WizardState[K]) => void;
+export type PriceBreakdown = { subtotal: number; discount: number; discounted: number; tax: number; total: number };
+
 export const emptyWizard: WizardState = {
+  companyId: null,
   company: "",
   offerType: "",
   employeeCount: 1,
@@ -29,13 +33,13 @@ export const emptyWizard: WizardState = {
   tax: "20",
   tests: [],
 };
-export const money = (value: number) =>
-  new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(value);
-export const dateLabel = (value: string) =>
-  value
-    ? new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "long", year: "numeric" }).format(
-        new Date(`${value}T12:00:00`),
-      )
-    : "Tarih seçilmedi";
-export const fieldClass =
-  "mt-2 h-11 w-full rounded-xl border border-[#dbe9e4] bg-[#fbfdfc] px-3 text-sm text-[#31534f] outline-none transition focus:border-[#55b99c] focus:ring-4 focus:ring-[#dff6ec] dark:border-[#1d4941] dark:bg-[#102f2d] dark:text-white dark:focus:ring-[#1d5a4b]";
+
+export const lineTotal = (test: SelectedTest) => (test.unitPrice ?? test.price) * test.quantity;
+
+export function calculatePrice(wizard: WizardState): PriceBreakdown {
+  const subtotal = wizard.tests.reduce((sum, test) => sum + lineTotal(test), 0);
+  const discount = Math.min(Math.max(Number(wizard.discount) || 0, 0), 100);
+  const tax = Math.max(Number(wizard.tax) || 0, 0);
+  const discounted = subtotal * (1 - discount / 100);
+  return { subtotal, discount, discounted, tax, total: discounted * (1 + tax / 100) };
+}

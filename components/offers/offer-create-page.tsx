@@ -1,219 +1,214 @@
 "use client";
-/* eslint-disable react-hooks/set-state-in-effect */
+
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Alert } from "@/components/ui/modal";
+import { Page } from "@/components/ui/page-header";
+import { useCompanies, useOffers, useTests } from "@/lib/data";
+import { nextOfferNumber, type Company, type Offer, type OfferType, type TestItem } from "@/lib/demo-data";
+import { isoToLabel, todayIso } from "@/lib/format";
+import { useNotice } from "@/lib/hooks";
+import { useHydrated } from "@/lib/storage";
 import StepCompany from "./wizard/step-company";
 import StepPricing from "./wizard/step-pricing";
 import StepReview from "./wizard/step-review";
 import StepServices from "./wizard/step-services";
-import type { Company, OfferType, Step, TestItem, WizardState } from "./wizard/types";
-import { dateLabel, emptyWizard } from "./wizard/types";
+import { calculatePrice, emptyWizard, type Step, type WizardState } from "./wizard/types";
 import WizardStepper from "./wizard/wizard-stepper";
-const defaultCompanies: Company[] = [
-  { id: 1, name: "Artemis Otomotiv A.Ş.", contact: "Murat Şahin", employees: 248 },
-  { id: 2, name: "Mavi Hat Lojistik", contact: "Büşra Aydın", employees: 126 },
-  { id: 3, name: "Nova Gıda Üretim", contact: "Emre Yıldız", employees: 384 },
-  { id: 4, name: "Eksen Yapı Proje", contact: "Zeynep Koç", employees: 76 },
-];
-const defaultTests: TestItem[] = [
-  { id: 1, code: "RAD-001", name: "Akciğer grafisi", category: "Radyoloji", price: 350, active: true },
-  { id: 2, code: "ODY-001", name: "Odyometri", category: "İşitme", price: 180, active: true },
-  { id: 3, code: "SOL-001", name: "Solunum fonksiyon testi", category: "Solunum", price: 220, active: true },
-  { id: 4, code: "LAB-001", name: "Hemogram", category: "Laboratuvar", price: 160, active: true },
-];
+
 export default function OfferCreatePage() {
+  return (
+    <Suspense fallback={null}>
+      <OfferCreateInner />
+    </Suspense>
+  );
+}
+
+function OfferCreateInner() {
+  const hydrated = useHydrated();
+  const searchParams = useSearchParams();
+  const [companies] = useCompanies();
+  const [tests] = useTests();
+  if (!hydrated) return null;
+  const preselectedId = Number(searchParams.get("firma"));
+  const preselected = companies.find((company) => company.id === preselectedId);
+  return <OfferWizard companies={companies} tests={tests.filter((test) => test.active)} preselected={preselected} />;
+}
+
+function initialWizard(company?: Company): WizardState {
+  if (!company) return emptyWizard;
+  return {
+    ...emptyWizard,
+    companyId: company.id,
+    company: company.name,
+    contact: company.contact,
+    email: company.email,
+    employeeCount: Math.max(1, company.employees),
+  };
+}
+
+function OfferWizard({
+  companies,
+  tests,
+  preselected,
+}: {
+  companies: Company[];
+  tests: TestItem[];
+  preselected?: Company;
+}) {
   const router = useRouter();
+  const [, setOffers] = useOffers();
+  const [notice, showNotice] = useNotice();
   const [step, setStep] = useState<Step>(1);
-  const [wizard, setWizard] = useState<WizardState>(emptyWizard);
-  const [companies, setCompanies] = useState(defaultCompanies);
-  const [tests, setTests] = useState(defaultTests);
+  const [wizard, setWizard] = useState<WizardState>(() => initialWizard(preselected));
   const [submitted, setSubmitted] = useState(false);
-  const [notice, setNotice] = useState("");
-  const [titleEdited, setTitleEdited] = useState(false);
-  useEffect(() => {
-    try {
-      const companyData = window.localStorage.getItem("hantech-companies");
-      const testData = window.localStorage.getItem("hantech-tests");
-      if (companyData) {
-        const parsed = JSON.parse(companyData) as Company[];
-        if (Array.isArray(parsed) && parsed.length) setCompanies(parsed);
-      }
-      if (testData) {
-        const parsed = JSON.parse(testData) as TestItem[];
-        if (Array.isArray(parsed) && parsed.length) setTests(parsed.filter((test) => test.active));
-      }
-    } catch {
-      /* Keep demo records. */
-    }
-  }, []);
+  const [saving, setSaving] = useState(false);
+  const titleEdited = useRef(false);
+  const price = calculatePrice(wizard);
+
   const update = <K extends keyof WizardState>(key: K, value: WizardState[K]) =>
     setWizard((current) => ({ ...current, [key]: value }));
   const generateTitle = (company: string, offerType: OfferType | "", validUntil: string) => {
-    if (titleEdited || !company || !offerType || !validUntil) return;
+    if (titleEdited.current || !company || !offerType || !validUntil) return;
     const monthYear = new Intl.DateTimeFormat("tr-TR", { month: "long", year: "numeric" }).format(
       new Date(`${validUntil}T12:00:00`),
     );
     update("title", `${company} - ${offerType} - ${monthYear} teklifi`);
   };
-  const subtotal = wizard.tests.reduce((sum, test) => sum + (test.unitPrice ?? test.price) * test.quantity, 0);
-  const discount = Math.min(Math.max(Number(wizard.discount) || 0, 0), 100);
-  const tax = Math.max(Number(wizard.tax) || 0, 0);
-  const discounted = subtotal * (1 - discount / 100);
-  const total = discounted * (1 + tax / 100);
-  const validStep = (current: Step) =>
-    current === 1
-      ? Boolean(wizard.company && wizard.offerType && wizard.title.trim() && wizard.validUntil)
-      : current === 2
-        ? wizard.tests.length > 0
-        : true;
+  const isStepValid = (current: Step) => {
+    if (current === 1)
+      return Boolean(wizard.companyId && wizard.offerType && wizard.title.trim() && wizard.validUntil);
+    if (current === 2) return wizard.tests.length > 0;
+    return true;
+  };
+  const goTo = (target: Step) => {
+    setSubmitted(false);
+    setStep(target);
+  };
   const next = () => {
-    if (!validStep(step)) {
+    if (!isStepValid(step)) {
       setSubmitted(true);
       return;
     }
-    setSubmitted(false);
-    setStep((current) => Math.min(4, current + 1) as Step);
+    goTo(Math.min(4, step + 1) as Step);
   };
-  const back = () => {
-    setSubmitted(false);
-    setStep((current) => Math.max(1, current - 1) as Step);
-  };
+  const back = () => goTo(Math.max(1, step - 1) as Step);
   const addTest = (test: TestItem) =>
-    update(
-      "tests",
-      wizard.tests.some((item) => item.id === test.id)
-        ? wizard.tests
-        : [...wizard.tests, { ...test, quantity: 1, unitPrice: test.price }],
+    setWizard((current) =>
+      current.tests.some((item) => item.id === test.id)
+        ? current
+        : {
+            ...current,
+            tests: [...current.tests, { ...test, quantity: Math.max(1, current.employeeCount), unitPrice: test.price }],
+          },
     );
   const removeTest = (id: number) =>
-    update(
-      "tests",
-      wizard.tests.filter((test) => test.id !== id),
-    );
+    setWizard((current) => ({ ...current, tests: current.tests.filter((test) => test.id !== id) }));
   const save = () => {
-    const offer = {
-      id: Date.now(),
-      number: `TEK-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`,
-      company: wizard.company,
-      offerType: wizard.offerType,
-      title: wizard.title,
-      status: "Taslak",
-      total: Math.round(total),
-      validUntil: dateLabel(wizard.validUntil),
-      createdAt: dateLabel(new Date().toISOString().slice(0, 10)),
-      items: wizard.tests.length,
-      contact: wizard.contact,
-    };
-    const current = JSON.parse(window.localStorage.getItem("hantech-offers") ?? "[]") as unknown[];
-    window.localStorage.setItem("hantech-offers", JSON.stringify([...current, offer]));
-    setNotice("Teklif taslağı oluşturuldu.");
+    if (saving) return;
+    setSaving(true);
+    setOffers((current) => {
+      const offer: Offer = {
+        id: Date.now(),
+        number: nextOfferNumber(current),
+        companyId: wizard.companyId,
+        company: wizard.company,
+        contact: wizard.contact.trim(),
+        title: wizard.title.trim(),
+        offerType: wizard.offerType || undefined,
+        status: "Taslak",
+        total: Math.round(price.total),
+        validUntil: isoToLabel(wizard.validUntil),
+        createdAt: isoToLabel(todayIso()),
+        items: wizard.tests.length,
+        lines: wizard.tests.map((test) => ({
+          testId: test.id,
+          name: test.name,
+          quantity: test.quantity,
+          unitPrice: test.unitPrice ?? test.price,
+        })),
+        notes: wizard.notes.trim() || undefined,
+        discount: price.discount,
+        tax: price.tax,
+      };
+      return [...current, offer];
+    });
+    showNotice("Teklif taslağı oluşturuldu. Teklif listesine yönlendiriliyorsunuz...");
     window.setTimeout(() => router.push("/teklifler"), 700);
   };
-  const content =
-    step === 1 ? (
-      <StepCompany
-        wizard={wizard}
-        companies={companies}
-        update={update}
-        submitted={submitted}
-        onGenerateTitle={generateTitle}
-        onTitleEdited={() => setTitleEdited(true)}
-      />
-    ) : step === 2 ? (
-      <StepServices
-        wizard={wizard}
-        tests={tests}
-        update={update}
-        addTest={addTest}
-        removeTest={removeTest}
-        submitted={submitted}
-      />
-    ) : step === 3 ? (
-      <StepPricing
-        wizard={wizard}
-        update={update}
-        subtotal={subtotal}
-        discount={discount}
-        discounted={discounted}
-        tax={tax}
-        total={total}
-      />
-    ) : (
-      <StepReview wizard={wizard} subtotal={subtotal} discount={discount} tax={tax} total={total} />
-    );
+
   return (
-    <main className="mx-auto max-w-6xl pb-8">
-      <div className="mt-2 grid grid-cols-1 gap-6 lg:grid-cols-[250px_minmax(0,1fr)]">
-        <aside>
-          <div className="mb-5 rounded-2xl border border-[#dceee4] bg-white p-4 dark:border-[#1d4941] dark:bg-[#0e2927]">
-            <button
-              className="inline-flex items-center gap-2 text-xs font-semibold text-[#66847a] hover:text-[#278b70] dark:text-[#a7c9be]"
-              onClick={() => router.push("/teklifler")}
-              type="button"
-            >
-              <ArrowLeft className="size-3.5" /> Tekliflere dön
-            </button>
-            <p className="mt-4 text-xs font-medium text-[#6f8982] dark:text-[#9ebbb3]">
-              Teklif ve fiyatlandırma merkezi
-            </p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-[#103c3a] dark:text-[#ecfaf5]">
-              Yeni teklif oluştur
-            </h1>
-            <p className="mt-2 text-xs leading-5 text-[#81958f] dark:text-[#91b0a6]">
-              Hizmet kapsamını adım adım tamamlayın.
-            </p>
-          </div>
-          <WizardStepper
-            current={step}
-            onStep={(value) => {
-              setSubmitted(false);
-              setStep(value);
-            }}
-          />
+    <Page size="narrow">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[250px_minmax(0,1fr)]">
+        <aside className="space-y-5">
+          <Card className="p-4">
+            <Button asChild size="xs" variant="ghost" className="-ml-2">
+              <Link href="/teklifler">
+                <ArrowLeft /> Tekliflere dön
+              </Link>
+            </Button>
+            <p className="mt-4 text-xs font-medium text-muted">Teklif ve fiyatlandırma merkezi</p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-heading">Yeni teklif oluştur</h1>
+            <p className="mt-2 text-xs leading-5 text-muted">Hizmet kapsamını adım adım tamamlayın.</p>
+          </Card>
+          <WizardStepper current={step} onStep={goTo} />
         </aside>
-        <section className="flex max-h-[calc(100vh-7rem)] min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-[#e0ece8] bg-white p-5 shadow-sm sm:p-7 dark:border-[#1d4941] dark:bg-[#0e2927]">
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {content}
-            {notice && (
-              <p className="mt-5 rounded-xl bg-[#e5f5ec] px-3 py-2 text-xs font-semibold text-[#278b70] dark:bg-[#174638] dark:text-[#a7f3d0]">
-                {notice}
-              </p>
+        <Card className="flex min-w-0 flex-col rounded-3xl">
+          <div className="p-5 sm:p-7">
+            {step === 1 && (
+              <StepCompany
+                companies={companies}
+                onGenerateTitle={generateTitle}
+                onTitleEdited={() => {
+                  titleEdited.current = true;
+                }}
+                submitted={submitted}
+                update={update}
+                wizard={wizard}
+              />
             )}
+            {step === 2 && (
+              <StepServices
+                addTest={addTest}
+                removeTest={removeTest}
+                submitted={submitted}
+                tests={tests}
+                update={update}
+                wizard={wizard}
+              />
+            )}
+            {step === 3 && <StepPricing price={price} update={update} wizard={wizard} />}
+            {step === 4 && <StepReview price={price} wizard={wizard} />}
+            {notice && <Alert className="mt-5">{notice}</Alert>}
           </div>
-          <div className="mt-5 flex shrink-0 items-center justify-between border-t border-[#edf3f0] pt-4 dark:border-[#1d4941]">
-            <p className="text-xs text-[#81958f]">Adım {step} / 4</p>
-            <div className="flex gap-2">
+          <div className="sticky bottom-0 flex flex-col-reverse gap-3 rounded-b-3xl border-t border-divider bg-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+            <p className="text-xs text-muted">Adım {step} / 4</p>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button asChild size="sm" variant="ghost">
+                <Link href="/teklifler">Vazgeç</Link>
+              </Button>
               {step > 1 && (
-                <button
-                  className="inline-flex items-center gap-2 rounded-xl border border-[#dbe9e4] px-4 py-2.5 text-xs font-semibold text-[#66847a] dark:border-[#37685a] dark:text-[#b8d4c9]"
-                  onClick={back}
-                  type="button"
-                >
-                  <ArrowLeft className="size-3.5" /> Geri
-                </button>
+                <Button onClick={back} size="sm" variant="outline">
+                  <ArrowLeft /> Geri
+                </Button>
               )}
               {step < 4 ? (
-                <button
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#103c3a] px-4 py-2.5 text-xs font-semibold text-white"
-                  onClick={next}
-                  type="button"
-                >
-                  Devam et <ArrowRight className="size-3.5" />
-                </button>
+                <Button onClick={next} size="sm">
+                  Devam et <ArrowRight />
+                </Button>
               ) : (
-                <button
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#299b7c] px-4 py-2.5 text-xs font-semibold text-white"
-                  onClick={save}
-                  type="button"
-                >
-                  <Check className="size-3.5" /> Teklif taslağını kaydet
-                </button>
+                <Button disabled={saving} onClick={save} size="sm" variant="brand">
+                  <Check /> Teklif taslağını kaydet
+                </Button>
               )}
             </div>
           </div>
-        </section>
+        </Card>
       </div>
-    </main>
+    </Page>
   );
 }

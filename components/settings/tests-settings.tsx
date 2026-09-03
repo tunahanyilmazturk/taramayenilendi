@@ -1,11 +1,9 @@
 "use client";
 
-/* Frontend-only test catalog is persisted in localStorage until the backend is added. */
-/* eslint-disable react-hooks/set-state-in-effect */
-
 import ExcelJS from "exceljs";
 import {
   AlertCircle,
+  Check,
   CheckCircle2,
   ClipboardCheck,
   Download,
@@ -13,28 +11,31 @@ import {
   FileSpreadsheet,
   FlaskConical,
   Plus,
-  Search,
   Tag,
   Trash2,
   Upload,
-  X,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
-import SettingsCard from "./settings-card";
+import SettingsCard, { SectionHeading } from "@/components/settings/settings-card";
+import { Badge, CountPill } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { SummaryCard } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Field, FilterSelect, Input, SearchInput, Select } from "@/components/ui/field";
+import { Alert, Modal } from "@/components/ui/modal";
+import { useTestCategories, useTests } from "@/lib/data";
+import { type TestItem } from "@/lib/demo-data";
+import { money } from "@/lib/format";
+import { useNotice } from "@/lib/hooks";
+import { includesQuery } from "@/lib/utils";
 
-type TestItem = { id: number; code: string; name: string; category: string; price: number; active: boolean };
-type TestForm = Omit<TestItem, "id" | "active">;
+type TestForm = { code: string; name: string; category: string; price: string };
+type FormErrors = Partial<Record<keyof TestForm, string>>;
 type ImportResult = { added: number; updated: number; errors: string[] };
 
-const initialTests: TestItem[] = [
-  { id: 1, code: "AKC-001", name: "Akciğer grafisi", category: "Radyoloji", price: 350, active: true },
-  { id: 2, code: "ODY-001", name: "Odyometri", category: "İşitme", price: 180, active: true },
-  { id: 3, code: "SFT-001", name: "Solunum fonksiyon testi", category: "Solunum", price: 220, active: true },
-  { id: 4, code: "KAN-001", name: "Hemogram", category: "Laboratuvar", price: 160, active: true },
-  { id: 5, code: "GÖZ-001", name: "Göz muayenesi", category: "Muayene", price: 200, active: false },
-];
-const emptyForm: TestForm = { code: "", name: "", category: "", price: 0 };
-const defaultCategories = ["Radyoloji", "İşitme", "Solunum", "Laboratuvar", "Muayene"];
+const emptyForm: TestForm = { code: "", name: "", category: "", price: "0" };
+const allCategories = "Tüm kategoriler";
+
 const categoryPrefixes: Record<string, string> = {
   Radyoloji: "RAD",
   İşitme: "ODY",
@@ -42,7 +43,8 @@ const categoryPrefixes: Record<string, string> = {
   Laboratuvar: "LAB",
   Muayene: "MUY",
 };
-const generateTestCode = (category: string, tests: TestItem[]) => {
+
+function generateTestCode(category: string, tests: TestItem[]) {
   const prefix =
     (categoryPrefixes[category] ??
       category
@@ -50,116 +52,98 @@ const generateTestCode = (category: string, tests: TestItem[]) => {
         .replace(/[\u0300-\u036f]/g, "")
         .replace(/[^a-zA-Z]/g, "")
         .slice(0, 3)
-        .toUpperCase()) ||
-    "TST";
+        .toUpperCase()) || "TST";
   const highest = tests.reduce((max, test) => {
     const match = test.code.match(new RegExp(`^${prefix}-(\\d+)$`));
     return match ? Math.max(max, Number(match[1])) : max;
   }, 0);
   return `${prefix}-${String(highest + 1).padStart(3, "0")}`;
-};
-const ensureTestCodes = (items: TestItem[]) =>
-  items.reduce<TestItem[]>(
-    (result, test) => [...result, { ...test, code: test.code?.trim() || generateTestCode(test.category, result) }],
-    [],
-  );
+}
+
+function validateForm(form: TestForm): FormErrors {
+  const errors: FormErrors = {};
+  if (!form.name.trim()) errors.name = "Test adı zorunludur.";
+  if (!form.category.trim()) errors.category = "Kategori seçin.";
+  if (Number(form.price) < 0) errors.price = "Fiyat negatif olamaz.";
+  return errors;
+}
 
 export default function TestsSettings() {
-  const [tests, setTests] = useState(initialTests);
-  const [categoryList, setCategoryList] = useState(defaultCategories);
+  const [tests, setTests] = useTests();
+  const [categories, setCategories] = useTestCategories();
+  const [notice, showNotice] = useNotice();
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("Tüm kategoriler");
+  const [category, setCategory] = useState(allCategories);
   const [formOpen, setFormOpen] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm] = useState(emptyForm);
-  const [hydrated, setHydrated] = useState(false);
-  const [notice, setNotice] = useState("");
+  const [form, setForm] = useState<TestForm>(emptyForm);
+  const [importOpen, setImportOpen] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [categoryOpen, setCategoryOpen] = useState(false);
+
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem("hantech-tests");
-      const storedCategories = window.localStorage.getItem("hantech-test-categories");
-      if (stored) {
-        const parsed = JSON.parse(stored) as TestItem[];
-        if (Array.isArray(parsed)) setTests(ensureTestCodes(parsed));
-      }
-      if (storedCategories) {
-        const parsed = JSON.parse(storedCategories) as string[];
-        if (Array.isArray(parsed) && parsed.length > 0) setCategoryList(parsed);
-      }
-    } catch {
-      /* Keep demo catalog when storage is unavailable. */
+    const missing = tests.map((t) => t.category).filter((c) => c && !categories.includes(c));
+    if (missing.length > 0) {
+      const unique = missing.filter((item, index) => missing.indexOf(item) === index);
+      setCategories((current) => [...current, ...unique]);
     }
-    setHydrated(true);
-  }, []);
-  useEffect(() => {
-    if (hydrated) window.localStorage.setItem("hantech-tests", JSON.stringify(tests));
-  }, [tests, hydrated]);
-  useEffect(() => {
-    if (hydrated) window.localStorage.setItem("hantech-test-categories", JSON.stringify(categoryList));
-  }, [categoryList, hydrated]);
-  useEffect(() => {
-    const missing = tests.map((test) => test.category).filter((item) => item && !categoryList.includes(item));
-    if (missing.length > 0)
-      setCategoryList((current) => [...current, ...missing.filter((item, index) => missing.indexOf(item) === index)]);
-  }, [tests, categoryList]);
-  const categories = useMemo(() => ["Tüm kategoriler", ...categoryList], [categoryList]);
+  }, [tests, categories, setCategories]);
+
   const filtered = useMemo(
     () =>
       tests.filter(
         (test) =>
-          (category === "Tüm kategoriler" || test.category === category) &&
-          `${test.code} ${test.name} ${test.category}`
-            .toLocaleLowerCase("tr-TR")
-            .includes(query.toLocaleLowerCase("tr-TR")),
+          (category === allCategories || test.category === category) &&
+          includesQuery(`${test.code} ${test.name} ${test.category}`, query),
       ),
     [tests, category, query],
   );
-  const money = (value: number) =>
-    new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(value);
-  const showNotice = (message: string) => {
-    setNotice(message);
-    window.setTimeout(() => setNotice(""), 2200);
-  };
+  const activeCount = tests.filter((t) => t.active).length;
+
   const setField = (key: keyof TestForm, value: string) =>
-    setForm((current) => ({ ...current, [key]: key === "price" ? Number(value) : value }));
+    setForm((current) => ({ ...current, [key]: value }));
   const openNew = () => {
     setForm(emptyForm);
     setEditingId(null);
     setFormOpen(true);
   };
   const openEdit = (test: TestItem) => {
-    setForm({ code: test.code, name: test.name, category: test.category, price: test.price });
+    setForm({ code: test.code, name: test.name, category: test.category, price: String(test.price) });
     setEditingId(test.id);
     setFormOpen(true);
   };
   const save = () => {
-    if (!form.name.trim() || !form.category.trim() || form.price < 0) return;
+    const errors = validateForm(form);
+    if (Object.keys(errors).length > 0) return;
     const normalized = {
-      ...form,
       code: form.code.trim().toUpperCase(),
       name: form.name.trim(),
       category: form.category.trim(),
+      price: Math.max(0, Number(form.price) || 0),
     };
-    if (editingId === null)
+    if (editingId === null) {
       setTests((current) => [
         ...current,
         { ...normalized, code: generateTestCode(normalized.category, current), id: Date.now(), active: true },
       ]);
-    else setTests((current) => current.map((test) => (test.id === editingId ? { ...test, ...normalized } : test)));
+      showNotice("Yeni test eklendi.");
+    } else {
+      setTests((current) => current.map((t) => (t.id === editingId ? { ...t, ...normalized } : t)));
+      showNotice("Test güncellendi.");
+    }
     setFormOpen(false);
     setEditingId(null);
-    showNotice("Test kataloğu güncellendi.");
   };
   const remove = (test: TestItem) => {
     if (!window.confirm(`${test.name} testini katalogdan kaldırmak istediğinize emin misiniz?`)) return;
-    setTests((current) => current.filter((item) => item.id !== test.id));
+    setTests((current) => current.filter((t) => t.id !== test.id));
     showNotice("Test katalogdan kaldırıldı.");
   };
-  const toggleActive = (test: TestItem) =>
-    setTests((current) => current.map((item) => (item.id === test.id ? { ...item, active: !item.active } : item)));
+  const toggleActive = (test: TestItem) => {
+    setTests((current) => current.map((t) => (t.id === test.id ? { ...t, active: !t.active } : t)));
+    showNotice(test.active ? `${test.name} pasifleştirildi.` : `${test.name} aktifleştirildi.`);
+  };
+
   const downloadTemplate = async () => {
     const workbook = new ExcelJS.Workbook();
     workbook.creator = "HanTech OSGB Yönetim Sistemi";
@@ -169,14 +153,12 @@ export default function TestsSettings() {
       { header: "Kategori", key: "category", width: 22 },
       { header: "Birim Fiyat (₺)", key: "price", width: 18 },
     ];
-    tests
-      .filter((test) => test.active)
-      .forEach((test) => sheet.addRow({ name: test.name, category: test.category, price: test.price }));
+    tests.filter((t) => t.active).forEach((t) => sheet.addRow({ name: t.name, category: t.category, price: t.price }));
     sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
     sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF103C3A" } };
     sheet.getColumn(3).numFmt = "₺#,##0";
     sheet.views = [{ state: "frozen", ySplit: 1 }];
-    sheet.autoFilter = { from: "A1", to: `C${Math.max(1, tests.filter((test) => test.active).length + 1)}` };
+    sheet.autoFilter = { from: "A1", to: `C${Math.max(1, tests.filter((t) => t.active).length + 1)}` };
     const guide = workbook.addWorksheet("Kullanım");
     guide.columns = [
       { header: "Bilgi", key: "info", width: 28 },
@@ -200,6 +182,7 @@ export default function TestsSettings() {
     anchor.click();
     URL.revokeObjectURL(url);
   };
+
   const importWorkbook = async (file: File) => {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(await file.arrayBuffer());
@@ -213,13 +196,11 @@ export default function TestsSettings() {
     const read = (row: ExcelJS.Row, header: string) => row.getCell(headers.get(header) ?? 0).value;
     const parsePrice = (value: unknown) => {
       if (typeof value === "number") return value;
-      const text = String(value ?? "")
-        .replace(/₺/g, "")
-        .replace(/\s/g, "");
+      const text = String(value ?? "").replace(/₺/g, "").replace(/\s/g, "");
       return Number(text.includes(",") ? text.replace(/\./g, "").replace(",", ".") : text);
     };
     const errors: string[] = [];
-    const imported: TestForm[] = [];
+    const imported: Array<{ name: string; category: string; price: number }> = [];
     sheet.eachRow((row, rowNumber) => {
       if (rowNumber === 1) return;
       const name = String(read(row, "test adı") ?? "").trim();
@@ -231,7 +212,7 @@ export default function TestsSettings() {
         errors.push(`${rowNumber}. satır: Ad, kategori ve geçerli fiyat zorunludur.`);
         return;
       }
-      imported.push({ code: "", name, category: itemCategory, price });
+      imported.push({ name, category: itemCategory, price });
     });
     const unique = Array.from(
       new Map(
@@ -245,9 +226,9 @@ export default function TestsSettings() {
     let updated = 0;
     setTests((current) => {
       const byName = new Map(
-        current.map((test) => [
-          `${test.name.toLocaleLowerCase("tr-TR")}|${test.category.toLocaleLowerCase("tr-TR")}`,
-          test,
+        current.map((t) => [
+          `${t.name.toLocaleLowerCase("tr-TR")}|${t.category.toLocaleLowerCase("tr-TR")}`,
+          t,
         ]),
       );
       unique.forEach((item) => {
@@ -297,461 +278,183 @@ export default function TestsSettings() {
 
   return (
     <SettingsCard
+      description="Taramalarda ve tekliflerde kullanılacak testleri, kategorileri ve birim fiyatlarını yönetin."
       icon={ClipboardCheck}
       title="Test kataloğu"
-      description="Taramalarda ve tekliflerde kullanılacak testleri, kategorileri ve birim fiyatlarını yönetin."
     >
-      <div className="mt-6 flex flex-col gap-4">
-        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-          <div>
-            <p className="text-sm font-semibold text-[#31534f] dark:text-[#d3ebe2]">
-              Kayıtlı testler{" "}
-              <span className="ml-1 rounded-full bg-[#e5f5ec] px-2 py-1 text-[10px] text-[#278b70] dark:bg-[#174638] dark:text-[#a7f3d0]">
-                {tests.length}
-              </span>
-            </p>
-            <p className="mt-1 text-xs text-[#81958f]">Aktif testler yeni tarama ve teklif formlarında seçilebilir.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              className="inline-flex items-center gap-2 rounded-xl border border-[#cfe6da] bg-white px-3 py-2.5 text-xs font-semibold text-[#278b70] transition hover:bg-[#effaf4] dark:border-[#1d4941] dark:bg-[#102f2d] dark:text-[#a7f3d0] dark:hover:bg-[#174638]"
-              onClick={() => {
-                setImportResult(null);
-                setImportOpen(true);
-              }}
-              type="button"
-            >
-              <Upload className="size-4" /> Toplu test yükle
-            </button>
-            <button
-              className="inline-flex items-center gap-2 rounded-xl border border-[#cfe6da] bg-white px-3 py-2.5 text-xs font-semibold text-[#278b70] transition hover:bg-[#effaf4] dark:border-[#1d4941] dark:bg-[#102f2d] dark:text-[#a7f3d0] dark:hover:bg-[#174638]"
-              onClick={() => setCategoryOpen(true)}
-              type="button"
-            >
-              <Tag className="size-4" /> Kategori yönetimi
-            </button>
-            <button
-              className="inline-flex items-center gap-2 rounded-xl bg-[#103c3a] px-3.5 py-2.5 text-xs font-semibold text-white transition hover:bg-[#174e4b]"
-              onClick={openNew}
-              type="button"
-            >
-              <Plus className="size-4" /> Yeni test ekle
-            </button>
-          </div>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[#9ab1ab]" />
-            <input
-              aria-label="Test ara"
-              className="h-10 w-full rounded-xl border border-[#dbe9e4] bg-[#fbfdfc] pr-3 pl-9 text-sm outline-none focus:border-[#55b99c] dark:border-[#1d4941] dark:bg-[#102f2d] dark:text-white"
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Test kodu, adı veya kategori ara..."
-              value={query}
-            />
-          </div>
-          <select
-            aria-label="Kategori filtresi"
-            className="h-10 rounded-xl border border-[#dbe9e4] bg-white px-3 text-xs font-medium text-[#52776d] outline-none dark:border-[#1d4941] dark:bg-[#102f2d] dark:text-[#c4dfd5]"
-            onChange={(event) => setCategory(event.target.value)}
-            value={category}
-          >
-            {categories.map((item) => (
-              <option key={item}>{item}</option>
-            ))}
-          </select>
-        </div>
-        {notice && (
-          <p className="rounded-xl bg-[#e5f5ec] px-3 py-2 text-xs font-semibold text-[#278b70] dark:bg-[#174638] dark:text-[#a7f3d0]">
-            {notice}
-          </p>
-        )}
-        <div className="overflow-hidden rounded-2xl border border-[#e0ece8] dark:border-[#1d4941]">
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full text-left">
-              <thead className="border-b border-[#edf3f0] bg-[#fbfdfc] dark:border-[#1d4941] dark:bg-[#102f2d]">
-                <tr>
-                  {["Test kodu", "Test adı", "Kategori", "Birim fiyat", "Durum", ""].map((heading) => (
-                    <th
-                      className="px-4 py-3 text-[10px] font-bold tracking-[0.12em] text-[#91a49f] uppercase"
-                      key={heading}
-                    >
-                      {heading}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#edf3f0] dark:divide-[#1d4941]">
-                {filtered.map((test) => (
-                  <TestRow
-                    key={test.id}
-                    test={test}
-                    money={money}
-                    onEdit={openEdit}
-                    onRemove={remove}
-                    onToggle={toggleActive}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="divide-y divide-[#edf3f0] md:hidden dark:divide-[#1d4941]">
-            {filtered.map((test) => (
-              <div className="flex items-center justify-between gap-3 p-4" key={test.id}>
-                <div className="min-w-0">
-                  <p className="text-[10px] font-bold tracking-[0.08em] text-[#278b70]">{test.code}</p>
-                  <p className="mt-1 truncate text-sm font-semibold text-[#31534f] dark:text-[#d3ebe2]">{test.name}</p>
-                  <p className="mt-1 text-xs text-[#81958f]">
-                    {test.category} · {money(test.price)}
-                  </p>
-                </div>
-                <div className="flex shrink-0 gap-1">
-                  <button
-                    aria-label={`${test.name} düzenle`}
-                    className="rounded-lg p-2 text-[#81958f]"
-                    onClick={() => openEdit(test)}
-                    type="button"
-                  >
-                    <Edit3 className="size-4" />
-                  </button>
-                  <button
-                    aria-label={`${test.name} sil`}
-                    className="rounded-lg p-2 text-[#a66f60]"
-                    onClick={() => remove(test)}
-                    type="button"
-                  >
-                    <Trash2 className="size-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-          {filtered.length === 0 && (
-            <p className="py-10 text-center text-sm text-[#81958f]">Filtrelerle eşleşen test bulunamadı.</p>
-          )}
-        </div>
+      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+        <SummaryCard icon={ClipboardCheck} label="Toplam test" value={tests.length} />
+        <SummaryCard icon={CheckCircle2} label="Aktif test" value={activeCount} />
+        <SummaryCard icon={Tag} label="Kategori" value={categories.length} />
       </div>
+
+      <div className="mt-7">
+        <SectionHeading
+          action={
+            <>
+              <Button onClick={() => { setImportResult(null); setImportOpen(true); }} size="sm" variant="outline">
+                <Upload /> Toplu yükle
+              </Button>
+              <Button onClick={() => setCategoryOpen(true)} size="sm" variant="outline">
+                <Tag /> Kategoriler
+              </Button>
+              <Button onClick={openNew} size="sm">
+                <Plus /> Yeni test
+              </Button>
+            </>
+          }
+          description="Aktif testler yeni tarama ve teklif formlarında seçilebilir."
+          title="Test listesi"
+        />
+      </div>
+
+      {notice && <Alert className="mt-4" icon={Check}>{notice}</Alert>}
+
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+        <SearchInput
+          aria-label="Test ara"
+          className="min-w-0 flex-1"
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Test kodu, adı veya kategori ara..."
+          value={query}
+        />
+        <FilterSelect
+          label="Kategori"
+          onChange={setCategory}
+          options={[allCategories, ...categories]}
+          value={category}
+        />
+      </div>
+
+      <div className="mt-4 overflow-hidden rounded-2xl border border-border">
+        <div className="hidden overflow-x-auto md:block">
+          <table className="w-full text-left">
+            <thead className="border-b border-divider bg-card-muted">
+              <tr>
+                {["Kod", "Test adı", "Kategori", "Fiyat", "Durum", ""].map((heading) => (
+                  <th className="px-4 py-3 text-[10px] font-bold tracking-[0.12em] text-subtle uppercase" key={heading}>
+                    {heading}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-divider">
+              {filtered.map((test) => (
+                <tr className="transition-colors hover:bg-card-muted" key={test.id}>
+                  <td className="px-4 py-3 text-xs font-bold tracking-[0.08em] text-brand">{test.code}</td>
+                  <td className="px-4 py-3 text-sm font-semibold text-foreground">{test.name}</td>
+                  <td className="px-4 py-3">
+                    <Badge tone="neutral">
+                      <Tag className="size-3" />
+                      {test.category}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3 text-sm font-semibold text-foreground">{money(test.price)}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      aria-pressed={test.active}
+                      className={`rounded-full px-2.5 py-1 text-[10px] font-semibold transition-colors ${
+                        test.active
+                          ? "bg-brand-soft text-brand-soft-fg"
+                          : "bg-danger-soft text-danger"
+                      }`}
+                      onClick={() => toggleActive(test)}
+                      type="button"
+                    >
+                      {test.active ? "Aktif" : "Pasif"}
+                    </button>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        aria-label={`${test.name} düzenle`}
+                        onClick={() => openEdit(test)}
+                        size="icon-sm"
+                        variant="ghost"
+                      >
+                        <Edit3 />
+                      </Button>
+                      <Button
+                        aria-label={`${test.name} sil`}
+                        onClick={() => remove(test)}
+                        size="icon-sm"
+                        variant="danger"
+                      >
+                        <Trash2 />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="divide-y divide-divider md:hidden">
+          {filtered.map((test) => (
+            <div className="flex items-center justify-between gap-3 p-4" key={test.id}>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold tracking-[0.08em] text-brand">{test.code}</p>
+                <p className="mt-1 truncate text-sm font-semibold text-foreground">{test.name}</p>
+                <p className="mt-1 text-xs text-muted">
+                  {test.category} · {money(test.price)}
+                </p>
+              </div>
+              <div className="flex shrink-0 gap-1">
+                <Button aria-label={`${test.name} düzenle`} onClick={() => openEdit(test)} size="icon-sm" variant="ghost">
+                  <Edit3 />
+                </Button>
+                <Button aria-label={`${test.name} sil`} onClick={() => remove(test)} size="icon-sm" variant="danger">
+                  <Trash2 />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+        {filtered.length === 0 && (
+          <EmptyState
+            compact
+            description="Arama veya kategori filtresini değiştirerek tekrar deneyin."
+            icon={ClipboardCheck}
+            title="Filtrelerle eşleşen test yok"
+          />
+        )}
+      </div>
+
       {formOpen && (
-        <TestForm
-          form={form}
-          categories={categoryList}
-          tests={tests}
+        <TestFormDialog
+          categories={categories}
           editing={editingId !== null}
+          form={form}
           setField={setField}
+          tests={tests}
           onClose={() => setFormOpen(false)}
           onSave={save}
         />
       )}
       {importOpen && (
-        <ImportModal
-          result={importResult}
+        <ImportDialog
           onClose={() => setImportOpen(false)}
           onDownload={downloadTemplate}
           onImport={handleImport}
+          result={importResult}
         />
       )}
       {categoryOpen && (
-        <CategoryManager
-          categories={categoryList}
-          setCategories={setCategoryList}
-          setTests={setTests}
+        <CategoryDialog
+          categories={categories}
           onClose={() => setCategoryOpen(false)}
+          onSave={(next) => setCategories(next)}
+          onRename={(from, to) => {
+            setCategories((current) => current.map((c) => (c === from ? to : c)));
+            setTests((current) => current.map((t) => (t.category === from ? { ...t, category: to } : t)));
+          }}
         />
       )}
     </SettingsCard>
   );
 }
 
-function TestRow({
-  test,
-  money,
-  onEdit,
-  onRemove,
-  onToggle,
-}: {
-  test: TestItem;
-  money: (value: number) => string;
-  onEdit: (test: TestItem) => void;
-  onRemove: (test: TestItem) => void;
-  onToggle: (test: TestItem) => void;
-}) {
-  return (
-    <tr className="transition hover:bg-[#f8fcfa] dark:hover:bg-[#12372f]">
-      <td className="px-4 py-3 text-xs font-bold tracking-[0.08em] text-[#278b70]">{test.code}</td>
-      <td className="px-4 py-3 text-sm font-semibold text-[#31534f] dark:text-[#d3ebe2]">{test.name}</td>
-      <td className="px-4 py-3">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f0faf4] px-2.5 py-1 text-[10px] font-semibold text-[#278b70] dark:bg-[#174638] dark:text-[#a7f3d0]">
-          <Tag className="size-3" />
-          {test.category}
-        </span>
-      </td>
-      <td className="px-4 py-3 text-sm font-semibold text-[#31534f] dark:text-[#d3ebe2]">{money(test.price)}</td>
-      <td className="px-4 py-3">
-        <button
-          aria-pressed={test.active}
-          className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${test.active ? "bg-[#dff6eb] text-[#258b71] dark:bg-[#174638] dark:text-[#a7f3d0]" : "bg-[#f1e8e5] text-[#a66f60] dark:bg-[#49302c] dark:text-[#f0b3a5]"}`}
-          onClick={() => onToggle(test)}
-          type="button"
-        >
-          {test.active ? "Aktif" : "Pasif"}
-        </button>
-      </td>
-      <td className="px-4 py-3">
-        <div className="flex justify-end gap-1">
-          <button
-            aria-label={`${test.name} düzenle`}
-            className="rounded-lg p-2 text-[#81958f] hover:bg-[#ebf6f0] hover:text-[#278b70]"
-            onClick={() => onEdit(test)}
-            type="button"
-          >
-            <Edit3 className="size-4" />
-          </button>
-          <button
-            aria-label={`${test.name} sil`}
-            className="rounded-lg p-2 text-[#a66f60] hover:bg-[#fff1ed] dark:hover:bg-[#49302c]"
-            onClick={() => onRemove(test)}
-            type="button"
-          >
-            <Trash2 className="size-4" />
-          </button>
-        </div>
-      </td>
-    </tr>
-  );
-}
-
-function CategoryManager({
-  categories,
-  setCategories,
-  setTests,
-  onClose,
-}: {
-  categories: string[];
-  setCategories: (categories: string[]) => void;
-  setTests: (updater: (tests: TestItem[]) => TestItem[]) => void;
-  onClose: () => void;
-}) {
-  const [draft, setDraft] = useState("");
-  const [editing, setEditing] = useState<string | null>(null);
-  const save = () => {
-    const value = draft.trim();
-    if (!value) return;
-    if (editing) {
-      setCategories(categories.map((category) => (category === editing ? value : category)));
-      setTests((current) => current.map((test) => (test.category === editing ? { ...test, category: value } : test)));
-    } else if (!categories.some((category) => category.toLocaleLowerCase("tr-TR") === value.toLocaleLowerCase("tr-TR")))
-      setCategories([...categories, value]);
-    setDraft("");
-    setEditing(null);
-  };
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#082421]/55 p-4 backdrop-blur-[3px]">
-      <section
-        aria-label="Kategori yönetimi"
-        aria-modal="true"
-        className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl sm:p-7 dark:bg-[#0e2927]"
-        role="dialog"
-      >
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <span className="flex size-10 items-center justify-center rounded-xl bg-[#d8f0e4] text-[#278b70] dark:bg-[#174638] dark:text-[#a7f3d0]">
-              <Tag className="size-5" />
-            </span>
-            <div>
-              <p className="text-[10px] font-bold tracking-[0.14em] text-[#299b7c] uppercase">Test tanımlamaları</p>
-              <h2 className="mt-1 text-xl font-semibold text-[#173e3b] dark:text-[#e8f7f1]">Kategori yönetimi</h2>
-              <p className="mt-1 text-xs text-[#81958f]">Test kategorilerini merkezi olarak yönetin.</p>
-            </div>
-          </div>
-          <button
-            aria-label="Kategori yönetimini kapat"
-            className="rounded-xl p-2 text-[#81958f] hover:bg-[#ebf6f0] dark:hover:bg-[#174638]"
-            onClick={onClose}
-            type="button"
-          >
-            <X className="size-5" />
-          </button>
-        </div>
-        <div className="mt-6 flex gap-2">
-          <input
-            aria-label="Kategori adı"
-            className="h-11 min-w-0 flex-1 rounded-xl border border-[#dbe9e4] bg-[#fbfdfc] px-3 text-sm outline-none focus:border-[#55b99c] dark:border-[#1d4941] dark:bg-[#102f2d] dark:text-white"
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") save();
-            }}
-            placeholder="Yeni kategori adı"
-            value={draft}
-          />
-          <button
-            className="inline-flex items-center gap-2 rounded-xl bg-[#103c3a] px-3.5 text-sm font-semibold text-white hover:bg-[#174e4b]"
-            onClick={save}
-            type="button"
-          >
-            <Plus className="size-4" />
-            {editing ? "Güncelle" : "Ekle"}
-          </button>
-        </div>
-        <div className="mt-5 divide-y divide-[#edf3f0] rounded-2xl border border-[#e1eee8] dark:divide-[#1d4941] dark:border-[#1d4941]">
-          {categories.map((category) => (
-            <div className="flex items-center justify-between gap-3 px-4 py-3" key={category}>
-              <span className="text-sm font-medium text-[#31534f] dark:text-[#d3ebe2]">{category}</span>
-              <div className="flex gap-1">
-                <button
-                  aria-label={`${category} düzenle`}
-                  className="rounded-lg p-2 text-[#81958f] hover:bg-[#ebf6f0] hover:text-[#278b70]"
-                  onClick={() => {
-                    setEditing(category);
-                    setDraft(category);
-                  }}
-                  type="button"
-                >
-                  <Edit3 className="size-4" />
-                </button>
-                <button
-                  aria-label={`${category} sil`}
-                  className="rounded-lg p-2 text-[#a66f60] hover:bg-[#fff1ed] dark:hover:bg-[#49302c]"
-                  onClick={() => {
-                    if (!window.confirm(`${category} kategorisini silmek istediğinize emin misiniz?`)) return;
-                    const fallback = categories.find((item) => item !== category) ?? "Diğer";
-                    setCategories(categories.filter((item) => item !== category));
-                    setTests((current) =>
-                      current.map((test) => (test.category === category ? { ...test, category: fallback } : test)),
-                    );
-                  }}
-                  type="button"
-                >
-                  <Trash2 className="size-4" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="mt-5 flex justify-end border-t border-[#edf3f0] pt-4 dark:border-[#1d4941]">
-          <button
-            className="rounded-xl px-4 py-2.5 text-sm font-semibold text-[#718783] hover:bg-[#ebf6f0] dark:hover:bg-[#174638]"
-            onClick={onClose}
-            type="button"
-          >
-            Tamam
-          </button>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function ImportModal({
-  result,
-  onClose,
-  onDownload,
-  onImport,
-}: {
-  result: ImportResult | null;
-  onClose: () => void;
-  onDownload: () => void;
-  onImport: (event: ChangeEvent<HTMLInputElement>) => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#082421]/55 p-4 backdrop-blur-[3px]">
-      <section
-        aria-label="Toplu test yükleme"
-        aria-modal="true"
-        className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-2xl sm:p-7 dark:bg-[#0e2927]"
-        role="dialog"
-      >
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <span className="flex size-10 items-center justify-center rounded-xl bg-[#d8f0e4] text-[#278b70] dark:bg-[#174638] dark:text-[#a7f3d0]">
-              <FileSpreadsheet className="size-5" />
-            </span>
-            <div>
-              <p className="text-[10px] font-bold tracking-[0.14em] text-[#299b7c] uppercase">Excel aktarımı</p>
-              <h2 className="mt-1 text-xl font-semibold text-[#173e3b] dark:text-[#e8f7f1]">Toplu test yükle</h2>
-              <p className="mt-1 text-xs text-[#81958f]">
-                Aktif testlerden şablon oluşturun, düzenleyin ve tekrar yükleyin.
-              </p>
-            </div>
-          </div>
-          <button
-            aria-label="Toplu test yüklemeyi kapat"
-            className="rounded-xl p-2 text-[#81958f] hover:bg-[#ebf6f0] dark:hover:bg-[#174638]"
-            onClick={onClose}
-            type="button"
-          >
-            <X className="size-5" />
-          </button>
-        </div>
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-2xl border border-[#dceee4] bg-[#f7fcf9] p-4 dark:border-[#1d4941] dark:bg-[#102f2d]">
-            <p className="flex items-center gap-2 text-sm font-semibold text-[#31534f] dark:text-[#d3ebe2]">
-              <Download className="size-4 text-[#278b70]" /> 1. Şablonu indir
-            </p>
-            <p className="mt-2 text-xs leading-5 text-[#81958f]">
-              Mevcut aktif testler ve kullanım notları Excel dosyasına eklenir.
-            </p>
-            <button
-              className="mt-4 inline-flex items-center gap-2 rounded-xl border border-[#bfe3d0] bg-white px-3 py-2 text-xs font-semibold text-[#278b70] hover:bg-[#effaf4] dark:border-[#1d4941] dark:bg-[#0e2927] dark:text-[#a7f3d0]"
-              onClick={onDownload}
-              type="button"
-            >
-              <Download className="size-3.5" /> Şablon indir
-            </button>
-          </div>
-          <label className="cursor-pointer rounded-2xl border border-dashed border-[#9ed0b6] bg-[#fbfdfc] p-4 transition hover:bg-[#f0faf4] dark:border-[#286050] dark:bg-[#102f2d] dark:hover:bg-[#174638]">
-            <p className="flex items-center gap-2 text-sm font-semibold text-[#31534f] dark:text-[#d3ebe2]">
-              <Upload className="size-4 text-[#278b70]" /> 2. Excel’i yükle
-            </p>
-            <p className="mt-2 text-xs leading-5 text-[#81958f]">
-              Düzenlediğiniz .xlsx dosyasını seçin. Aynı test adı ve kategori güncellenir, yeni testlere kod otomatik
-              atanır.
-            </p>
-            <span className="mt-4 inline-flex rounded-xl bg-[#103c3a] px-3 py-2 text-xs font-semibold text-white">
-              Dosya seç
-            </span>
-            <input
-              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-              className="sr-only"
-              onChange={onImport}
-              type="file"
-            />
-          </label>
-        </div>
-        {result && (
-          <div className="mt-5 rounded-2xl border border-[#dceee4] bg-[#f7fcf9] p-4 dark:border-[#1d4941] dark:bg-[#102f2d]">
-            <p className="flex items-center gap-2 text-sm font-semibold text-[#278b70]">
-              <CheckCircle2 className="size-4" /> Aktarım özeti
-            </p>
-            <p className="mt-2 text-xs text-[#52776d] dark:text-[#a7c9be]">
-              {result.added} yeni test eklendi, {result.updated} test güncellendi.
-            </p>
-            {result.errors.length > 0 && (
-              <div className="mt-3 space-y-1 text-xs text-[#a66f60]">
-                <p className="flex items-center gap-1 font-semibold">
-                  <AlertCircle className="size-3.5" /> Düzeltilmesi gereken satırlar
-                </p>
-                {result.errors.slice(0, 5).map((error) => (
-                  <p key={error}>{error}</p>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-        <div className="mt-6 flex justify-end border-t border-[#edf3f0] pt-4 dark:border-[#1d4941]">
-          <button
-            className="rounded-xl px-4 py-2.5 text-sm font-semibold text-[#718783] hover:bg-[#ebf6f0] dark:hover:bg-[#174638]"
-            onClick={onClose}
-            type="button"
-          >
-            Tamam
-          </button>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function TestForm({
+function TestFormDialog({
   form,
   categories,
   tests,
@@ -768,95 +471,247 @@ function TestForm({
   onClose: () => void;
   onSave: () => void;
 }) {
+  const [submitted, setSubmitted] = useState(false);
+  const errors = validateForm(form);
+  const shown = submitted ? errors : {};
+  const previewCode = editing ? form.code : form.category ? generateTestCode(form.category, tests) : "—";
+  const submit = () => {
+    setSubmitted(true);
+    if (Object.keys(errors).length > 0) return;
+    onSave();
+  };
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#082421]/55 p-4 backdrop-blur-[3px]">
-      <section
-        aria-label="Test formu"
-        aria-modal="true"
-        className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl sm:p-7 dark:bg-[#0e2927]"
-        role="dialog"
+    <Modal
+      description="Test adı, kategori ve birim fiyatını belirleyin. Kod otomatik atanır."
+      eyebrow="Test kataloğu"
+      footer={
+        <>
+          <Button onClick={onClose} variant="ghost">
+            Vazgeç
+          </Button>
+          <Button onClick={submit}>
+            <Check /> {editing ? "Kaydet" : "Testi ekle"}
+          </Button>
+        </>
+      }
+      icon={FlaskConical}
+      onClose={onClose}
+      open
+      size="lg"
+      title={editing ? "Testi düzenle" : "Yeni test ekle"}
+    >
+      <form
+        className="grid gap-4 sm:grid-cols-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit();
+        }}
       >
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <span className="flex size-10 items-center justify-center rounded-xl bg-[#d8f0e4] text-[#278b70] dark:bg-[#174638] dark:text-[#a7f3d0]">
-              <FlaskConical className="size-5" />
-            </span>
-            <div>
-              <p className="text-[10px] font-bold tracking-[0.14em] text-[#299b7c] uppercase">Test kataloğu</p>
-              <h2 className="mt-1 text-xl font-semibold text-[#173e3b] dark:text-[#e8f7f1]">
-                {editing ? "Testi düzenle" : "Yeni test ekle"}
-              </h2>
+        <Field label="Otomatik kod">
+          <Input className="font-bold tracking-[0.08em] text-brand" readOnly value={previewCode} />
+        </Field>
+        <Field error={shown.category} label="Kategori" required>
+          <Select
+            invalid={Boolean(shown.category)}
+            onChange={(event) => setField("category", event.target.value)}
+            value={form.category}
+          >
+            <option value="">Kategori seçin</option>
+            {categories.map((item) => (
+              <option key={item}>{item}</option>
+            ))}
+          </Select>
+        </Field>
+        <Field className="sm:col-span-2" error={shown.name} label="Test adı" required>
+          <Input
+            invalid={Boolean(shown.name)}
+            onChange={(event) => setField("name", event.target.value)}
+            placeholder="Örn. Akciğer grafisi"
+            value={form.name}
+          />
+        </Field>
+        <Field error={shown.price} label="Birim fiyat (₺)" required>
+          <Input
+            invalid={Boolean(shown.price)}
+            min={0}
+            onChange={(event) => setField("price", event.target.value)}
+            type="number"
+            value={form.price}
+          />
+        </Field>
+        <button className="hidden" type="submit" />
+      </form>
+    </Modal>
+  );
+}
+
+function CategoryDialog({
+  categories,
+  onClose,
+  onSave,
+  onRename,
+}: {
+  categories: string[];
+  onClose: () => void;
+  onSave: (next: string[]) => void;
+  onRename: (from: string, to: string) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const [editing, setEditing] = useState<string | null>(null);
+  const save = () => {
+    const value = draft.trim();
+    if (!value) return;
+    if (editing) {
+      onRename(editing, value);
+      setEditing(null);
+    } else if (!categories.some((c) => c.toLocaleLowerCase("tr-TR") === value.toLocaleLowerCase("tr-TR"))) {
+      onSave([...categories, value]);
+    }
+    setDraft("");
+  };
+  return (
+    <Modal
+      description="Test kategorilerini merkezi olarak yönetin."
+      eyebrow="Test tanımlamaları"
+      footer={
+        <Button onClick={onClose} variant="ghost">
+          Tamam
+        </Button>
+      }
+      icon={Tag}
+      onClose={onClose}
+      open
+      size="lg"
+      title="Kategori yönetimi"
+    >
+      <div className="flex gap-2">
+        <Input
+          aria-label="Kategori adı"
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") save();
+          }}
+          placeholder="Yeni kategori adı"
+          value={draft}
+        />
+        <Button onClick={save} variant="secondary">
+          <Plus /> {editing ? "Güncelle" : "Ekle"}
+        </Button>
+      </div>
+      <div className="mt-5 divide-y divide-divider rounded-2xl border border-border">
+        {categories.map((cat) => (
+          <div className="flex items-center justify-between gap-3 px-4 py-3" key={cat}>
+            <span className="text-sm font-medium text-foreground">{cat}</span>
+            <div className="flex gap-1">
+              <Button
+                aria-label={`${cat} düzenle`}
+                onClick={() => {
+                  setEditing(cat);
+                  setDraft(cat);
+                }}
+                size="icon-sm"
+                variant="ghost"
+              >
+                <Edit3 />
+              </Button>
+              <Button
+                aria-label={`${cat} sil`}
+                onClick={() => {
+                  if (!window.confirm(`${cat} kategorisini silmek istediğinize emin misiniz?`)) return;
+                  const fallback = categories.find((item) => item !== cat) ?? "Diğer";
+                  onRename(cat, fallback);
+                  onSave(categories.filter((item) => item !== cat));
+                }}
+                size="icon-sm"
+                variant="danger"
+              >
+                <Trash2 />
+              </Button>
             </div>
           </div>
-          <button
-            aria-label="Test formunu kapat"
-            className="rounded-xl p-2 text-[#81958f] hover:bg-[#ebf6f0] dark:hover:bg-[#174638]"
-            onClick={onClose}
-            type="button"
-          >
-            <X className="size-5" />
-          </button>
+        ))}
+      </div>
+    </Modal>
+  );
+}
+
+function ImportDialog({
+  result,
+  onClose,
+  onDownload,
+  onImport,
+}: {
+  result: ImportResult | null;
+  onClose: () => void;
+  onDownload: () => void;
+  onImport: (event: ChangeEvent<HTMLInputElement>) => void;
+}) {
+  return (
+    <Modal
+      description="Aktif testlerden şablon oluşturun, düzenleyin ve tekrar yükleyin."
+      eyebrow="Excel aktarımı"
+      footer={
+        <Button onClick={onClose} variant="ghost">
+          Tamam
+        </Button>
+      }
+      icon={FileSpreadsheet}
+      onClose={onClose}
+      open
+      size="xl"
+      title="Toplu test yükle"
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-2xl border border-border bg-card-muted p-4">
+          <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <Download className="size-4 text-brand" /> 1. Şablonu indir
+          </p>
+          <p className="mt-2 text-xs leading-5 text-muted">
+            Mevcut aktif testler ve kullanım notları Excel dosyasına eklenir.
+          </p>
+          <Button className="mt-4" onClick={onDownload} size="sm" variant="outline">
+            <Download /> Şablon indir
+          </Button>
         </div>
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-medium text-[#31534f] dark:text-[#c4dfd5]">
-            Otomatik test kodu
-            <input
-              className="mt-2 h-11 w-full rounded-xl border border-[#dbe9e4] bg-[#f3faf6] px-3 text-sm font-bold tracking-[0.08em] text-[#278b70] outline-none dark:border-[#1d4941] dark:bg-[#102f2d] dark:text-[#a7f3d0]"
-              readOnly
-              value={editing ? form.code : form.category ? generateTestCode(form.category, tests) : "Kategori seçin"}
-            />
-          </label>
-          <label className="text-sm font-medium text-[#31534f] dark:text-[#c4dfd5]">
-            Kategori
-            <select
-              className="mt-2 h-11 w-full rounded-xl border border-[#dbe9e4] bg-white px-3 text-sm outline-none focus:border-[#55b99c] dark:border-[#1d4941] dark:bg-[#102f2d] dark:text-white"
-              onChange={(event) => setField("category", event.target.value)}
-              value={form.category}
-            >
-              <option value="">Kategori seçin</option>
-              {categories.map((item) => (
-                <option key={item}>{item}</option>
+        <label className="cursor-pointer rounded-2xl border border-dashed border-border-strong bg-card-muted p-4 transition-colors hover:border-brand-outline hover:bg-brand-soft/40">
+          <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <Upload className="size-4 text-brand" /> 2. Excel&rsquo;i yükle
+          </p>
+          <p className="mt-2 text-xs leading-5 text-muted">
+            Düzenlediğiniz .xlsx dosyasını seçin. Aynı test adı ve kategori güncellenir, yeni testlere kod otomatik atanır.
+          </p>
+          <span className="mt-4 inline-flex rounded-xl bg-brand px-3 py-2 text-xs font-semibold text-brand-fg">
+            Dosya seç
+          </span>
+          <input
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            className="sr-only"
+            onChange={onImport}
+            type="file"
+          />
+        </label>
+      </div>
+      {result && (
+        <div className="mt-5 rounded-2xl border border-border bg-card-muted p-4">
+          <p className="flex items-center gap-2 text-sm font-semibold text-brand-soft-fg">
+            <CheckCircle2 className="size-4" /> Aktarım özeti
+            <CountPill>{result.added + result.updated} kayıt</CountPill>
+          </p>
+          <p className="mt-2 text-xs text-muted">
+            {result.added} yeni test eklendi, {result.updated} test güncellendi.
+          </p>
+          {result.errors.length > 0 && (
+            <div className="mt-3 space-y-1 text-xs text-danger">
+              <p className="flex items-center gap-1 font-semibold">
+                <AlertCircle className="size-3.5" /> Düzeltilmesi gereken satırlar
+              </p>
+              {result.errors.slice(0, 5).map((error) => (
+                <p key={error}>{error}</p>
               ))}
-            </select>
-          </label>
-          <label className="text-sm font-medium text-[#31534f] sm:col-span-2 dark:text-[#c4dfd5]">
-            Test adı
-            <input
-              className="mt-2 h-11 w-full rounded-xl border border-[#dbe9e4] bg-[#fbfdfc] px-3 text-sm outline-none focus:border-[#55b99c] dark:border-[#1d4941] dark:bg-[#102f2d] dark:text-white"
-              onChange={(event) => setField("name", event.target.value)}
-              placeholder="Örn. Akciğer grafisi"
-              value={form.name}
-            />
-          </label>
-          <label className="text-sm font-medium text-[#31534f] dark:text-[#c4dfd5]">
-            Birim fiyat (₺)
-            <input
-              className="mt-2 h-11 w-full rounded-xl border border-[#dbe9e4] bg-[#fbfdfc] px-3 text-sm outline-none focus:border-[#55b99c] dark:border-[#1d4941] dark:bg-[#102f2d] dark:text-white"
-              min="0"
-              onChange={(event) => setField("price", event.target.value)}
-              step="1"
-              type="number"
-              value={form.price || ""}
-            />
-          </label>
+            </div>
+          )}
         </div>
-        <div className="mt-7 flex justify-end gap-3 border-t border-[#edf3f0] pt-5 dark:border-[#1d4941]">
-          <button
-            className="rounded-xl px-4 py-2.5 text-sm font-semibold text-[#718783] hover:bg-[#ebf6f0] dark:hover:bg-[#174638]"
-            onClick={onClose}
-            type="button"
-          >
-            Vazgeç
-          </button>
-          <button
-            className="inline-flex items-center gap-2 rounded-xl bg-[#103c3a] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#174e4b]"
-            onClick={onSave}
-            type="button"
-          >
-            <ClipboardCheck className="size-4" /> {editing ? "Kaydet" : "Testi ekle"}
-          </button>
-        </div>
-      </section>
-    </div>
+      )}
+    </Modal>
   );
 }
