@@ -1,0 +1,231 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+}
+
+/* Teklif sihirbazında kart ve alt aksiyonlar viewport içinde kalsın. */
+@media (min-width: 640px) {
+  main.mx-auto.max-w-6xl > div > section[class*="max-h-[calc(100vh-7rem)]"] {
+    max-height: calc(100vh - 9rem);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #ffffff;
+  font-family: Arial, Helvetica, sans-serif;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+a {
+  text-decoration: none;
+}
+
+html.dark body {
+  background: #101918;
+}
+
+/* Keep green as an accent, while neutralizing repeated tinted surfaces. */
+[class*="bg-[#d8f0e4]"] {
+  background-color: #e8efeb !important;
+}
+[class*="bg-[#e5f5ec]"] {
+  background-color: #eef4f0 !important;
+}
+[class*="bg-[#ebf6f0]"] {
+  background-color: #f3f6f4 !important;
+}
+[class*="bg-[#f0faf4]"] {
+  background-color: #f5f8f6 !important;
+}
+[class*="bg-[#f7fcf9]"] {
+  background-color: #f8faf9 !important;
+}
+[class*="border-[#cfe6da]"] {
+  border-color: #d9e5df !important;
+}
+[class*="border-[#dceee4]"] {
+  border-color: #e2eae6 !important;
+}
+[class*="border-[#dbe9e4]"] {
+  border-color: #e1e8e4 !important;
+}
+
+/* The topbar shares the dark shell with the sidebar in both themes. */
+header[class*="bg-white/90"] {
+  background-color: rgba(15, 41, 38, 0.95) !important;
+  border-color: #1d4941 !important;
+  color: #d3ebe2 !important;
+}
+header[class*="bg-white/90"] [class*="bg-[#f8fbfa]"] {
+  background-color: #153c36 !important;
+  border-color: #37685a !important;
+  color: #e8f7f1 !important;
+}
+header[class*="bg-white/90"] [class*="hover:bg-[#ebf6f0]"]:hover {
+  background-color: #174238 !important;
+}
+header[class*="bg-white/90"] [class*="bg-[#e1ece8]"] {
+  background-color: #37685a !important;
+}
+header[class*="bg-white/90"] [class*="bg-white"] {
+  background-color: #153c36 !important;
+}
+header[class*="bg-white/90"] [class*="text-[#31534f]"] {
+  color: #d3ebe2 !important;
+}
+header[class*="bg-white/90"] [class*="text-[#8aa09c]"] {
+  color: #8db0a6 !important;
+}
+header[class*="bg-white/90"] input::placeholder {
+  color: #8db0a6 !important;
+}
+header[class*="bg-white/90"] button {
+  background-color: transparent !important;
+  color: #a7c9be !important;
+}
+header[class*="bg-white/90"] button[class*="border"] {
+  background-color: #153c36 !important;
+  border-color: #37685a !important;
+}
+header[class*="bg-white/90"] button:hover {
+  background-color: #174238 !important;
+  color: #dff8ea !important;
+}
+
+/* Dark surfaces use charcoal-teal instead of saturated green or legacy blue. */
+html.dark [class*="dark:bg-[#111827]"] {
+  background-color: #172321 !important;
+}
+html.dark [class*="dark:bg-[#18212f]"] {
+  background-color: #162422 !important;
+}
+html.dark [class*="dark:bg-[#202b3b]"] {
+  background-color: #20302c !important;
+}
+html.dark [class*="dark:bg-[#0b2422]"] {
+  background-color: #111e1d !important;
+}
+html.dark [class*="dark:bg-[#102f2d]"] {
+  background-color: #172523 !important;
+}
+html.dark [class*="dark:bg-[#0e2927]"] {
+  background-color: #142220 !important;
+}
+html.dark [class*="dark:bg-[#12372f]"] {
+  background-color: #1b302c !important;
+}
+html.dark [class*="dark:bg-[#174638]"] {
+  background-color: #214139 !important;
+}
+html.dark [class*="dark:border-[#26364a]"] {
+  border-color: #293b37 !important;
+}
+html.dark [class*="dark:border-[#2b4057]"] {
+  border-color: #30443f !important;
+}
+html.dark [class*="dark:border-[#1d4941]"] {
+  border-color: #29453e !important;
+}
+html.dark [class*="dark:bg-[#3d4d62]"] {
+  background-color: #344641 !important;
+}
+
+/* Normalize light-only controls that previously stayed white in dark mode. */
+html.dark button[class*="bg-white"],
+html.dark select[class*="bg-white"],
+html.dark input[class*="bg-white"],
+html.dark textarea[class*="bg-white"] {
+  background-color: #153c36 !important;
+  border-color: #37685a !important;
+  color: #d3ebe2 !important;
+}
+html.dark [class*="bg-[#fbfdfc]"],
+html.dark [class*="bg-[#f8fbfa]"],
+html.dark [class*="bg-[#f7fcf9]"] {
+  background-color: #172523 !important;
+}
+html.dark [class*="border-[#dbe9e4]"],
+html.dark [class*="border-[#e0ece8]"],
+html.dark [class*="border-[#e2eee9]"] {
+  border-color: #304b44 !important;
+}
+html.dark button[class*="text-[#81958f]"],
+html.dark button[class*="text-[#68837c]"],
+html.dark button[class*="text-[#718783]"] {
+  color: #a7c9be !important;
+}
+html.dark main button[class*="rounded-lg"],
+html.dark main button[class*="rounded-xl"] {
+  background-color: #153c36 !important;
+  border-color: #37685a !important;
+  color: #c7e4d8 !important;
+}
+html.dark main button[class*="rounded-lg"]:hover,
+html.dark main button[class*="rounded-xl"]:hover {
+  background-color: #1d5747 !important;
+  color: #effff6 !important;
+}
+
+@media (max-height: 820px) {
+  .login-screen > div {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .login-screen section[aria-label="Kullanıcı girişi"] {
+    padding-top: 1.25rem;
+    padding-bottom: 1.25rem;
+  }
+
+  .login-screen section[aria-label="Kullanıcı girişi"] > div > div:nth-child(2) {
+    margin-top: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .login-screen form {
+    row-gap: 0.75rem;
+  }
+
+  .login-screen form input {
+    height: 2.75rem;
+  }
+
+  .login-screen form + div {
+    margin-top: 0.75rem;
+    padding: 0.65rem;
+  }
+
+  .login-screen form + div p,
+  .login-screen form + div div div > span {
+    display: none;
+  }
+
+  .login-screen form + div button {
+    margin-top: 0.35rem;
+  }
+
+  .login-screen [aria-live="polite"] {
+    margin-top: 0.25rem;
+  }
+
+  .login-screen [aria-live="polite"] + div {
+    margin-top: 0.75rem;
+  }
+
+  .login-screen [aria-live="polite"] + div + p {
+    margin-top: 0.75rem;
+  }
+}
