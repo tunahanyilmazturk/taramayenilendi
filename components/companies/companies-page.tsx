@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, ClipboardList, LayoutGrid, MapPin, Plus, RotateCcw, Settings2 } from "lucide-react";
+import { Building2, ClipboardList, LayoutGrid, MapPin, Plus, RotateCcw, Settings2, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CompanyCard, CompanyRowActions, type CompanyActions } from "@/components/companies/company-card";
@@ -11,14 +11,14 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterSelect, SearchInput } from "@/components/ui/field";
-import { Alert } from "@/components/ui/modal";
+import { Alert, ConfirmDialog } from "@/components/ui/modal";
 import { Page, PageHeader } from "@/components/ui/page-header";
 import { paginate, Pagination } from "@/components/ui/pagination";
 import { Avatar, DataTable, SortButton, TBody, Td, Th, THead, Tr, type SortDirection } from "@/components/ui/table";
 import { useCompanies, useSectors } from "@/lib/data";
 import { companyLocation, contractStatuses, type Company } from "@/lib/demo-data";
 import { labelToIso } from "@/lib/format";
-import { useNotice, useSort } from "@/lib/hooks";
+import { useConfirm, useNotice, useSort } from "@/lib/hooks";
 import { cn, compareTr, includesQuery, initials } from "@/lib/utils";
 
 type SortKey = "name" | "employees" | "contract" | "lastScreening";
@@ -35,8 +35,10 @@ const sortValue = (company: Company, key: SortKey) => {
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = useCompanies();
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [sectors, setSectors] = useSectors();
   const [notice, showNotice] = useNotice();
+  const { request: confirmRequest, confirm, close: closeConfirm } = useConfirm();
   const { sortKey, direction, toggle } = useSort<SortKey>("name");
 
   const [query, setQuery] = useState("");
@@ -100,9 +102,28 @@ export default function CompaniesPage() {
     showNotice(editing ? "Firma bilgileri güncellendi." : "Yeni firma eklendi.");
   };
   const removeCompany = (company: Company) => {
-    if (!window.confirm(`${company.name} firmasını silmek istediğinize emin misiniz?`)) return;
-    setCompanies(companies.filter((item) => item.id !== company.id));
-    showNotice(`${company.name} silindi.`);
+    confirm({ title: "Firmayı sil", description: `${company.name} firması kalıcı olarak silinecek.`, onConfirm: () => {
+      setCompanies((current) => current.filter((item) => item.id !== company.id));
+      setSelectedIds((current) => current.filter((id) => id !== company.id));
+      showNotice(`${company.name} silindi.`);
+    }});
+  };
+  const toggleSelected = (id: number) => {
+    setSelectedIds((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
+  };
+  const togglePageSelection = () => {
+    const pageIds = paged.map((company) => company.id);
+    const allSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id));
+    setSelectedIds((current) => allSelected ? current.filter((id) => !pageIds.includes(id)) : Array.from(new Set([...current, ...pageIds])));
+  };
+  const removeSelected = () => {
+    if (!selectedIds.length) return;
+    const count = selectedIds.length;
+    confirm({ title: "Seçilen firmaları sil", description: `${count} firma kalıcı olarak silinecek.`, confirmLabel: "Firmaları sil", onConfirm: () => {
+      setCompanies((current) => current.filter((item) => !selectedIds.includes(item.id)));
+      setSelectedIds([]);
+      showNotice(`${count} firma silindi.`);
+    }});
   };
   const renameSector = (from: string, to: string) => {
     setSectors(sectors.map((sector) => (sector === from ? to : sector)));
@@ -113,6 +134,7 @@ export default function CompaniesPage() {
   return (
     <Page>
       <PageHeader
+        className="border-border bg-card shadow-card rounded-2xl border px-5 py-5 sm:px-6 sm:py-6"
         actions={
           <>
             <Button onClick={() => setSectorOpen(true)} variant="secondary">
@@ -128,8 +150,14 @@ export default function CompaniesPage() {
         title="Firmalar"
       />
       {notice && <Alert className="mt-4 w-fit">{notice}</Alert>}
+      {selectedIds.length > 0 && (
+        <Card className="mt-4 flex flex-col gap-3 border-brand/30 bg-brand-soft/40 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-medium text-foreground"><strong>{selectedIds.length}</strong> firma seçildi.</p>
+          <Button onClick={removeSelected} size="sm" variant="danger"><Trash2 /> Seçilenleri sil</Button>
+        </Card>
+      )}
 
-      <Card aria-label="Firma listesi filtreleri" className="mt-7 p-4 sm:p-5">
+      <Card aria-label="Firma listesi filtreleri" className="mt-5 p-4 sm:p-5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="flex items-center gap-2">
@@ -175,9 +203,9 @@ export default function CompaniesPage() {
       </Card>
 
       {view === "table" ? (
-        <CompanyTable companies={paged} direction={direction} onSort={withReset(toggle)} sortKey={sortKey} {...actions} />
+        <CompanyTable companies={paged} direction={direction} onSort={withReset(toggle)} selectedIds={selectedIds} onToggle={toggleSelected} onToggleAll={togglePageSelection} sortKey={sortKey} {...actions} />
       ) : (
-        <CompanyGrid companies={paged} {...actions} />
+        <CompanyGrid companies={paged} selectedIds={selectedIds} onToggle={toggleSelected} {...actions} />
       )}
       <Pagination
         noun="firma"
@@ -203,6 +231,7 @@ export default function CompaniesPage() {
         open={sectorOpen}
         sectors={sectors}
       />
+      <ConfirmDialog onClose={closeConfirm} request={confirmRequest} />
     </Page>
   );
 }
@@ -252,11 +281,17 @@ function CompanyTable({
   onSort,
   onEdit,
   onDelete,
+  selectedIds,
+  onToggle,
+  onToggleAll,
 }: {
   companies: Company[];
   sortKey: SortKey;
   direction: SortDirection;
   onSort: (key: SortKey) => void;
+  selectedIds: number[];
+  onToggle: (id: number) => void;
+  onToggleAll: () => void;
 } & CompanyActions) {
   const sortProps = { sortKey, direction, onSort };
   return (
@@ -264,11 +299,12 @@ function CompanyTable({
       className="mt-6"
       empty={companies.length === 0 && <NoResults />}
       mobile={companies.map((company) => (
-        <CompanyCard company={company} key={company.id} onDelete={onDelete} onEdit={onEdit} />
+        <CompanyCard company={company} key={company.id} onDelete={onDelete} onEdit={onEdit} onToggle={onToggle} selected={selectedIds.includes(company.id)} />
       ))}
     >
       <THead>
         <tr>
+          <Th><input aria-label="Sayfadaki firmaları seç" checked={companies.length > 0 && companies.every((company) => selectedIds.includes(company.id))} className="size-4 accent-brand" onChange={onToggleAll} type="checkbox" /></Th>
           <Th>
             <SortButton column="name" label="Firma" {...sortProps} />
           </Th>
@@ -290,6 +326,9 @@ function CompanyTable({
       <TBody>
         {companies.map((company) => (
           <Tr key={company.id}>
+            <Td>
+              <input aria-label={`${company.name} seç`} checked={selectedIds.includes(company.id)} className="size-4 accent-brand" onChange={() => onToggle(company.id)} type="checkbox" />
+            </Td>
             <Td>
               <Link className="flex items-center gap-3" href={`/firmalar/${company.id}`}>
                 <Avatar text={initials(company.name)} />
@@ -325,7 +364,7 @@ function CompanyTable({
   );
 }
 
-function CompanyGrid({ companies, onEdit, onDelete }: { companies: Company[] } & CompanyActions) {
+function CompanyGrid({ companies, onEdit, onDelete, selectedIds, onToggle }: { companies: Company[]; selectedIds: number[]; onToggle: (id: number) => void } & CompanyActions) {
   if (companies.length === 0) {
     return (
       <Card className="mt-6">
@@ -334,10 +373,10 @@ function CompanyGrid({ companies, onEdit, onDelete }: { companies: Company[] } &
     );
   }
   return (
-    <div className="mt-6 grid gap-4 lg:grid-cols-2">
+    <div className="mt-6 grid items-stretch gap-4 lg:grid-cols-2">
       {companies.map((company) => (
-        <Card key={company.id}>
-          <CompanyCard company={company} onDelete={onDelete} onEdit={onEdit} />
+        <Card className="h-full" key={company.id}>
+          <CompanyCard company={company} onDelete={onDelete} onEdit={onEdit} onToggle={onToggle} selected={selectedIds.includes(company.id)} />
         </Card>
       ))}
     </div>

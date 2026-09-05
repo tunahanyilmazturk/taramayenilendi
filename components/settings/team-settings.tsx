@@ -8,11 +8,11 @@ import { Button } from "@/components/ui/button";
 import { SummaryCard } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Checkbox, Field, Input, SearchInput, Select } from "@/components/ui/field";
-import { Alert, Modal } from "@/components/ui/modal";
+import { Alert, ConfirmDialog, Modal } from "@/components/ui/modal";
 import { Avatar } from "@/components/ui/table";
 import { useRoles, useTeam } from "@/lib/data";
 import { professions, type TeamMember } from "@/lib/demo-data";
-import { useNotice } from "@/lib/hooks";
+import { useConfirm, useNotice } from "@/lib/hooks";
 import { includesQuery, initials } from "@/lib/utils";
 
 type MemberForm = Omit<TeamMember, "id" | "active">;
@@ -44,6 +44,7 @@ export default function TeamSettings() {
   const [showInactive, setShowInactive] = useState(false);
   const [editor, setEditor] = useState<{ open: boolean; member: TeamMember | null }>({ open: false, member: null });
   const [notice, showNotice] = useNotice();
+  const { request: confirmRequest, confirm, close: closeConfirm } = useConfirm();
   const roleNames = useMemo(() => roles.map((role) => role.name), [roles]);
   const filtered = useMemo(
     () =>
@@ -75,9 +76,10 @@ export default function TeamSettings() {
     showNotice(member.active ? `${member.name} pasifleştirildi.` : `${member.name} aktifleştirildi.`);
   };
   const removeMember = (member: TeamMember) => {
-    if (!window.confirm(`${member.name} ekipten kalıcı olarak silinsin mi?`)) return;
-    setTeam((current) => current.filter((item) => item.id !== member.id));
-    showNotice("Ekip üyesi silindi.");
+    confirm({ title: "Ekip üyesini sil", description: `${member.name} ekipten kalıcı olarak silinecek.`, onConfirm: () => {
+      setTeam((current) => current.filter((item) => item.id !== member.id));
+      showNotice("Ekip üyesi silindi.");
+    }});
   };
 
   return (
@@ -155,6 +157,7 @@ export default function TeamSettings() {
         open={editor.open}
         roleNames={roleNames}
       />
+      <ConfirmDialog onClose={closeConfirm} request={confirmRequest} />
     </SettingsCard>
   );
 }

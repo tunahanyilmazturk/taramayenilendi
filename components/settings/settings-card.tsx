@@ -19,10 +19,10 @@ export default function SettingsCard({
   className?: string;
 }) {
   return (
-    <Card className={cn("p-5 sm:p-7", className)}>
+    <Card className={cn("relative overflow-hidden p-5 sm:p-7", className)}>
       <CardHeader
         action={action}
-        className="border-b border-divider pb-5"
+        className="border-divider bg-card-muted/35 -mx-5 -mt-5 border-b px-5 pt-5 pb-5 sm:-mx-7 sm:-mt-7 sm:px-7 sm:pt-7"
         description={description}
         icon={icon}
         title={title}
@@ -42,7 +42,7 @@ export function SectionHeading({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+    <div className="border-border bg-card-muted/35 flex flex-col justify-between gap-3 rounded-xl border px-3.5 py-3 sm:flex-row sm:items-center">
       <div>
         <p className="text-sm font-semibold text-foreground">{title}</p>
         {description && <p className="mt-1 text-xs leading-5 text-muted">{description}</p>}

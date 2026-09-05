@@ -1,0 +1,24 @@
+"use client";
+
+import { Check, FileText, Pencil, RefreshCcw, ScrollText } from "lucide-react";
+import { useState } from "react";
+import { Textarea } from "@/components/ui/field";
+import { cn } from "@/lib/utils";
+
+const coverLetters = [
+  ["standart", "Standart", "Profesyonel ve dengeli", "Sayın Yetkili,\n\nFirmanız çalışanlarının sağlığını desteklemek amacıyla planlanan mobil sağlık taraması kapsamında hazırlanan çalışma planını bilgilerinize sunarız. Tarama, uzman ekibimiz ve uygun ekipmanlarımızla saha koşullarına uygun şekilde gerçekleştirilecektir.\n\nSaygılarımızla,"],
+  ["kisa", "Kısa", "Öz ve net", "Sayın Yetkili,\n\nFirmanız için planlanan sağlık taraması hizmetinin kapsamını ve uygulama planını bilgilerinize sunarız.\n\nSaygılarımızla,"],
+  ["detayli", "Detaylı", "Kapsam ve süreç odaklı", "Sayın Yetkili,\n\nÇalışan sağlığı ve saha operasyonlarınızın ihtiyaçları doğrultusunda planlanan tarama; belirlenen test kapsamı, sorumlu ekip ve mobil ekipmanlarla gerçekleştirilecektir. Katılımcı süreci, saha koordinasyonu ve raporlama adımları planlanan takvime göre yürütülecektir.\n\nSaygılarımızla,"],
+] as const;
+const conditions = [
+  ["hazirlik", "Saha hazırlığı", "Tarama öncesi hazırlıklar", "1. Firma, tarama öncesinde güncel katılımcı listesini ve gerekli saha hazırlıklarını tamamlar.\n\n2. Tarama alanı, ekip ve ekipmanların güvenli çalışmasına uygun şekilde hazır bulundurulur."],
+  ["uygulama", "Uygulama koşulları", "Saha uygulama esasları", "1. Tarama, planlanan tarih ve saha konumunda gerçekleştirilir.\n\n2. Katılımcılar sorumlu ekip tarafından belirlenen sıraya göre sürece dahil edilir."],
+  ["raporlama", "Raporlama ve gizlilik", "Sonuç ve veri güvenliği", "1. Tarama sonuçları hizmet tamamlandıktan sonra yetkili kişilere teslim edilir.\n\n2. Sağlık verileri ve kişisel bilgiler mevzuata uygun şekilde gizli tutulur."],
+] as const;
+
+export function ScreeningDocumentTemplates({ mode, value, update }: { mode: "coverLetter" | "conditions"; value: string; update: (value: string) => void }) {
+  const templates = mode === "coverLetter" ? coverLetters : conditions;
+  const [selected, setSelected] = useState<string>(templates[0][0]);
+  const active = templates.find((template) => template[0] === selected) ?? templates[0];
+  return <section><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-brand-soft text-brand">{mode === "coverLetter" ? <FileText className="size-5" /> : <ScrollText className="size-5" />}</span><div><p className="text-[10px] font-bold tracking-[0.14em] text-brand uppercase">{mode === "coverLetter" ? "4. ADIM · ÖN YAZI" : "5. ADIM · ŞARTLAR"}</p><h2 className="mt-1 text-xl font-semibold text-heading">{mode === "coverLetter" ? "Tarama ön yazısı" : "Tarama şartları ve koşulları"}</h2><p className="mt-1 text-xs text-muted">{mode === "coverLetter" ? "Hazır bir ön yazı seçin ve tarama planına göre düzenleyin." : "Saha hazırlığı, uygulama ve raporlama koşullarını seçin."}</p></div></div><div className="mt-7 rounded-2xl border border-border bg-card p-4"><div className="mb-3 flex items-center justify-between"><p className="text-xs font-bold text-foreground">Hazır şablonlar</p><span className="text-[10px] text-muted">{templates.length} seçenek</span></div><div className="grid gap-2 sm:grid-cols-3">{templates.map((template) => <button aria-pressed={template[0] === selected} className={cn("rounded-xl border p-3 text-left transition", template[0] === selected ? "border-brand-outline bg-brand-soft ring-2 ring-brand-ring" : "border-border hover:border-brand-outline hover:bg-card-muted")} key={template[0]} onClick={() => { setSelected(template[0]); update(template[3]); }} type="button"><span className="flex items-center gap-2 text-xs font-bold text-foreground"><span className={cn("flex size-5 items-center justify-center rounded-full border", template[0] === selected ? "border-brand bg-brand text-brand-fg" : "border-border-strong")}>{template[0] === selected && <Check className="size-3" />}</span>{template[1]}</span><span className="mt-2 block text-[10px] text-muted">{template[2]}</span></button>)}</div></div><div className="mt-5 rounded-2xl border border-border bg-card p-5"><div className="mb-4 flex items-center justify-between"><div className="flex items-center gap-2"><Pencil className="size-4 text-brand" /><h3 className="text-sm font-bold text-foreground">{mode === "coverLetter" ? "Ön yazı metni" : "Şartlar metni"}</h3></div><button className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1 text-[10px] font-semibold text-muted hover:border-brand-outline hover:text-brand" onClick={() => update(active[3])} type="button"><RefreshCcw className="size-3" /> Şablona sıfırla</button></div><Textarea className="min-h-64 text-xs leading-6" onChange={(event) => update(event.target.value)} placeholder="Metni buraya yazın..." value={value} /></div></section>;
+}

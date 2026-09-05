@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 export const controlClass =
   "w-full rounded-xl border border-border bg-card-muted text-sm text-foreground transition outline-none placeholder:text-subtle focus:border-brand-outline focus:ring-4 focus:ring-brand-ring disabled:cursor-not-allowed disabled:bg-divider disabled:text-muted aria-invalid:border-danger aria-invalid:focus:ring-danger-soft";
 
+export const controlHeightClass = "h-12";
+
 type FieldProps = {
   label?: ReactNode;
   hint?: ReactNode;
@@ -18,20 +20,23 @@ type FieldProps = {
 /** Label + control + hint/error wrapper. Pass `error={true}` to highlight without a message. */
 export function Field({ label, hint, error, required, className, children }: FieldProps) {
   return (
-    <label className={cn("block text-sm font-medium text-foreground", className)}>
+    <div className={cn("block text-sm", className)}>
       {label && (
-        <span className="mb-2 block">
+        <label className="mb-2 flex items-center gap-1 text-xs font-semibold text-foreground">
           {label}
-          {required && <span className="ml-1 text-brand">*</span>}
-        </span>
+          {required && <span className="text-brand">*</span>}
+        </label>
       )}
       {children}
       {typeof error === "string" || (error && typeof error !== "boolean") ? (
-        <span className="mt-1.5 block text-[11px] font-normal text-danger">{error}</span>
+        <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-danger">
+          <span className="inline-block size-1 rounded-full bg-danger" />
+          {error}
+        </p>
       ) : hint ? (
-        <span className="mt-1.5 block text-[11px] font-normal text-subtle">{hint}</span>
+        <p className="mt-1.5 text-[11px] font-normal text-subtle">{hint}</p>
       ) : null}
-    </label>
+    </div>
   );
 }
 
@@ -39,20 +44,49 @@ export function Input({
   className,
   icon: Icon,
   invalid,
+  prefix,
+  suffix,
+  size = "md",
   ...props
-}: InputHTMLAttributes<HTMLInputElement> & { icon?: LucideIcon; invalid?: boolean }) {
+}: Omit<InputHTMLAttributes<HTMLInputElement>, "size"> & {
+  icon?: LucideIcon;
+  invalid?: boolean;
+  prefix?: ReactNode;
+  suffix?: ReactNode;
+  size?: "sm" | "md";
+}) {
+  const heightClass = size === "sm" ? "h-9" : "h-12";
+  const paddingClass = size === "sm" ? "px-2.5 text-xs" : "px-3.5";
   const input = (
     <input
       aria-invalid={invalid || undefined}
-      className={cn(controlClass, "h-11 px-3", Icon && "pl-10", className)}
+      className={cn(
+        controlClass,
+        heightClass,
+        paddingClass,
+        Icon && "pl-10",
+        prefix && "pl-9",
+        suffix && "pr-12",
+        className,
+      )}
       {...props}
     />
   );
-  if (!Icon) return input;
+  if (!Icon && !prefix && !suffix) return input;
   return (
     <span className="relative block">
-      <Icon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-subtle" />
+      {Icon && <Icon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-subtle" />}
+      {prefix && (
+        <span className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-xs font-semibold text-subtle">
+          {prefix}
+        </span>
+      )}
       {input}
+      {suffix && (
+        <span className="pointer-events-none absolute top-1/2 right-3.5 -translate-y-1/2 text-xs font-semibold text-subtle">
+          {suffix}
+        </span>
+      )}
     </span>
   );
 }
@@ -65,7 +99,7 @@ export function Textarea({
   return (
     <textarea
       aria-invalid={invalid || undefined}
-      className={cn(controlClass, "min-h-28 resize-y p-3 leading-6", className)}
+      className={cn(controlClass, "min-h-28 resize-y p-3.5 leading-6", className)}
       {...props}
     />
   );
@@ -81,7 +115,7 @@ export function Select({
     <span className="relative block">
       <select
         aria-invalid={invalid || undefined}
-        className={cn(controlClass, "h-11 appearance-none bg-card px-3 pr-9", className)}
+        className={cn(controlClass, "h-12 appearance-none bg-card px-3.5 pr-9", className)}
         {...props}
       >
         {children}

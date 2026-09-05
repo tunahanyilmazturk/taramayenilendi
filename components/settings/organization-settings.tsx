@@ -7,36 +7,14 @@ import { Button } from "@/components/ui/button";
 import { IconBadge } from "@/components/ui/card";
 import { Field, Input, Textarea } from "@/components/ui/field";
 import { Alert } from "@/components/ui/modal";
+import { defaultOrganization, useOrganization, type Organization } from "@/lib/data";
 import { useNotice } from "@/lib/hooks";
-import { storageKeys, useHydrated, useStoredState } from "@/lib/storage";
+import { useHydrated } from "@/lib/storage";
 
-type Organization = {
-  title: string;
-  shortName: string;
-  taxNumber: string;
-  licenseNumber: string;
-  email: string;
-  phone: string;
-  city: string;
-  district: string;
-  address: string;
-};
-
-const defaultOrganization: Organization = {
-  title: "HanTech OSGB",
-  shortName: "HanTech",
-  taxNumber: "",
-  licenseNumber: "",
-  email: "info@hantech.com.tr",
-  phone: "+90 212 000 00 00",
-  city: "İstanbul",
-  district: "Ataşehir",
-  address: "İçerenköy Mah. HanTech Plaza, Ataşehir / İstanbul",
-};
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function OrganizationSettings() {
-  const [organization, setOrganization] = useStoredState<Organization>(storageKeys.organization, defaultOrganization);
+  const [organization, setOrganization] = useOrganization();
   const hydrated = useHydrated();
 
   return (
@@ -57,7 +35,8 @@ export default function OrganizationSettings() {
 function OrganizationForm({ initial, onSave }: { initial: Organization; onSave: (value: Organization) => void }) {
   const [form, setForm] = useState(initial);
   const [submitted, setSubmitted] = useState(false);
-  const [logoName, setLogoName] = useState("");
+  const [logoName, setLogoName] = useState(initial.logoDataUrl ? "Kayıtlı logo" : "");
+  const [stampName, setStampName] = useState(initial.stampDataUrl ? "Kayıtlı kaşe" : "");
   const [documentName, setDocumentName] = useState("");
   const [notice, showNotice] = useNotice();
   const errors = {
@@ -66,6 +45,24 @@ function OrganizationForm({ initial, onSave }: { initial: Organization; onSave: 
   };
   const shown = submitted ? errors : { title: "", email: "" };
   const setField = (key: keyof Organization, value: string) => setForm((current) => ({ ...current, [key]: value }));
+  const setLogoFile = (file: File | undefined) => {
+    if (!file) return;
+    setLogoName(file.name);
+    const reader = new FileReader();
+    reader.addEventListener("load", () =>
+      setField("logoDataUrl", typeof reader.result === "string" ? reader.result : ""),
+    );
+    reader.readAsDataURL(file);
+  };
+  const setStampFile = (file: File | undefined) => {
+    if (!file) return;
+    setStampName(file.name);
+    const reader = new FileReader();
+    reader.addEventListener("load", () =>
+      setField("stampDataUrl", typeof reader.result === "string" ? reader.result : ""),
+    );
+    reader.readAsDataURL(file);
+  };
   const save = () => {
     setSubmitted(true);
     if (Object.values(errors).some(Boolean)) return;
@@ -111,9 +108,23 @@ function OrganizationForm({ initial, onSave }: { initial: Organization; onSave: 
               value={form.licenseNumber}
             />
           </Field>
+          <Field label="PDF ana renk">
+            <Input
+              onChange={(event) => setField("primaryColor", event.target.value)}
+              type="color"
+              value={form.primaryColor || "#256da8"}
+            />
+          </Field>
+          <Field label="PDF koyu renk">
+            <Input
+              onChange={(event) => setField("secondaryColor", event.target.value)}
+              type="color"
+              value={form.secondaryColor || "#123d56"}
+            />
+          </Field>
         </div>
       </section>
-      <section className="border-t border-divider pt-7">
+      <section className="border-divider border-t pt-7">
         <SectionHeading description="Kurumun iletişim ve resmi yazışma bilgileri." title="İletişim ve adres" />
         <div className="mt-4 grid gap-5 sm:grid-cols-2">
           <Field error={shown.email} label="Kurumsal e-posta">
@@ -142,18 +153,24 @@ function OrganizationForm({ initial, onSave }: { initial: Organization; onSave: 
           </Field>
         </div>
       </section>
-      <section className="border-t border-divider pt-7">
-        <SectionHeading
-          description="İleride PDF ve kurum belgeleri bu alandan yönetilecek."
-          title="Logo ve belgeler"
-        />
+      <section className="border-divider border-t pt-7">
+        <SectionHeading description="İleride PDF ve kurum belgeleri bu alandan yönetilecek." title="Logo ve belgeler" />
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <UploadBox
             accept="image/png,image/jpeg,image/svg+xml"
             description="PNG, JPG veya SVG · Maks. 5 MB"
             fileName={logoName}
+            onFile={setLogoFile}
             onChange={setLogoName}
             title="Kurum logosu"
+          />
+          <UploadBox
+            accept="image/png,image/jpeg,image/svg+xml"
+            description="PNG, JPG veya SVG · Maks. 5 MB"
+            fileName={stampName}
+            onFile={setStampFile}
+            onChange={setStampName}
+            title="Kurum kaşesi"
           />
           <UploadBox
             accept="application/pdf,image/png,image/jpeg"
@@ -163,16 +180,16 @@ function OrganizationForm({ initial, onSave }: { initial: Organization; onSave: 
             title="Yetki belgesi"
           />
         </div>
-        <div className="mt-4 flex items-start gap-2 rounded-xl bg-card-muted p-3 text-xs leading-5 text-muted">
-          <FileText className="mt-0.5 size-4 shrink-0 text-brand" />
+        <div className="bg-card-muted text-muted mt-4 flex items-start gap-2 rounded-xl p-3 text-xs leading-5">
+          <FileText className="text-brand mt-0.5 size-4 shrink-0" />
           Belgeler sonraki aşamada güvenli dosya alanına aktarılacak ve PDF/teklif çıktılarında otomatik kullanılacak.
         </div>
       </section>
-      <div className="flex flex-col gap-3 border-t border-divider pt-5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="border-divider flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
         {notice ? (
           <Alert icon={Check}>{notice}</Alert>
         ) : (
-          <p className="text-xs text-muted">Kurum bilgileri bu cihazda saklanır.</p>
+          <p className="text-muted text-xs">Kurum bilgileri bu cihazda saklanır.</p>
         )}
         <Button className="sm:shrink-0" type="submit">
           <Save /> Kurum bilgilerini kaydet
@@ -188,20 +205,22 @@ function UploadBox({
   accept,
   fileName,
   onChange,
+  onFile,
 }: {
   title: string;
   description: string;
   accept: string;
   fileName: string;
   onChange: (name: string) => void;
+  onFile?: (file: File | undefined) => void;
 }) {
   return (
-    <label className="group cursor-pointer rounded-2xl border border-dashed border-border-strong bg-card-muted p-5 transition-colors hover:border-brand-outline hover:bg-brand-soft/40">
+    <label className="group border-border-strong bg-card-muted hover:border-brand-outline hover:bg-brand-soft/40 cursor-pointer rounded-2xl border border-dashed p-5 transition-colors">
       <div className="flex items-center gap-3">
         <IconBadge icon={Upload} size="lg" />
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-foreground">{title}</p>
-          <p className={`mt-1 truncate text-[11px] ${fileName ? "font-medium text-brand-soft-fg" : "text-muted"}`}>
+          <p className="text-foreground text-sm font-semibold">{title}</p>
+          <p className={`mt-1 truncate text-[11px] ${fileName ? "text-brand-soft-fg font-medium" : "text-muted"}`}>
             {fileName || description}
           </p>
         </div>
@@ -209,7 +228,11 @@ function UploadBox({
       <input
         accept={accept}
         className="sr-only"
-        onChange={(event) => onChange(event.target.files?.[0]?.name ?? "")}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          onChange(file?.name ?? "");
+          onFile?.(file);
+        }}
         type="file"
       />
     </label>

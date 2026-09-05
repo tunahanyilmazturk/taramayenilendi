@@ -2,6 +2,8 @@ import {
   BarChart3,
   Building2,
   CalendarClock,
+  ClipboardCheck,
+  HardHat,
   FileText,
   LayoutDashboard,
   ScanLine,
@@ -21,6 +23,7 @@ export const navGroups: NavGroup[] = [
       { href: "/dashboard", label: "Genel Bakış", description: "Operasyon özeti", icon: LayoutDashboard },
       { href: "/firmalar", label: "Firmalar", description: "Müşteri ve sözleşmeler", icon: Building2 },
       { href: "/personeller", label: "Personeller", description: "Firma çalışan kayıtları", icon: UsersRound },
+      { href: "/sonuclar", label: "Sonuçlar", description: "Çalışan sonuç takibi", icon: ClipboardCheck },
     ],
   },
   {
@@ -30,6 +33,7 @@ export const navGroups: NavGroup[] = [
       { href: "/teklifler", label: "Teklifler", description: "Teklif ve fiyatlandırma", icon: FileText },
       { href: "/istatistikler", label: "İstatistikler", description: "Performans raporları", icon: BarChart3 },
       { href: "/takvim", label: "Takvim", description: "Planlama takvimi", icon: CalendarClock },
+      { href: "/ekipmanlar", label: "Ekipmanlar", description: "Cihaz ve ekipman envanteri", icon: HardHat },
     ],
   },
 ];

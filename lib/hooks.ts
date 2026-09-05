@@ -18,6 +18,20 @@ export function useNotice(duration = 2400) {
   return [notice, show] as const;
 }
 
+export type ConfirmRequest = {
+  title: string;
+  description: string;
+  confirmLabel?: string;
+  onConfirm: () => void;
+};
+
+export function useConfirm() {
+  const [request, setRequest] = useState<ConfirmRequest | null>(null);
+  const confirm = useCallback((next: ConfirmRequest) => setRequest(() => next), []);
+  const close = useCallback(() => setRequest(null), []);
+  return { request, confirm, close };
+}
+
 /** Calls `onOutside` when a pointer event lands outside `ref` or Escape is pressed. */
 export function useDismiss(ref: RefObject<HTMLElement | null>, active: boolean, onOutside: () => void) {
   useEffect(() => {

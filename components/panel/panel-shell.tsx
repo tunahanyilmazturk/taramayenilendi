@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import BottomBar from "@/components/panel/bottom-bar";
 import Sidebar from "@/components/panel/sidebar";
 import Topbar from "@/components/panel/topbar";
 import { useSession } from "@/lib/auth";
@@ -38,8 +39,9 @@ export default function PanelShell({ children }: Readonly<{ children: React.Reac
       />
       <div className={cn("min-h-dvh transition-[padding] duration-200", collapsed ? "lg:pl-[84px]" : "lg:pl-[260px]")}>
         <Topbar onMenuClick={() => setSidebarOpen(true)} session={session} />
-        <div className="p-(--panel-padding)">{children}</div>
+        <div className="p-(--panel-padding) pb-24 lg:pb-(--panel-padding)">{children}</div>
       </div>
+      <BottomBar onMore={() => setSidebarOpen(true)} />
     </div>
   );
 }

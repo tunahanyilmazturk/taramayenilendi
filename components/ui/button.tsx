@@ -4,7 +4,7 @@ import type { ButtonHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
 export const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 rounded-xl font-semibold whitespace-nowrap transition-colors disabled:pointer-events-none disabled:opacity-50 [&_svg]:shrink-0",
+  "inline-flex shrink-0 items-center justify-center gap-2 rounded-lg font-semibold whitespace-nowrap transition-colors disabled:pointer-events-none disabled:opacity-50 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -24,7 +24,7 @@ export const buttonVariants = cva(
         md: "h-11 px-4 text-sm [&_svg]:size-4",
         lg: "h-12 px-5 text-sm [&_svg]:size-[18px]",
         icon: "size-9 [&_svg]:size-4",
-        "icon-sm": "size-8 rounded-lg [&_svg]:size-4",
+        "icon-sm": "size-8 rounded-md [&_svg]:size-4",
         "icon-lg": "size-10 [&_svg]:size-[18px]",
       },
     },
@@ -38,10 +38,6 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> &
 export function Button({ className, variant, size, asChild = false, type = "button", ...props }: ButtonProps) {
   const Comp = asChild ? Slot : "button";
   return (
-    <Comp
-      className={cn(buttonVariants({ variant, size }), className)}
-      {...(asChild ? {} : { type })}
-      {...props}
-    />
+    <Comp className={cn(buttonVariants({ variant, size }), className)} {...(asChild ? {} : { type })} {...props} />
   );
 }

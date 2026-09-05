@@ -1,19 +1,21 @@
 "use client";
 
-import { Check, CheckCircle2, ClipboardList, ShieldCheck, UsersRound } from "lucide-react";
+import { Check, CheckCircle2, ClipboardList, Mail, ScrollText, ShieldCheck, UsersRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Step } from "./types";
 
 export const wizardSteps = [
   { id: 1, title: "Firma bilgileri", description: "Müşteri ve teklif tanımı", icon: UsersRound },
   { id: 2, title: "Hizmet kalemleri", description: "Test ve tarama kapsamı", icon: ClipboardList },
-  { id: 3, title: "Fiyatlandırma", description: "Tutar ve koşullar", icon: ShieldCheck },
-  { id: 4, title: "Son kontrol", description: "Teklifi gözden geçir", icon: CheckCircle2 },
+  { id: 3, title: "Fiyatlandırma", description: "İndirim ve vergi", icon: ShieldCheck },
+  { id: 4, title: "Ön yazı", description: "Teklif ön yazısı şablonu", icon: Mail },
+  { id: 5, title: "Şartlar ve koşullar", description: "Teklif şartları", icon: ScrollText },
+  { id: 6, title: "Son kontrol", description: "Teklifi gözden geçir", icon: CheckCircle2 },
 ] as const;
 
 export default function WizardStepper({ current, onStep }: { current: Step; onStep: (step: Step) => void }) {
   return (
-    <nav aria-label="Teklif oluşturma adımları" className="grid grid-cols-4 gap-2 lg:sticky lg:top-24 lg:grid-cols-1">
+    <nav aria-label="Teklif oluşturma adımları" className="grid grid-cols-6 gap-2 lg:sticky lg:top-24 lg:grid-cols-1">
       {wizardSteps.map(({ id, title, description, icon: Icon }) => {
         const done = current > id;
         const active = current === id;
@@ -22,12 +24,10 @@ export default function WizardStepper({ current, onStep }: { current: Step; onSt
             aria-current={active ? "step" : undefined}
             className={cn(
               "flex w-full flex-col items-center gap-2 rounded-2xl border p-2 text-center transition-colors lg:flex-row lg:gap-3 lg:p-3 lg:text-left",
-              active ? "border-brand-outline bg-brand-soft" : "border-border bg-card",
-              done ? "hover:border-border-strong hover:bg-card-muted" : "cursor-default",
+              active ? "border-brand-outline bg-brand-soft" : "border-border bg-card hover:border-border-strong hover:bg-card-muted",
             )}
-            disabled={!done}
             key={id}
-            onClick={() => done && onStep(id as Step)}
+            onClick={() => onStep(id as Step)}
             type="button"
           >
             <span

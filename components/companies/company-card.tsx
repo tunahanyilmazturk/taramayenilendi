@@ -32,19 +32,22 @@ export function CompanyRowActions({ company, onEdit, onDelete }: { company: Comp
   );
 }
 
-export function CompanyCard({ company, onEdit, onDelete }: { company: Company } & CompanyActions) {
+export function CompanyCard({ company, onEdit, onDelete, selected, onToggle }: { company: Company; selected?: boolean; onToggle?: (id: number) => void } & CompanyActions) {
   return (
-    <div className="flex flex-col gap-4 p-5">
-      <Link className="flex items-center gap-3 rounded-xl" href={`/firmalar/${company.id}`}>
-        <Avatar text={initials(company.name)} />
-        <span className="min-w-0">
-          <span className="block truncate text-sm font-semibold text-foreground">{company.name}</span>
-          <span className="mt-1 block truncate text-xs text-muted">
-            {company.sector}
-            {companyLocation(company) && ` · ${companyLocation(company)}`}
+    <div className="flex h-full flex-col gap-4 p-5">
+      <div className="flex items-start gap-3">
+        {onToggle && <input aria-label={`${company.name} seç`} checked={Boolean(selected)} className="mt-1 size-4 shrink-0 accent-brand" onChange={() => onToggle(company.id)} type="checkbox" />}
+        <Link className="group flex min-w-0 items-center gap-3 rounded-xl" href={`/firmalar/${company.id}`}>
+          <Avatar text={initials(company.name)} />
+          <span className="min-w-0">
+            <span className="text-foreground group-hover:text-brand block truncate text-sm font-semibold transition-colors">{company.name}</span>
+            <span className="mt-1 block truncate text-xs text-muted">
+              {company.sector}
+              {companyLocation(company) && ` · ${companyLocation(company)}`}
+            </span>
           </span>
-        </span>
-      </Link>
+        </Link>
+      </div>
       <div className="grid grid-cols-2 gap-3 text-xs">
         <span className="rounded-xl bg-card-muted p-3 text-muted">
           Çalışan
@@ -55,7 +58,7 @@ export function CompanyCard({ company, onEdit, onDelete }: { company: Company } 
           <strong className="mt-1 block text-sm text-foreground">{company.lastScreening}</strong>
         </span>
       </div>
-      <div className="flex items-center justify-between gap-3">
+      <div className="mt-auto flex items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone={contractTone[company.contract]}>{company.contract}</Badge>
           {company.contractEnd && <span className="text-[10px] text-subtle">{company.contractEnd}</span>}

@@ -1,43 +1,39 @@
 "use client";
 
-import {
-  CalendarDays,
-  Check,
-  ClipboardList,
-  Edit3,
-  Eye,
-  FileText,
-  Plus,
-  Send,
-  Tag,
-  Trash2,
-  UsersRound,
-  X,
-} from "lucide-react";
+import { CalendarDays, Check, ClipboardList, Edit3, Eye, FileText, LayoutGrid, List, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Badge, CountPill, offerTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, StatTile, SummaryCard } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field, FilterSelect, Input, SearchInput, Select } from "@/components/ui/field";
-import { Alert, Modal } from "@/components/ui/modal";
+import { Alert, ConfirmDialog, Modal } from "@/components/ui/modal";
 import { Page, PageHeader } from "@/components/ui/page-header";
 import { Pagination, paginate } from "@/components/ui/pagination";
 import { Avatar, DataTable, SortButton, TBody, Td, Th, THead, Tr } from "@/components/ui/table";
-import { useCompanies, useOffers } from "@/lib/data";
-import { offerStatuses, type Company, type Offer, type OfferStatus } from "@/lib/demo-data";
+import { useCompanies, useOffers, useOrganization } from "@/lib/data";
+import { offerStatuses, offerTypes, type Company, type Offer, type OfferStatus } from "@/lib/demo-data";
 import { isoToLabel, labelToIso, money, todayIso } from "@/lib/format";
-import { useNotice, useSort } from "@/lib/hooks";
+import { useConfirm, useNotice, useSort } from "@/lib/hooks";
 import { cn, compareTr, includesQuery, initials } from "@/lib/utils";
+import { previewOfferPdf } from "@/lib/pdf/offer-pdf";
 
 type SortKey = "number" | "company" | "status" | "total" | "validUntil";
-type FormState = { companyId: string; title: string; validUntil: string; total: string; items: string; contact: string };
+type View = "table" | "cards";
+type FormState = {
+  companyId: string;
+  title: string;
+  validUntil: string;
+  total: string;
+  items: string;
+  contact: string;
+};
 type FormErrors = Partial<Record<keyof FormState, string>>;
 
 const emptyForm: FormState = { companyId: "", title: "", validUntil: "", total: "", items: "1", contact: "" };
 const statusFilters = ["Tümü", ...offerStatuses] as const;
-const openStatuses: OfferStatus[] = ["Gönderildi", "Görüşülüyor"];
+const allOfferTypes = "Tüm teklif türleri";
 
 const sortValue = (offer: Offer, key: SortKey) => (key === "validUntil" ? labelToIso(offer.validUntil) : offer[key]);
 const isExpired = (offer: Offer) => {
@@ -58,33 +54,62 @@ function validateForm(form: FormState): FormErrors {
 export default function OffersPage() {
   const [offers, setOffers] = useOffers();
   const [companies] = useCompanies();
+  const [organization] = useOrganization();
   const [notice, showNotice] = useNotice();
+  const { request: confirmRequest, confirm, close: closeConfirm } = useConfirm();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<(typeof statusFilters)[number]>("Tümü");
+  const [companyFilter, setCompanyFilter] = useState("Tüm firmalar");
+  const [typeFilter, setTypeFilter] = useState(allOfferTypes);
+  const [validFrom, setValidFrom] = useState("");
+  const [validTo, setValidTo] = useState("");
+  const [minTotal, setMinTotal] = useState("");
+  const [maxTotal, setMaxTotal] = useState("");
+  const [minItems, setMinItems] = useState("");
+  const [maxItems, setMaxItems] = useState("");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
+  const [view, setView] = useState<View>("table");
   const { sortKey, direction, toggle } = useSort<SortKey>("number", "desc");
-  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   const filtered = useMemo(() => {
     const result = offers.filter(
       (offer) =>
         (status === "Tümü" || offer.status === status) &&
+        (companyFilter === "Tüm firmalar" || offer.company === companyFilter) &&
+        (typeFilter === allOfferTypes || offer.offerType === typeFilter) &&
+        (!validFrom || labelToIso(offer.validUntil) >= validFrom) &&
+        (!validTo || labelToIso(offer.validUntil) <= validTo) &&
+        (!minTotal || offer.total >= Number(minTotal)) &&
+        (!maxTotal || offer.total <= Number(maxTotal)) &&
+        (!minItems || offer.items >= Number(minItems)) &&
+        (!maxItems || offer.items <= Number(maxItems)) &&
         includesQuery(`${offer.number} ${offer.company} ${offer.title} ${offer.contact}`, query),
     );
     return result.sort((a, b) => {
       const comparison = compareTr(sortValue(a, sortKey), sortValue(b, sortKey));
       return direction === "asc" ? comparison : -comparison;
     });
-  }, [offers, query, status, sortKey, direction]);
+  }, [
+    offers,
+    query,
+    status,
+    companyFilter,
+    typeFilter,
+    validFrom,
+    validTo,
+    minTotal,
+    maxTotal,
+    minItems,
+    maxItems,
+    sortKey,
+    direction,
+  ]);
   const { safePage, items: paged } = paginate(filtered, page, pageSize);
-  const selected = offers.find((offer) => offer.id === selectedId);
   const editing = offers.find((offer) => offer.id === editingId);
-  const openCount = offers.filter((offer) => openStatuses.includes(offer.status)).length;
-  const approvedVolume = offers
-    .filter((offer) => offer.status === "Onaylandı")
-    .reduce((sum, offer) => sum + offer.total, 0);
 
   const changeSort = (key: SortKey) => {
     toggle(key);
@@ -93,28 +118,113 @@ export default function OffersPage() {
   const resetFilters = () => {
     setQuery("");
     setStatus("Tümü");
+    setCompanyFilter("Tüm firmalar");
+    setTypeFilter(allOfferTypes);
+    setValidFrom("");
+    setValidTo("");
+    setMinTotal("");
+    setMaxTotal("");
+    setMinItems("");
+    setMaxItems("");
     setPage(1);
   };
+  const hasAdvancedFilters = Boolean(
+    companyFilter !== "Tüm firmalar" ||
+    typeFilter !== allOfferTypes ||
+    validFrom ||
+    validTo ||
+    minTotal ||
+    maxTotal ||
+    minItems ||
+    maxItems,
+  );
+  const hasAnyFilters = Boolean(query || status !== "Tümü" || hasAdvancedFilters);
   const saveEdit = (offer: Offer) => {
-    setOffers((current) => current.map((item) => (item.id === offer.id ? offer : item)));
+    const editedAt = new Date().toLocaleString("tr-TR");
+    setOffers((current) =>
+      current.map((item) => {
+        if (item.id !== offer.id) return item;
+        const currentRevision = item.revision ?? 1;
+        return {
+          ...offer,
+          revision: currentRevision + 1,
+          revisionHistory: [
+            ...(item.revisionHistory ?? []),
+            {
+              revision: currentRevision,
+              createdAt: item.createdAt,
+              note: "Düzenleme öncesi sürüm",
+              status: item.status,
+            },
+          ],
+          activities: [
+            ...(item.activities ?? []),
+            {
+              id: `${Date.now()}`,
+              type: "revised" as const,
+              title: `Revizyon ${currentRevision + 1} kaydedildi`,
+              description: "Teklif düzenlenerek yeni sürüm oluşturuldu.",
+              createdAt: editedAt,
+            },
+          ],
+        };
+      }),
+    );
     setEditingId(null);
     showNotice("Teklif bilgileri kaydedildi.");
   };
   const removeOffer = (offer: Offer) => {
-    if (!window.confirm(`${offer.number} numaralı teklifi silmek istediğinize emin misiniz?`)) return;
-    setOffers((current) => current.filter((item) => item.id !== offer.id));
-    if (selectedId === offer.id) setSelectedId(null);
-    showNotice("Teklif silindi.");
+    confirm({
+      title: "Teklifi sil",
+      description: `${offer.number} numaralı teklif silinecek.`,
+      onConfirm: () => {
+        setOffers((current) => current.filter((item) => item.id !== offer.id));
+        setSelectedIds((current) => current.filter((id) => id !== offer.id));
+        showNotice("Teklif silindi.");
+      },
+    });
+  };
+  const toggleSelected = (id: number) => {
+    setSelectedIds((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
+  };
+  const togglePageSelection = () => {
+    const pageIds = paged.map((offer) => offer.id);
+    const allSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id));
+    setSelectedIds((current) =>
+      allSelected ? current.filter((id) => !pageIds.includes(id)) : Array.from(new Set([...current, ...pageIds])),
+    );
+  };
+  const removeSelected = () => {
+    if (!selectedIds.length) return;
+    const count = selectedIds.length;
+    confirm({
+      title: "Seçilen teklifleri sil",
+      description: `${count} teklif kalıcı olarak silinecek.`,
+      confirmLabel: "Teklifleri sil",
+      onConfirm: () => {
+        setOffers((current) => current.filter((item) => !selectedIds.includes(item.id)));
+        setSelectedIds([]);
+        showNotice(`${count} teklif silindi.`);
+      },
+    });
+  };
+  const previewOffer = (offer: Offer) => {
+    void previewOfferPdf(
+      offer,
+      organization,
+      companies.find((company) => company.name === offer.company),
+    );
   };
   const updateStatus = (offer: Offer, nextStatus: OfferStatus) => {
     setOffers((current) => current.map((item) => (item.id === offer.id ? { ...item, status: nextStatus } : item)));
     showNotice("Teklif durumu güncellendi.");
   };
-  const actions = { onSelect: setSelectedId, onEdit: setEditingId, onDelete: removeOffer, onStatus: updateStatus };
+  const actions = { onEdit: setEditingId, onDelete: removeOffer, onStatus: updateStatus, onPreview: previewOffer };
 
   return (
     <Page>
       <PageHeader
+        className="border-border bg-card shadow-card rounded-2xl border px-5 py-5 sm:px-6 sm:py-6"
         eyebrow="Teklif ve fiyatlandırma merkezi"
         title="Teklifler"
         description="Firmalarınıza sunduğunuz OSGB hizmet tekliflerini ve dönüş süreçlerini yönetin."
@@ -131,29 +241,44 @@ export default function OffersPage() {
           {notice}
         </Alert>
       )}
-      <div className="mt-7 grid gap-3 sm:grid-cols-3">
-        <SummaryCard label="Toplam teklif" value={offers.length} icon={FileText} />
-        <SummaryCard label="Açık teklifler" value={openCount} icon={Send} />
-        <SummaryCard label="Onaylanan hacim" value={money(approvedVolume)} icon={ClipboardList} />
-      </div>
-      <Card aria-label="Teklif listesi filtreleri" className="mt-7 p-4 sm:p-5">
+      {selectedIds.length > 0 && (
+        <Card className="border-brand/30 bg-brand-soft/40 mt-4 flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-foreground text-sm font-medium">
+            <strong>{selectedIds.length}</strong> teklif seçildi.
+          </p>
+          <Button onClick={removeSelected} size="sm" variant="danger">
+            <Trash2 /> Seçilenleri sil
+          </Button>
+        </Card>
+      )}
+      <Card aria-label="Teklif listesi filtreleri" className="mt-5 p-4 sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold text-foreground">Teklif listesi</h2>
+              <h2 className="text-foreground text-sm font-semibold">Teklif listesi</h2>
               <CountPill>{filtered.length} kayıt</CountPill>
             </div>
-            <p className="mt-1 text-xs text-subtle">Teklifleri arayın, durumlarına göre filtreleyin ve sıralayın.</p>
+            <p className="text-subtle mt-1 text-xs">Teklifleri arayın, durumlarına göre filtreleyin ve sıralayın.</p>
           </div>
-          <FilterSelect
-            label="Durum"
-            onChange={(value) => {
-              setStatus(value as (typeof statusFilters)[number]);
-              setPage(1);
-            }}
-            options={statusFilters}
-            value={status}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <FilterSelect
+              label="Durum"
+              onChange={(value) => {
+                setStatus(value as (typeof statusFilters)[number]);
+                setPage(1);
+              }}
+              options={statusFilters}
+              value={status}
+            />
+            <OfferViewToggle onChange={setView} view={view} />
+            <Button
+              onClick={() => setAdvancedOpen((value) => !value)}
+              size="sm"
+              variant={advancedOpen || hasAdvancedFilters ? "soft" : "outline"}
+            >
+              {advancedOpen ? "Gelişmiş filtreleri gizle" : "Gelişmiş filtreler"}
+            </Button>
+          </div>
         </div>
         <SearchInput
           aria-label="Teklif ara"
@@ -165,10 +290,129 @@ export default function OffersPage() {
           placeholder="Teklif no, firma, başlık veya yetkili ara..."
           value={query}
         />
+        {advancedOpen && (
+          <div className="border-divider mt-4 grid gap-3 border-t pt-4 sm:grid-cols-2 lg:grid-cols-4">
+            <FilterSelect
+              label="Firma"
+              onChange={(value) => {
+                setCompanyFilter(value);
+                setPage(1);
+              }}
+              options={["Tüm firmalar", ...Array.from(new Set(companies.map((company) => company.name)))]}
+              value={companyFilter}
+            />
+            <FilterSelect
+              label="Teklif türü"
+              onChange={(value) => {
+                setTypeFilter(value);
+                setPage(1);
+              }}
+              options={[allOfferTypes, ...offerTypes]}
+              value={typeFilter}
+            />
+            <Field label="Geçerlilik başlangıcı">
+              <Input
+                aria-label="Geçerlilik başlangıcı"
+                className="h-10"
+                onChange={(event) => {
+                  setValidFrom(event.target.value);
+                  setPage(1);
+                }}
+                type="date"
+                value={validFrom}
+              />
+            </Field>
+            <Field label="Geçerlilik bitişi">
+              <Input
+                aria-label="Geçerlilik bitişi"
+                className="h-10"
+                onChange={(event) => {
+                  setValidTo(event.target.value);
+                  setPage(1);
+                }}
+                type="date"
+                value={validTo}
+              />
+            </Field>
+            <Field label="Minimum tutar">
+              <Input
+                aria-label="Minimum tutar"
+                className="h-10"
+                min={0}
+                onChange={(event) => {
+                  setMinTotal(event.target.value);
+                  setPage(1);
+                }}
+                placeholder="₺ 0"
+                type="number"
+                value={minTotal}
+              />
+            </Field>
+            <Field label="Maksimum tutar">
+              <Input
+                aria-label="Maksimum tutar"
+                className="h-10"
+                min={0}
+                onChange={(event) => {
+                  setMaxTotal(event.target.value);
+                  setPage(1);
+                }}
+                placeholder="₺ 0"
+                type="number"
+                value={maxTotal}
+              />
+            </Field>
+            <Field label="Minimum hizmet adedi">
+              <Input
+                aria-label="Minimum hizmet adedi"
+                className="h-10"
+                min={0}
+                onChange={(event) => {
+                  setMinItems(event.target.value);
+                  setPage(1);
+                }}
+                placeholder="0"
+                type="number"
+                value={minItems}
+              />
+            </Field>
+            <Field label="Maksimum hizmet adedi">
+              <Input
+                aria-label="Maksimum hizmet adedi"
+                className="h-10"
+                min={0}
+                onChange={(event) => {
+                  setMaxItems(event.target.value);
+                  setPage(1);
+                }}
+                placeholder="0"
+                type="number"
+                value={maxItems}
+              />
+            </Field>
+            {hasAnyFilters && (
+              <Button className="w-fit" onClick={resetFilters} size="sm" variant="danger">
+                Filtreleri temizle
+              </Button>
+            )}
+          </div>
+        )}
       </Card>
-      {selected && <OfferDetail offer={selected} onClose={() => setSelectedId(null)} {...actions} />}
       {paged.length > 0 ? (
-        <OfferTable direction={direction} offers={paged} onSort={changeSort} sortKey={sortKey} {...actions} />
+        view === "table" ? (
+          <OfferTable
+            direction={direction}
+            offers={paged}
+            onSort={changeSort}
+            selectedIds={selectedIds}
+            onToggle={toggleSelected}
+            onToggleAll={togglePageSelection}
+            sortKey={sortKey}
+            {...actions}
+          />
+        ) : (
+          <OfferGrid offers={paged} selectedIds={selectedIds} onToggle={toggleSelected} {...actions} />
+        )
       ) : (
         <EmptyState
           action={
@@ -196,39 +440,104 @@ export default function OffersPage() {
       {editing && (
         <OfferEditModal companies={companies} offer={editing} onClose={() => setEditingId(null)} onSave={saveEdit} />
       )}
+      <ConfirmDialog onClose={closeConfirm} request={confirmRequest} />
     </Page>
   );
 }
 
 type RowActions = {
-  onSelect: (id: number) => void;
   onEdit: (id: number) => void;
   onDelete: (offer: Offer) => void;
   onStatus: (offer: Offer, status: OfferStatus) => void;
+  onPreview: (offer: Offer) => void;
 };
+
+function OfferViewToggle({ view, onChange }: { view: View; onChange: (view: View) => void }) {
+  const options: Array<[View, string, typeof List]> = [
+    ["table", "Liste görünümü", List],
+    ["cards", "Kart görünümü", LayoutGrid],
+  ];
+  return (
+    <div aria-label="Görünüm" className="border-border bg-card flex rounded-xl border p-1" role="group">
+      {options.map(([id, label, Icon]) => (
+        <button
+          aria-label={label}
+          aria-pressed={view === id}
+          className={cn(
+            "rounded-lg p-2 transition-colors",
+            view === id ? "bg-brand-soft text-brand-soft-fg" : "text-muted hover:text-foreground",
+          )}
+          key={id}
+          onClick={() => onChange(id)}
+          type="button"
+        >
+          <Icon className="size-4" />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function OfferGrid({
+  offers,
+  selectedIds,
+  onToggle,
+  ...actions
+}: RowActions & { offers: Offer[]; selectedIds: number[]; onToggle: (id: number) => void }) {
+  return (
+    <div className="mt-6 grid items-stretch gap-4 lg:grid-cols-2">
+      {offers.map((offer) => (
+        <Card className="h-full" key={offer.id}>
+          <OfferCard offer={offer} onToggle={onToggle} selected={selectedIds.includes(offer.id)} {...actions} />
+        </Card>
+      ))}
+    </div>
+  );
+}
 
 function OfferTable({
   offers,
   sortKey,
   direction,
   onSort,
+  selectedIds,
+  onToggle,
+  onToggleAll,
   ...actions
 }: RowActions & {
   offers: Offer[];
   sortKey: SortKey;
   direction: "asc" | "desc";
   onSort: (key: SortKey) => void;
+  selectedIds: number[];
+  onToggle: (id: number) => void;
+  onToggleAll: () => void;
 }) {
   const sortProps = { sortKey, direction, onSort };
   return (
     <DataTable
       className="mt-6"
       mobile={offers.map((offer) => (
-        <OfferCard key={offer.id} offer={offer} {...actions} />
+        <OfferCard
+          key={offer.id}
+          offer={offer}
+          selected={selectedIds.includes(offer.id)}
+          onToggle={onToggle}
+          {...actions}
+        />
       ))}
     >
       <THead>
         <tr>
+          <Th>
+            <input
+              aria-label="Sayfadaki teklifleri seç"
+              checked={offers.length > 0 && offers.every((offer) => selectedIds.includes(offer.id))}
+              className="accent-brand size-4"
+              onChange={onToggleAll}
+              type="checkbox"
+            />
+          </Th>
           <Th>
             <SortButton column="number" label="Teklif" {...sortProps} />
           </Th>
@@ -252,7 +561,13 @@ function OfferTable({
       </THead>
       <TBody>
         {offers.map((offer) => (
-          <OfferRow key={offer.id} offer={offer} {...actions} />
+          <OfferRow
+            key={offer.id}
+            offer={offer}
+            selected={selectedIds.includes(offer.id)}
+            onToggle={onToggle}
+            {...actions}
+          />
         ))}
       </TBody>
     </DataTable>
@@ -263,7 +578,7 @@ function StatusSelect({ offer, onStatus }: { offer: Offer; onStatus: RowActions[
   return (
     <Select
       aria-label={`${offer.number} durumu`}
-      className="h-8 w-auto px-2 pr-7 text-[11px] font-semibold"
+      className="h-8 w-[126px] min-w-[126px] px-2 pr-9 text-[11px] font-semibold"
       onChange={(event) => onStatus(offer, event.target.value as OfferStatus)}
       value={offer.status}
     >
@@ -276,55 +591,84 @@ function StatusSelect({ offer, onStatus }: { offer: Offer; onStatus: RowActions[
 
 function ValidUntil({ offer, className }: { offer: Offer; className?: string }) {
   return (
-    <span className={cn("block text-xs text-muted", className)}>
+    <span className={cn("text-muted block text-xs", className)}>
       <span className="flex items-center gap-1">
         <CalendarDays className="size-3.5" />
         {offer.validUntil}
       </span>
-      {isExpired(offer) && <span className="mt-1 block text-[10px] font-semibold text-warning">Süresi geçti</span>}
+      {isExpired(offer) && <span className="text-warning mt-1 block text-[10px] font-semibold">Süresi geçti</span>}
     </span>
   );
 }
 
-function OfferRow({ offer, onSelect, onEdit, onDelete, onStatus }: RowActions & { offer: Offer }) {
+function OfferRow({
+  offer,
+  onEdit,
+  onDelete,
+  onStatus,
+  onPreview,
+  selected,
+  onToggle,
+}: RowActions & { offer: Offer; selected: boolean; onToggle: (id: number) => void }) {
   return (
     <Tr>
       <Td>
-        <button className="text-left" onClick={() => onSelect(offer.id)} type="button">
-          <span className="block text-xs font-bold tracking-[0.08em] text-brand">{offer.number}</span>
-          <span className="mt-1 block text-[11px] text-subtle">Oluşturuldu: {offer.createdAt}</span>
-        </button>
+        <input
+          aria-label={`${offer.number} seç`}
+          checked={selected}
+          className="accent-brand size-4"
+          onChange={() => onToggle(offer.id)}
+          type="checkbox"
+        />
       </Td>
       <Td>
-        <button className="flex items-center gap-3 text-left" onClick={() => onSelect(offer.id)} type="button">
+        <Link className="text-left" href={`/teklifler/${offer.id}`}>
+          <span className="text-brand block text-xs font-bold tracking-[0.08em]">{offer.number}</span>
+          <span className="text-subtle mt-1 block text-[11px]">Oluşturuldu: {offer.createdAt}</span>
+        </Link>
+      </Td>
+      <Td>
+        <Link className="flex items-center gap-3 text-left" href={`/teklifler/${offer.id}`}>
           <Avatar size="sm" text={initials(offer.company)} />
           <span>
-            <span className="block text-sm font-semibold text-foreground">{offer.company}</span>
-            <span className="mt-1 block text-xs text-subtle">Yetkili: {offer.contact || "—"}</span>
+            <span className="text-foreground block text-sm font-semibold">{offer.company}</span>
+            <span className="text-subtle mt-1 block text-xs">Yetkili: {offer.contact || "—"}</span>
           </span>
-        </button>
+        </Link>
       </Td>
       <Td>
-        <p className="max-w-[210px] truncate text-xs font-medium text-foreground">{offer.title}</p>
-        <p className="mt-1 flex items-center gap-1 text-[11px] text-subtle">
-          <ClipboardList className="size-3" />
-          {offer.items} hizmet kalemi
-        </p>
+        <Link className="block" href={`/teklifler/${offer.id}`}>
+          <p className="text-foreground max-w-[210px] truncate text-xs font-medium">{offer.title}</p>
+          <p className="text-subtle mt-1 flex items-center gap-1 text-[11px]">
+            <ClipboardList className="size-3" />
+            {offer.items} hizmet kalemi
+          </p>
+        </Link>
       </Td>
       <Td>
         <StatusSelect offer={offer} onStatus={onStatus} />
       </Td>
-      <Td className="text-sm font-semibold text-foreground">{money(offer.total)}</Td>
+      <Td className="text-foreground text-sm font-semibold">{money(offer.total)}</Td>
       <Td>
         <ValidUntil offer={offer} />
       </Td>
       <Td>
         <div className="flex justify-end gap-1">
-          <Button aria-label={`${offer.number} detaylarını gör`} onClick={() => onSelect(offer.id)} size="icon-sm" variant="ghost">
-            <Eye />
-          </Button>
-          <Button aria-label={`${offer.number} düzenle`} onClick={() => onEdit(offer.id)} size="icon-sm" variant="ghost">
+          <Button
+            aria-label={`${offer.number} düzenle`}
+            onClick={() => onEdit(offer.id)}
+            size="icon-sm"
+            variant="ghost"
+          >
             <Edit3 />
+          </Button>
+          <Button
+            aria-label={`${offer.number} PDF önizleme`}
+            onClick={() => onPreview(offer)}
+            size="icon-sm"
+            variant="ghost"
+          >
+            <Eye />
           </Button>
           <Button aria-label={`${offer.number} sil`} onClick={() => onDelete(offer)} size="icon-sm" variant="danger">
             <Trash2 />
@@ -335,18 +679,48 @@ function OfferRow({ offer, onSelect, onEdit, onDelete, onStatus }: RowActions & 
   );
 }
 
-function OfferCard({ offer, onSelect, onEdit, onDelete, onStatus }: RowActions & { offer: Offer }) {
+function OfferCard({
+  offer,
+  onEdit,
+  onDelete,
+  onStatus,
+  onPreview,
+  selected,
+  onToggle,
+}: RowActions & { offer: Offer; selected: boolean; onToggle: (id: number) => void }) {
   return (
     <div className="p-4">
       <div className="flex items-start justify-between gap-3">
-        <button className="min-w-0 text-left" onClick={() => onSelect(offer.id)} type="button">
-          <span className="block text-[10px] font-bold tracking-[0.08em] text-brand">{offer.number}</span>
-          <span className="mt-1 block text-sm font-semibold text-foreground">{offer.company}</span>
-          <span className="mt-1 block truncate text-xs text-muted">{offer.title}</span>
-        </button>
+        <div className="flex min-w-0 items-start gap-3">
+          <input
+            aria-label={`${offer.number} seç`}
+            checked={selected}
+            className="accent-brand mt-1 size-4 shrink-0"
+            onChange={() => onToggle(offer.id)}
+            type="checkbox"
+          />
+          <Link className="min-w-0 text-left" href={`/teklifler/${offer.id}`}>
+            <span className="text-brand block text-[10px] font-bold tracking-[0.08em]">{offer.number}</span>
+            <span className="text-foreground mt-1 block text-sm font-semibold">{offer.company}</span>
+            <span className="text-muted mt-1 block truncate text-xs">{offer.title}</span>
+          </Link>
+        </div>
         <div className="flex shrink-0 gap-1">
-          <Button aria-label={`${offer.number} düzenle`} onClick={() => onEdit(offer.id)} size="icon-sm" variant="ghost">
+          <Button
+            aria-label={`${offer.number} düzenle`}
+            onClick={() => onEdit(offer.id)}
+            size="icon-sm"
+            variant="ghost"
+          >
             <Edit3 />
+          </Button>
+          <Button
+            aria-label={`${offer.number} PDF önizleme`}
+            onClick={() => onPreview(offer)}
+            size="icon-sm"
+            variant="ghost"
+          >
+            <Eye />
           </Button>
           <Button aria-label={`${offer.number} sil`} onClick={() => onDelete(offer)} size="icon-sm" variant="danger">
             <Trash2 />
@@ -355,102 +729,10 @@ function OfferCard({ offer, onSelect, onEdit, onDelete, onStatus }: RowActions &
       </div>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <StatusSelect offer={offer} onStatus={onStatus} />
-        <span className="text-sm font-semibold text-foreground">{money(offer.total)}</span>
+        <span className="text-foreground text-sm font-semibold">{money(offer.total)}</span>
       </div>
       <ValidUntil className="mt-2" offer={offer} />
     </div>
-  );
-}
-
-function OfferDetail({
-  offer,
-  onClose,
-  onEdit,
-  onDelete,
-  onStatus,
-}: Omit<RowActions, "onSelect"> & { offer: Offer; onClose: () => void }) {
-  return (
-    <Card className="mt-6 border-border-strong p-5 sm:p-6">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-        <div className="min-w-0">
-          <p className="text-xs font-bold tracking-[0.14em] text-brand uppercase">Teklif detayı · {offer.number}</p>
-          <h2 className="mt-2 text-xl font-semibold text-heading">{offer.title}</h2>
-          <p className="mt-1 text-sm text-muted">
-            {offer.company} · Yetkili: {offer.contact || "Belirtilmedi"}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge tone={offerTone[offer.status]}>{offer.status}</Badge>
-          {isExpired(offer) && <Badge tone="warning">Süresi geçti</Badge>}
-          <Button aria-label="Teklif detayını kapat" onClick={onClose} size="icon-sm" variant="ghost">
-            <X />
-          </Button>
-        </div>
-      </div>
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <StatTile label="Teklif toplamı" value={money(offer.total)} icon={ClipboardList} />
-        <StatTile label="Hizmet kalemi" value={`${offer.items} kalem`} icon={FileText} />
-        <StatTile label="Teklif türü" value={offer.offerType ?? "Belirtilmedi"} icon={Tag} />
-        <StatTile label="Geçerlilik" value={offer.validUntil} icon={CalendarDays} />
-        <StatTile label="Oluşturulma" value={offer.createdAt} icon={UsersRound} />
-      </div>
-      {offer.lines && offer.lines.length > 0 && (
-        <div className="mt-5 rounded-xl border border-border">
-          <div className="flex items-center justify-between border-b border-divider px-4 py-3">
-            <p className="text-xs font-semibold text-foreground">Hizmet kalemleri</p>
-            {(offer.discount !== undefined || offer.tax !== undefined) && (
-              <p className="text-[11px] text-subtle">
-                İndirim %{offer.discount ?? 0} · KDV %{offer.tax ?? 0}
-              </p>
-            )}
-          </div>
-          <ul className="divide-y divide-divider">
-            {offer.lines.map((line) => (
-              <li className="flex items-center justify-between gap-3 px-4 py-2.5 text-xs" key={line.testId}>
-                <span className="min-w-0 truncate text-foreground">
-                  {line.name}
-                  <span className="text-subtle">
-                    {" "}
-                    × {line.quantity} · {money(line.unitPrice)} birim
-                  </span>
-                </span>
-                <span className="shrink-0 font-semibold text-foreground">{money(line.unitPrice * line.quantity)}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {offer.notes && (
-        <p className="mt-5 rounded-xl bg-card-muted p-4 text-xs leading-5 text-muted">
-          <span className="font-semibold text-foreground">Not:</span> {offer.notes}
-        </p>
-      )}
-      <div className="mt-5 flex flex-wrap items-center gap-2">
-        <Button onClick={() => onEdit(offer.id)} size="sm">
-          <Edit3 /> Düzenle
-        </Button>
-        {offer.status === "Taslak" && (
-          <Button onClick={() => onStatus(offer, "Gönderildi")} size="sm" variant="secondary">
-            <Send /> Gönderildi olarak işaretle
-          </Button>
-        )}
-        <Button onClick={() => onDelete(offer)} size="sm" variant="danger-outline">
-          <Trash2 /> Sil
-        </Button>
-        <label className="ml-auto flex items-center gap-2 text-xs text-muted">
-          Durum
-          <Select
-            className="h-9 w-auto text-xs"
-            onChange={(event) => onStatus(offer, event.target.value as OfferStatus)}
-            value={offer.status}
-          >
-            {offerStatuses.map((item) => (
-              <option key={item}>{item}</option>
-            ))}
-          </Select>
-        </label>
-      </div>
-    </Card>
   );
 }
 
@@ -520,7 +802,11 @@ function OfferEditModal({
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <Field className="sm:col-span-2" error={errors.companyId} label="Firma" required>
-          <Select invalid={Boolean(errors.companyId)} onChange={(event) => chooseCompany(event.target.value)} value={form.companyId}>
+          <Select
+            invalid={Boolean(errors.companyId)}
+            onChange={(event) => chooseCompany(event.target.value)}
+            value={form.companyId}
+          >
             <option value="">Firma seçin</option>
             {!knownCompany && offer.company && <option value="current">{offer.company}</option>}
             {companies.map((company) => (
@@ -566,7 +852,11 @@ function OfferEditModal({
           />
         </Field>
         <Field label="Firma yetkilisi">
-          <Input onChange={(event) => setField("contact", event.target.value)} placeholder="Ad soyad" value={form.contact} />
+          <Input
+            onChange={(event) => setField("contact", event.target.value)}
+            placeholder="Ad soyad"
+            value={form.contact}
+          />
         </Field>
         {Object.keys(errors).length > 0 && (
           <Alert className="sm:col-span-2" tone="danger">

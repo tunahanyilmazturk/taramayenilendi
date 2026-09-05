@@ -14,19 +14,21 @@ import {
   Tag,
   Trash2,
   Upload,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
-import SettingsCard, { SectionHeading } from "@/components/settings/settings-card";
+import { Card } from "@/components/ui/card";
+import { SectionHeading } from "@/components/settings/settings-card";
 import { Badge, CountPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { SummaryCard } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field, FilterSelect, Input, SearchInput, Select } from "@/components/ui/field";
-import { Alert, Modal } from "@/components/ui/modal";
+import { Alert, ConfirmDialog, Modal } from "@/components/ui/modal";
 import { useTestCategories, useTests } from "@/lib/data";
 import { type TestItem } from "@/lib/demo-data";
 import { money } from "@/lib/format";
-import { useNotice } from "@/lib/hooks";
+import { useConfirm, useNotice } from "@/lib/hooks";
 import { includesQuery } from "@/lib/utils";
 
 type TestForm = { code: string; name: string; category: string; price: string };
@@ -72,6 +74,7 @@ export default function TestsSettings() {
   const [tests, setTests] = useTests();
   const [categories, setCategories] = useTestCategories();
   const [notice, showNotice] = useNotice();
+  const { request: confirmRequest, confirm, close: closeConfirm } = useConfirm();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState(allCategories);
   const [formOpen, setFormOpen] = useState(false);
@@ -80,6 +83,8 @@ export default function TestsSettings() {
   const [importOpen, setImportOpen] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [categoryOpen, setCategoryOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
 
   useEffect(() => {
     const missing = tests.map((t) => t.category).filter((c) => c && !categories.includes(c));
@@ -98,8 +103,11 @@ export default function TestsSettings() {
       ),
     [tests, category, query],
   );
-  const activeCount = tests.filter((t) => t.active).length;
-
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paged = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const pageStart = filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const pageEnd = Math.min(currentPage * pageSize, filtered.length);
   const setField = (key: keyof TestForm, value: string) =>
     setForm((current) => ({ ...current, [key]: value }));
   const openNew = () => {
@@ -135,9 +143,10 @@ export default function TestsSettings() {
     setEditingId(null);
   };
   const remove = (test: TestItem) => {
-    if (!window.confirm(`${test.name} testini katalogdan kaldırmak istediğinize emin misiniz?`)) return;
-    setTests((current) => current.filter((t) => t.id !== test.id));
-    showNotice("Test katalogdan kaldırıldı.");
+    confirm({ title: "Testi katalogdan kaldır", description: `${test.name} katalogdan kaldırılacak.`, onConfirm: () => {
+      setTests((current) => current.filter((t) => t.id !== test.id));
+      showNotice("Test katalogdan kaldırıldı.");
+    }});
   };
   const toggleActive = (test: TestItem) => {
     setTests((current) => current.map((t) => (t.id === test.id ? { ...t, active: !t.active } : t)));
@@ -277,18 +286,8 @@ export default function TestsSettings() {
   };
 
   return (
-    <SettingsCard
-      description="Taramalarda ve tekliflerde kullanılacak testleri, kategorileri ve birim fiyatlarını yönetin."
-      icon={ClipboardCheck}
-      title="Test kataloğu"
-    >
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
-        <SummaryCard icon={ClipboardCheck} label="Toplam test" value={tests.length} />
-        <SummaryCard icon={CheckCircle2} label="Aktif test" value={activeCount} />
-        <SummaryCard icon={Tag} label="Kategori" value={categories.length} />
-      </div>
-
-      <div className="mt-7">
+    <Card className="p-5 sm:p-7">
+      <div className="">
         <SectionHeading
           action={
             <>
@@ -314,13 +313,19 @@ export default function TestsSettings() {
         <SearchInput
           aria-label="Test ara"
           className="min-w-0 flex-1"
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setPage(1);
+          }}
           placeholder="Test kodu, adı veya kategori ara..."
           value={query}
         />
         <FilterSelect
           label="Kategori"
-          onChange={setCategory}
+          onChange={(value) => {
+            setCategory(value);
+            setPage(1);
+          }}
           options={[allCategories, ...categories]}
           value={category}
         />
@@ -339,7 +344,7 @@ export default function TestsSettings() {
               </tr>
             </thead>
             <tbody className="divide-y divide-divider">
-              {filtered.map((test) => (
+              {paged.map((test) => (
                 <tr className="transition-colors hover:bg-card-muted" key={test.id}>
                   <td className="px-4 py-3 text-xs font-bold tracking-[0.08em] text-brand">{test.code}</td>
                   <td className="px-4 py-3 text-sm font-semibold text-foreground">{test.name}</td>
@@ -390,7 +395,7 @@ export default function TestsSettings() {
           </table>
         </div>
         <div className="divide-y divide-divider md:hidden">
-          {filtered.map((test) => (
+          {paged.map((test) => (
             <div className="flex items-center justify-between gap-3 p-4" key={test.id}>
               <div className="min-w-0">
                 <p className="text-[10px] font-bold tracking-[0.08em] text-brand">{test.code}</p>
@@ -420,6 +425,56 @@ export default function TestsSettings() {
         )}
       </div>
 
+      {filtered.length > pageSize && (
+        <div className="mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row">
+          <p className="text-xs text-muted">
+            {pageStart}–{pageEnd} / {filtered.length} test
+          </p>
+          <div className="flex items-center gap-1.5">
+            <Button
+              aria-label="Önceki sayfa"
+              disabled={currentPage <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              size="icon-sm"
+              variant="outline"
+            >
+              <ChevronLeft />
+            </Button>
+            {pageNumbers(currentPage, totalPages).map((num, idx) =>
+              num === "..." ? (
+                <span className="px-1 text-xs text-subtle" key={`gap-${idx}`}>
+                  …
+                </span>
+              ) : (
+                <button
+                  aria-current={num === currentPage}
+                  aria-label={`Sayfa ${num}`}
+                  className={`flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-xs font-semibold transition-colors ${
+                    num === currentPage
+                      ? "bg-brand text-brand-fg"
+                      : "border border-border text-muted hover:border-brand-outline hover:text-brand"
+                  }`}
+                  key={num}
+                  onClick={() => setPage(num)}
+                  type="button"
+                >
+                  {num}
+                </button>
+              ),
+            )}
+            <Button
+              aria-label="Sonraki sayfa"
+              disabled={currentPage >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              size="icon-sm"
+              variant="outline"
+            >
+              <ChevronRight />
+            </Button>
+          </div>
+        </div>
+      )}
+
       {formOpen && (
         <TestFormDialog
           categories={categories}
@@ -432,12 +487,12 @@ export default function TestsSettings() {
         />
       )}
       {importOpen && (
-        <ImportDialog
+      <ImportDialog
           onClose={() => setImportOpen(false)}
           onDownload={downloadTemplate}
           onImport={handleImport}
           result={importResult}
-        />
+      />
       )}
       {categoryOpen && (
         <CategoryDialog
@@ -450,7 +505,8 @@ export default function TestsSettings() {
           }}
         />
       )}
-    </SettingsCard>
+      <ConfirmDialog onClose={closeConfirm} request={confirmRequest} />
+    </Card>
   );
 }
 
@@ -558,6 +614,7 @@ function CategoryDialog({
 }) {
   const [draft, setDraft] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
+  const { request: confirmRequest, confirm, close: closeConfirm } = useConfirm();
   const save = () => {
     const value = draft.trim();
     if (!value) return;
@@ -570,6 +627,7 @@ function CategoryDialog({
     setDraft("");
   };
   return (
+    <>
     <Modal
       description="Test kategorilerini merkezi olarak yönetin."
       eyebrow="Test tanımlamaları"
@@ -617,10 +675,11 @@ function CategoryDialog({
               <Button
                 aria-label={`${cat} sil`}
                 onClick={() => {
-                  if (!window.confirm(`${cat} kategorisini silmek istediğinize emin misiniz?`)) return;
-                  const fallback = categories.find((item) => item !== cat) ?? "Diğer";
-                  onRename(cat, fallback);
-                  onSave(categories.filter((item) => item !== cat));
+                  confirm({ title: "Kategoriyi sil", description: `${cat} kategorisi silinecek.`, onConfirm: () => {
+                    const fallback = categories.find((item) => item !== cat) ?? "Diğer";
+                    onRename(cat, fallback);
+                    onSave(categories.filter((item) => item !== cat));
+                  }});
                 }}
                 size="icon-sm"
                 variant="danger"
@@ -632,6 +691,8 @@ function CategoryDialog({
         ))}
       </div>
     </Modal>
+    <ConfirmDialog onClose={closeConfirm} request={confirmRequest} />
+    </>
   );
 }
 
@@ -714,4 +775,16 @@ function ImportDialog({
       )}
     </Modal>
   );
+}
+
+function pageNumbers(current: number, total: number): (number | "...")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages: (number | "...")[] = [1];
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 1, current + 1);
+  if (start > 2) pages.push("...");
+  for (let i = start; i <= end; i++) pages.push(i);
+  if (end < total - 1) pages.push("...");
+  pages.push(total);
+  return pages;
 }

@@ -14,17 +14,25 @@ export function isoToLabel(value: string) {
 
 /** Display label "02 Eyl 2026" → ISO date (yyyy-mm-dd). Returns "" if it can't be parsed. */
 export function labelToIso(value: string) {
-  const match = value.match(/^(\d{1,2})\s+(\S+)\s+(\d{4})$/);
-  if (!match) return "";
-  const month = monthShort.indexOf(match[2]) + 1;
-  return month ? `${match[3]}-${String(month).padStart(2, "0")}-${match[1].padStart(2, "0")}` : "";
+  if (!value) return "";
+  const text = value.trim();
+  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/);
+  const numeric = text.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/);
+  const label = text.match(/^(\d{1,2})\s+(\S+)\s+(\d{4})$/);
+  const year = Number(iso?.[1] ?? numeric?.[3] ?? label?.[3]);
+  const month = iso ? Number(iso[2]) : numeric ? Number(numeric[2]) : label ? monthShort.indexOf(label[2]) + 1 : 0;
+  const day = Number(iso?.[3] ?? numeric?.[1] ?? label?.[1]);
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return "";
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 /** ISO date → long label "02 Eylül 2026". */
 export function isoToLongLabel(value: string, fallback = "Tarih seçilmedi") {
-  if (!value) return fallback;
+  const iso = labelToIso(value);
+  if (!iso) return fallback;
   return new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "long", year: "numeric" }).format(
-    new Date(`${value}T12:00:00`),
+    new Date(`${iso}T12:00:00`),
   );
 }
 

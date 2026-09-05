@@ -1,6 +1,18 @@
 "use client";
 
-import { Bell, Building2, CheckCheck, ChevronDown, FileText, LogOut, Menu, Search, ShieldAlert, UserRound, X } from "lucide-react";
+import {
+  Bell,
+  Building2,
+  CheckCheck,
+  ChevronDown,
+  FileText,
+  LogOut,
+  Menu,
+  Search,
+  ShieldAlert,
+  UserRound,
+  X,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -19,21 +31,21 @@ type SearchResult = { href: string; label: string; description: string; icon: Lu
 
 export default function Topbar({ session, onMenuClick }: { session: Session; onMenuClick: () => void }) {
   return (
-    <header className="sticky top-0 z-20 flex h-[76px] items-center justify-between gap-3 border-b border-border bg-card/90 px-5 backdrop-blur-xl sm:px-8">
+    <header className="border-border bg-card/90 sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b px-5 backdrop-blur-xl sm:px-8">
       <div className="flex min-w-0 items-center gap-3">
         <Button aria-label="Menüyü aç" className="lg:hidden" onClick={onMenuClick} size="icon-lg" variant="ghost">
           <Menu className="size-5" />
         </Button>
         <QuickSearch />
         <div className="sm:hidden">
-          <p className="text-sm font-bold text-heading">HanTech OSGB</p>
-          <p className="text-[10px] text-muted">Operasyon merkezi</p>
+          <p className="text-heading text-sm font-bold">HanTech OSGB</p>
+          <p className="text-muted text-[10px]">Operasyon merkezi</p>
         </div>
       </div>
       <div className="flex items-center gap-1.5 sm:gap-3">
         <Notifications />
         <ThemeToggle />
-        <div className="hidden h-8 w-px bg-border sm:block" />
+        <div className="bg-border hidden h-8 w-px sm:block" />
         <ProfileMenu session={session} />
       </div>
     </header>
@@ -55,7 +67,9 @@ function QuickSearch() {
       .filter((item) => includesQuery(`${item.label} ${item.description}`, trimmed))
       .map((item) => ({ ...item, group: "Modüller" }));
     const companyHits = companies
-      .filter((company) => includesQuery(`${company.name} ${company.sector} ${company.city} ${company.contact}`, trimmed))
+      .filter((company) =>
+        includesQuery(`${company.name} ${company.sector} ${company.city} ${company.contact}`, trimmed),
+      )
       .slice(0, 4)
       .map((company) => ({
         href: `/firmalar/${company.id}`,
@@ -77,10 +91,7 @@ function QuickSearch() {
     return [...modules, ...companyHits, ...offerHits];
   }, [query, companies, offers]);
 
-  const groups = useMemo(
-    () => Array.from(new Set(results.map((result) => result.group))),
-    [results],
-  );
+  const groups = useMemo(() => Array.from(new Set(results.map((result) => result.group))), [results]);
   const close = () => {
     setQuery("");
     setOpen(false);
@@ -88,10 +99,10 @@ function QuickSearch() {
 
   return (
     <div className="relative hidden sm:block" ref={ref}>
-      <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-subtle" />
+      <Search className="text-subtle pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
       <input
         aria-label="Panelde ara"
-        className="h-10 w-64 rounded-xl border border-border bg-card-muted pr-9 pl-9 text-sm text-foreground outline-none placeholder:text-subtle focus:border-brand-outline lg:w-80"
+        className="border-border bg-card-muted text-foreground placeholder:text-subtle focus:border-brand-outline h-10 w-64 rounded-xl border pr-9 pl-9 text-sm outline-none lg:w-80"
         onChange={(event) => {
           setQuery(event.target.value);
           setOpen(true);
@@ -104,7 +115,7 @@ function QuickSearch() {
       {query && (
         <button
           aria-label="Aramayı temizle"
-          className="absolute top-1/2 right-2 -translate-y-1/2 rounded-md p-1 text-muted hover:bg-brand-soft"
+          className="text-muted hover:bg-brand-soft absolute top-1/2 right-2 -translate-y-1/2 rounded-md p-1"
           onClick={close}
           type="button"
         >
@@ -112,24 +123,24 @@ function QuickSearch() {
         </button>
       )}
       {open && query.trim() && (
-        <div className="absolute top-12 left-0 z-50 w-96 overflow-hidden rounded-2xl border border-border bg-card p-2 shadow-xl">
-          {results.length === 0 && <p className="px-3 py-4 text-xs text-muted">Eşleşen kayıt bulunamadı.</p>}
+        <div className="border-border bg-card absolute top-12 left-0 z-50 w-96 overflow-hidden rounded-2xl border p-2 shadow-xl">
+          {results.length === 0 && <p className="text-muted px-3 py-4 text-xs">Eşleşen kayıt bulunamadı.</p>}
           {groups.map((group) => (
             <div key={group}>
-              <p className="px-3 py-2 text-[10px] font-bold tracking-[0.12em] text-subtle uppercase">{group}</p>
+              <p className="text-subtle px-3 py-2 text-[10px] font-bold tracking-[0.12em] uppercase">{group}</p>
               {results
                 .filter((result) => result.group === group)
                 .map(({ href, label, description, icon }) => (
                   <Link
-                    className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-brand-soft"
+                    className="hover:bg-brand-soft flex items-center gap-3 rounded-xl px-3 py-2.5"
                     href={href}
                     key={`${group}-${href}-${label}`}
                     onClick={close}
                   >
                     <IconBadge icon={icon} size="sm" />
                     <span className="min-w-0">
-                      <span className="block truncate text-xs font-semibold text-foreground">{label}</span>
-                      <span className="block truncate text-[10px] text-muted">{description}</span>
+                      <span className="text-foreground block truncate text-xs font-semibold">{label}</span>
+                      <span className="text-muted block truncate text-[10px]">{description}</span>
                     </span>
                   </Link>
                 ))}
@@ -195,38 +206,43 @@ function Notifications() {
       >
         <Bell />
         {!read && items.length > 0 && (
-          <span className="absolute top-2 right-2 size-2 rounded-full bg-warning ring-2 ring-card" />
+          <span className="bg-warning ring-card absolute top-2 right-2 size-2 rounded-full ring-2" />
         )}
       </Button>
       {open && (
-        <div className="absolute top-12 right-0 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
-          <div className="flex items-center justify-between border-b border-divider px-4 py-3">
+        <div className="border-border bg-card absolute top-12 right-0 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border shadow-xl">
+          <div className="border-divider flex items-center justify-between border-b px-4 py-3">
             <div>
-              <p className="text-sm font-semibold text-foreground">Bildirimler</p>
-              <p className="mt-0.5 text-[10px] text-muted">Kayıtlarınızdan türetilen güncel uyarılar</p>
+              <p className="text-foreground text-sm font-semibold">Bildirimler</p>
+              <p className="text-muted mt-0.5 text-[10px]">Kayıtlarınızdan türetilen güncel uyarılar</p>
             </div>
             <button
-              className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand hover:text-brand-strong"
+              className="text-brand hover:text-brand-strong inline-flex items-center gap-1 text-[10px] font-semibold"
               onClick={() => setRead(true)}
               type="button"
             >
               <CheckCheck className="size-3.5" /> Okundu işaretle
             </button>
           </div>
-          <div className="divide-y divide-divider">
-            {items.length === 0 && <p className="px-4 py-6 text-center text-xs text-muted">Bekleyen bildirim yok.</p>}
+          <div className="divide-divider divide-y">
+            {items.length === 0 && <p className="text-muted px-4 py-6 text-center text-xs">Bekleyen bildirim yok.</p>}
             {items.map((item) => (
-              <Link className="flex gap-3 px-4 py-3.5 hover:bg-card-muted" href={item.href} key={item.title} onClick={() => setOpen(false)}>
+              <Link
+                className="hover:bg-card-muted flex gap-3 px-4 py-3.5"
+                href={item.href}
+                key={item.title}
+                onClick={() => setOpen(false)}
+              >
                 <IconBadge icon={item.icon} size="sm" />
                 <span>
-                  <span className="block text-xs font-semibold text-foreground">{item.title}</span>
-                  <span className="mt-1 block text-[10px] leading-4 text-muted">{item.description}</span>
+                  <span className="text-foreground block text-xs font-semibold">{item.title}</span>
+                  <span className="text-muted mt-1 block text-[10px] leading-4">{item.description}</span>
                 </span>
               </Link>
             ))}
           </div>
           <Link
-            className="block border-t border-divider px-4 py-3 text-center text-xs font-semibold text-brand hover:bg-card-muted"
+            className="border-divider text-brand hover:bg-card-muted block border-t px-4 py-3 text-center text-xs font-semibold"
             href="/ayarlar#bildirimler"
             onClick={() => setOpen(false)}
           >
@@ -252,34 +268,34 @@ function ProfileMenu({ session }: { session: Session }) {
       <button
         aria-expanded={open}
         aria-label={`${session.name} kullanıcı menüsü`}
-        className="flex items-center gap-2 rounded-xl p-1.5 text-left transition-colors hover:bg-brand-soft"
+        className="hover:bg-brand-soft flex items-center gap-2 rounded-xl p-1.5 text-left transition-colors"
         onClick={() => setOpen((value) => !value)}
         type="button"
       >
-        <span className="flex size-9 items-center justify-center rounded-xl bg-brand-soft text-xs font-bold text-brand-soft-fg">
+        <span className="bg-brand-soft text-brand-soft-fg flex size-9 items-center justify-center rounded-xl text-xs font-bold">
           {userInitials(session.name) || initials(session.email)}
         </span>
         <span className="hidden leading-tight sm:block">
-          <span className="block text-xs font-semibold text-foreground">{session.name}</span>
-          <span className="mt-0.5 block text-[10px] text-muted">{session.role}</span>
+          <span className="text-foreground block text-xs font-semibold">{session.name}</span>
+          <span className="text-muted mt-0.5 block text-[10px]">{session.role}</span>
         </span>
-        <ChevronDown className={cn("hidden size-3.5 text-muted transition-transform sm:block", open && "rotate-180")} />
+        <ChevronDown className={cn("text-muted hidden size-3.5 transition-transform sm:block", open && "rotate-180")} />
       </button>
       {open && (
-        <div className="absolute top-12 right-0 z-50 w-60 overflow-hidden rounded-2xl border border-border bg-card p-2 shadow-xl">
-          <div className="border-b border-divider px-3 py-2.5">
-            <p className="text-xs font-semibold text-foreground">{session.name}</p>
-            <p className="mt-1 truncate text-[10px] text-muted">{session.email}</p>
+        <div className="border-border bg-card absolute top-12 right-0 z-50 w-60 overflow-hidden rounded-2xl border p-2 shadow-xl">
+          <div className="border-divider border-b px-3 py-2.5">
+            <p className="text-foreground text-xs font-semibold">{session.name}</p>
+            <p className="text-muted mt-1 truncate text-[10px]">{session.email}</p>
           </div>
           <Link
-            className="mt-1 flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-medium text-muted hover:bg-brand-soft hover:text-brand-soft-fg"
+            className="text-muted hover:bg-brand-soft hover:text-brand-soft-fg mt-1 flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-medium"
             href="/ayarlar"
             onClick={() => setOpen(false)}
           >
             <UserRound className="size-4" /> Profil ve ayarlar
           </Link>
           <button
-            className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-medium text-danger hover:bg-danger-soft"
+            className="text-danger hover:bg-danger-soft flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-medium"
             onClick={logout}
             type="button"
           >

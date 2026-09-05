@@ -1,9 +1,10 @@
 "use client";
 
-import { X } from "lucide-react";
+import { AlertTriangle, Trash2, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useId, type ReactNode } from "react";
 import { IconBadge } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type ModalProps = {
@@ -82,6 +83,30 @@ export function Modal({ open, onClose, title, eyebrow, description, icon, footer
         )}
       </section>
     </div>
+  );
+}
+
+export function ConfirmDialog({ request, onClose }: { request: { title: string; description: string; confirmLabel?: string; onConfirm: () => void } | null; onClose: () => void }) {
+  if (!request) return null;
+  return (
+    <Modal
+      description={request.description}
+      footer={
+        <>
+          <Button onClick={onClose} size="sm" variant="outline">Vazgeç</Button>
+          <Button onClick={() => { request.onConfirm(); onClose(); }} size="sm" variant="danger"><Trash2 /> {request.confirmLabel ?? "Sil"}</Button>
+        </>
+      }
+      icon={AlertTriangle}
+      onClose={onClose}
+      open
+      size="sm"
+      title={request.title}
+    >
+      <div className="rounded-2xl border border-danger-border bg-danger-soft p-4 text-sm text-danger">
+        Bu işlem geri alınamaz. Devam etmek istediğinizden emin misiniz?
+      </div>
+    </Modal>
   );
 }
 

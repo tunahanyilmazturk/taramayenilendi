@@ -49,17 +49,17 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-background px-4 py-6 text-foreground sm:px-6 lg:px-8">
-      <div className="pointer-events-none absolute -top-32 -left-32 size-96 rounded-full bg-brand-soft/70 blur-3xl" />
-      <div className="pointer-events-none absolute -right-20 -bottom-40 size-[28rem] rounded-full bg-brand-soft/60 blur-3xl" />
+    <main className="bg-background text-foreground relative flex min-h-dvh items-center justify-center overflow-hidden px-4 py-6 sm:px-6 lg:px-8">
+      <div className="bg-brand-soft/70 pointer-events-none absolute -top-32 -left-32 size-96 rounded-full blur-3xl" />
+      <div className="bg-brand-soft/60 pointer-events-none absolute -right-20 -bottom-40 size-[28rem] rounded-full blur-3xl" />
 
-      <div className="relative grid w-full max-w-6xl overflow-hidden rounded-[28px] border border-border bg-card shadow-[0_24px_80px_-24px_rgba(16,60,58,0.25)] lg:grid-cols-[1.05fr_0.95fr]">
+      <div className="border-border bg-card relative grid w-full max-w-6xl overflow-hidden rounded-[28px] border shadow-[0_24px_80px_-24px_rgba(16,42,67,0.25)] lg:grid-cols-[1.05fr_0.95fr]">
         <section
           aria-label="HanTech marka bilgisi"
-          className="relative hidden overflow-hidden bg-[#103c3a] bg-cover bg-center p-10 text-white lg:flex lg:flex-col lg:justify-between xl:p-14"
+          className="relative hidden overflow-hidden bg-[#123d56] bg-cover bg-center p-10 text-white lg:flex lg:flex-col lg:justify-between xl:p-14"
           style={{
             backgroundImage:
-              "linear-gradient(90deg, rgba(16,60,58,0.96) 0%, rgba(16,60,58,0.82) 42%, rgba(16,60,58,0.45) 100%), url('/images/hantech-health-network.png')",
+              "linear-gradient(90deg, rgba(18,61,86,0.96) 0%, rgba(18,61,86,0.82) 42%, rgba(18,61,86,0.45) 100%), url('/images/hantech-health-network.png')",
           }}
         >
           <div className="absolute -top-24 -right-24 size-80 rounded-full border-[32px] border-white/10" />
@@ -79,12 +79,15 @@ export default function LoginPage() {
             </div>
           </div>
           <div className="relative flex items-center gap-3 text-sm text-white/75">
-            <ShieldCheck className="size-5 text-brand-strong" />
+            <ShieldCheck className="text-brand-strong size-5" />
             <span>OSGB operasyonlarınız için güvenli çalışma alanı</span>
           </div>
         </section>
 
-        <section aria-label="Kullanıcı girişi" className="flex items-center justify-center px-6 py-8 sm:px-12 lg:px-14 xl:px-20">
+        <section
+          aria-label="Kullanıcı girişi"
+          className="flex items-center justify-center px-6 py-8 sm:px-12 lg:px-14 xl:px-20"
+        >
           <div className="w-full max-w-md">
             <div className="flex items-center justify-between gap-4 lg:justify-end">
               <div className="lg:hidden">
@@ -93,9 +96,9 @@ export default function LoginPage() {
               <ThemeToggle />
             </div>
             <div className="mt-8 mb-8">
-              <p className="text-sm font-semibold text-brand">Hoş geldiniz</p>
-              <h2 className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-heading">Hesabınıza giriş yapın</h2>
-              <p className="mt-3 text-sm leading-6 text-muted">
+              <p className="text-brand text-sm font-semibold">Hoş geldiniz</p>
+              <h2 className="text-heading mt-2 text-3xl font-semibold tracking-[-0.04em]">Hesabınıza giriş yapın</h2>
+              <p className="text-muted mt-3 text-sm leading-6">
                 HanTech OSGB Yönetim Sistemi panelinize erişmek için bilgilerinizi girin.
               </p>
             </div>
@@ -116,13 +119,16 @@ export default function LoginPage() {
               </Field>
               <div>
                 <div className="mb-2 flex items-center justify-between">
-                  <label className="text-sm font-medium text-foreground" htmlFor="password">
+                  <label className="text-foreground text-sm font-medium" htmlFor="password">
                     Şifre
                   </label>
                   <button
-                    className="text-xs font-semibold text-brand transition-colors hover:text-brand-strong"
+                    className="text-brand hover:text-brand-strong text-xs font-semibold transition-colors"
                     onClick={() =>
-                      setStatus({ tone: "info", message: "Şifre sıfırlama, backend bağlantısı ile birlikte aktif olacak." })
+                      setStatus({
+                        tone: "info",
+                        message: "Şifre sıfırlama, backend bağlantısı ile birlikte aktif olacak.",
+                      })
                     }
                     type="button"
                   >
@@ -144,7 +150,7 @@ export default function LoginPage() {
                   />
                   <button
                     aria-label={showPassword ? "Şifreyi gizle" : "Şifreyi göster"}
-                    className="absolute top-1/2 right-4 -translate-y-1/2 text-subtle transition-colors hover:text-brand"
+                    className="text-subtle hover:text-brand absolute top-1/2 right-4 -translate-y-1/2 transition-colors"
                     onClick={() => setShowPassword((visible) => !visible)}
                     type="button"
                   >
@@ -152,7 +158,7 @@ export default function LoginPage() {
                   </button>
                 </div>
               </div>
-              <label className="flex cursor-pointer items-center gap-2.5 text-sm text-muted">
+              <label className="text-muted flex cursor-pointer items-center gap-2.5 text-sm">
                 <Checkbox checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} /> Beni hatırla
               </label>
               <Button className="w-full rounded-2xl" disabled={submitting} size="lg" type="submit">
@@ -160,14 +166,14 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-border-strong bg-brand-soft/60 p-3.5">
+            <div className="border-border-strong bg-brand-soft/60 mt-5 flex items-center justify-between gap-3 rounded-2xl border p-3.5">
               <div className="flex min-w-0 items-center gap-3">
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand-soft-fg">
+                <span className="bg-brand-soft text-brand-soft-fg flex size-9 shrink-0 items-center justify-center rounded-xl">
                   <Sparkles className="size-4" />
                 </span>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-brand-soft-fg">Demo hesabı</p>
-                  <p className="mt-0.5 truncate text-xs text-muted">{demoUser.email}</p>
+                  <p className="text-brand-soft-fg text-sm font-semibold">Demo hesabı</p>
+                  <p className="text-muted mt-0.5 truncate text-xs">{demoUser.email}</p>
                 </div>
               </div>
               <Button disabled={submitting} onClick={fillDemo} size="sm" variant="soft">
@@ -185,10 +191,12 @@ export default function LoginPage() {
               {status?.message}
             </p>
 
-            <div className="mt-6 flex items-center justify-center gap-2 text-center text-xs text-muted">
-              <ShieldCheck className="size-4 text-brand" /> Verileriniz güvenli çalışma prensipleriyle korunur.
+            <div className="text-muted mt-6 flex items-center justify-center gap-2 text-center text-xs">
+              <ShieldCheck className="text-brand size-4" /> Verileriniz güvenli çalışma prensipleriyle korunur.
             </div>
-            <p className="mt-8 text-center text-xs text-subtle">© {new Date().getFullYear()} HanTech · OSGB Yönetim Sistemi</p>
+            <p className="text-subtle mt-8 text-center text-xs">
+              © {new Date().getFullYear()} HanTech · OSGB Yönetim Sistemi
+            </p>
           </div>
         </section>
       </div>

@@ -1,10 +1,5 @@
-import PlaceholderPage from "@/components/panel/placeholder-page";
+import PersonnelPage from "@/components/personnel/personnel-page";
 
 export default function PersonnelRoute() {
-  return (
-    <PlaceholderPage
-      title="Personeller"
-      description="OSGB personellerini, görevlerini ve çalışma bilgilerini yöneteceğiniz alan."
-    />
-  );
+  return <PersonnelPage />;
 }
