@@ -73,41 +73,46 @@ export default function ResultImportPage() {
   };
 
   const commit = (result: MatchResult, newNames: string[]) => {
-    setEmployees((current) => {
-      const next = (Array.isArray(current) ? current : demoEmployees).map((employee) =>
-        result.matched.some((item) => item.id === employee.id)
-          ? { ...employee, lastResult: "Sonuç var" as ResultStatus }
-          : employee,
+    const currentEmployees = Array.isArray(employees) ? employees : demoEmployees;
+    const createdEmployeeIds = new Map<string, number>();
+    const next = currentEmployees.map((employee) =>
+      result.matched.some((item) => item.id === employee.id)
+        ? { ...employee, lastResult: "Sonuç var" as ResultStatus }
+        : employee,
+    );
+    newNames.forEach((name) => {
+      const normalizedName = normalizeResultText(name);
+      const existing = next.find(
+        (employee) => employee.companyId === selectedCompany && normalizeResultText(employee.name) === normalizedName,
       );
-      newNames.forEach((name) => {
-        if (
-          next.some(
-            (employee) =>
-              employee.companyId === selectedCompany &&
-              normalizeResultText(employee.name) === normalizeResultText(name),
-          )
-        )
-          return;
-        const profile = result.unknownRecords.find(
-          (record) => normalizeResultText(record.employeeName) === normalizeResultText(name),
-        )?.profile;
-        next.push({
-          ...emptyEmployee,
-          id: next.length ? Math.max(...next.map((employee) => employee.id)) + 1 : 1,
-          companyId: selectedCompany,
-          name,
-          phone: profile?.phone ?? "",
-          email: profile?.email ?? "",
-          position: profile?.position ?? "",
-          department: profile?.department ?? "",
-          birthDate: profile?.birthDate ?? "",
-          gender: profile?.gender ?? "",
-          lastResult: "Sonuç var",
-        });
+      if (existing) {
+        createdEmployeeIds.set(normalizedName, existing.id);
+        return;
+      }
+      const profile = result.unknownRecords.find(
+        (record) => normalizeResultText(record.employeeName) === normalizedName,
+      )?.profile;
+      const id = next.length ? Math.max(...next.map((employee) => employee.id)) + 1 : 1;
+      next.push({
+        ...emptyEmployee,
+        id,
+        companyId: selectedCompany,
+        name,
+        phone: profile?.phone ?? "",
+        email: profile?.email ?? "",
+        position: profile?.position ?? "",
+        department: profile?.department ?? "",
+        birthDate: profile?.birthDate ?? "",
+        gender: profile?.gender ?? "",
+        lastResult: "Sonuç var",
       });
-      return next;
+      createdEmployeeIds.set(normalizedName, id);
     });
-    const records = [...result.records, ...(newNames.length ? result.unknownRecords : [])];
+    setEmployees(next);
+    const records = [...result.records, ...(newNames.length ? result.unknownRecords : [])].map((record) => {
+      const employeeId = createdEmployeeIds.get(normalizeResultText(record.employeeName));
+      return employeeId ? { ...record, employeeId } : record;
+    });
     if (records.length) {
       setResultRecords((current) => [
         ...current.filter((item) => !records.some((record) => record.id === item.id)),
