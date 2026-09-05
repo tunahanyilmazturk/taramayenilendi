@@ -4,6 +4,7 @@ import {
   BarChart3,
   Building2,
   CalendarDays,
+  CalendarRange,
   CheckCircle2,
   ClipboardList,
   Clock3,
@@ -11,6 +12,7 @@ import {
   Download,
   FileText,
   Gauge,
+  ListChecks,
   Package,
   RotateCcw,
   ShieldAlert,
@@ -54,6 +56,7 @@ import { cn } from "@/lib/utils";
 type Tab = "overview" | "offers" | "screenings" | "companies" | "equipment";
 type ExportColumn = { header: string; key: string; width?: number; currency?: boolean };
 type ExportRow = Record<string, string | number>;
+type DatePreset = "all" | "month" | "last30" | "custom";
 
 const tabs: Array<{ id: Tab; label: string; icon: typeof BarChart3 }> = [
   { id: "overview", label: "Genel bakış", icon: BarChart3 },
@@ -75,6 +78,11 @@ const offerColors = ["var(--brand)", "var(--info)", "var(--warning)", "var(--neu
 
 function percentage(value: number, total: number) {
   return total ? Math.round((value / total) * 100) : 0;
+}
+
+function toLocalIso(date: Date) {
+  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return offsetDate.toISOString().slice(0, 10);
 }
 
 function Progress({ value }: { value: number }) {
@@ -179,6 +187,22 @@ export default function StatisticsPage() {
   const [team] = useTeam();
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [datePreset, setDatePreset] = useState<DatePreset>("all");
+
+  const applyDatePreset = (preset: Exclude<DatePreset, "custom">) => {
+    setDatePreset(preset);
+    if (preset === "all") {
+      setDateFrom("");
+      setDateTo("");
+      return;
+    }
+    const today = new Date();
+    const from = new Date(today);
+    if (preset === "month") from.setDate(1);
+    else from.setDate(today.getDate() - 29);
+    setDateFrom(toLocalIso(from));
+    setDateTo(toLocalIso(today));
+  };
 
   const inDateRange = useCallback(
     (label: string) => {
@@ -499,17 +523,44 @@ export default function StatisticsPage() {
         <div className="border-divider mt-4 border-t pt-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-heading text-sm font-semibold">Gelişmiş rapor filtreleri</p>
+              <p className="text-heading flex items-center gap-2 text-sm font-semibold">
+                <CalendarRange className="text-brand size-4" /> Gelişmiş rapor filtreleri
+              </p>
               <p className="text-muted mt-1 text-xs">
                 Tarih aralığını seçerek tüm metrikleri, grafikleri ve Excel çıktısını daraltın.
               </p>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {[
+                  ["all", "Tüm zamanlar"],
+                  ["month", "Bu ay"],
+                  ["last30", "Son 30 gün"],
+                ].map(([preset, label]) => (
+                  <button
+                    aria-pressed={datePreset === preset}
+                    className={cn(
+                      "rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition",
+                      datePreset === preset
+                        ? "border-brand bg-brand text-brand-fg shadow-sm"
+                        : "border-border bg-card-muted text-muted hover:border-brand-outline hover:bg-brand-soft hover:text-brand-soft-fg",
+                    )}
+                    key={preset}
+                    onClick={() => applyDatePreset(preset as Exclude<DatePreset, "custom">)}
+                    type="button"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="flex flex-wrap items-end gap-3">
               <Field label="Başlangıç tarihi">
                 <Input
                   aria-label="Rapor başlangıç tarihi"
                   className="h-10 w-full sm:w-44"
-                  onChange={(event) => setDateFrom(event.target.value)}
+                  onChange={(event) => {
+                    setDateFrom(event.target.value);
+                    setDatePreset("custom");
+                  }}
                   type="date"
                   value={dateFrom}
                 />
@@ -518,7 +569,10 @@ export default function StatisticsPage() {
                 <Input
                   aria-label="Rapor bitiş tarihi"
                   className="h-10 w-full sm:w-44"
-                  onChange={(event) => setDateTo(event.target.value)}
+                  onChange={(event) => {
+                    setDateTo(event.target.value);
+                    setDatePreset("custom");
+                  }}
                   type="date"
                   value={dateTo}
                 />
@@ -528,6 +582,7 @@ export default function StatisticsPage() {
                   onClick={() => {
                     setDateFrom("");
                     setDateTo("");
+                    setDatePreset("all");
                   }}
                   size="sm"
                   variant="danger"
@@ -585,6 +640,7 @@ export default function StatisticsPage() {
       {tab === "overview" && (
         <OverviewTab
           companies={reportCompanies}
+          equipment={reportEquipment}
           offers={reportOffers}
           screenings={reportScreenings}
           screeningStats={screeningStats}
@@ -628,6 +684,7 @@ function ChartCard({
 
 function OverviewTab({
   companies,
+  equipment,
   offers,
   screenings,
   screeningStats,
@@ -644,6 +701,7 @@ function OverviewTab({
   attentionCount,
 }: {
   companies: Company[];
+  equipment: Equipment[];
   offers: Offer[];
   screenings: Screening[];
   screeningStats: Array<{ name: ScreeningStatus; value: number }>;
@@ -785,7 +843,90 @@ function OverviewTab({
           ))}
         </div>
       </Card>
+      <PriorityPanel equipment={equipment} offers={offers} screenings={screenings} />
     </>
+  );
+}
+
+function PriorityPanel({
+  equipment,
+  offers,
+  screenings,
+}: {
+  equipment: Equipment[];
+  offers: Offer[];
+  screenings: Screening[];
+}) {
+  const actions = [
+    ...equipment
+      .filter((item) => item.status === "Kalibrasyon bekliyor" || item.status === "Bakımda")
+      .slice(0, 2)
+      .map((item) => ({
+        title: item.name,
+        detail:
+          item.status === "Kalibrasyon bekliyor" ? "Kalibrasyon planı oluşturulmalı." : "Bakım süreci takip edilmeli.",
+        tone: "warning" as const,
+        label: item.status,
+      })),
+    ...offers
+      .filter((offer) => offer.status === "Süresi doldu")
+      .slice(0, 2)
+      .map((offer) => ({
+        title: offer.number,
+        detail: `${offer.company} teklifinin geçerliliği sona erdi.`,
+        tone: "danger" as const,
+        label: "Teklif takibi",
+      })),
+    ...screenings
+      .filter((item) => item.status === "Planlandı" || item.status === "Hazırlanıyor")
+      .slice(0, 2)
+      .map((item) => ({
+        title: item.title,
+        detail: `${item.date} tarihli saha operasyonu için hazırlık kontrolü gerekli.`,
+        tone: "info" as const,
+        label: item.status,
+      })),
+  ].slice(0, 5);
+
+  return (
+    <Card className="mt-5 p-5">
+      <CardHeader
+        icon={ListChecks}
+        title="Öncelikli operasyon listesi"
+        description="Filtrelenen kayıtlar arasından bugün takip edilmesi gereken başlıklar."
+        action={<CountPill>{actions.length} aksiyon</CountPill>}
+      />
+      {actions.length ? (
+        <div className="mt-4 grid gap-2 lg:grid-cols-2 xl:grid-cols-3">
+          {actions.map((action) => (
+            <div
+              className="border-border bg-card-muted flex min-w-0 items-start gap-3 rounded-xl border p-3"
+              key={`${action.label}-${action.title}`}
+            >
+              <IconBadge
+                icon={action.tone === "danger" ? ShieldAlert : action.tone === "warning" ? Gauge : CalendarDays}
+                size="sm"
+                tone={action.tone}
+              />
+              <div className="min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-heading truncate text-xs font-semibold">{action.title}</p>
+                  <Badge tone={action.tone === "info" ? "info" : action.tone}>{action.label}</Badge>
+                </div>
+                <p className="text-muted mt-1 text-[11px] leading-4">{action.detail}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          className="mt-4 py-8"
+          description="Seçili tarih aralığında önceliklendirilmiş bir kayıt bulunmuyor."
+          icon={CheckCircle2}
+          title="Takip gerektiren kayıt yok"
+        />
+      )}
+    </Card>
   );
 }
 
