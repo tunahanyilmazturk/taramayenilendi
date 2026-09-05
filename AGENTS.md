@@ -1,62 +1,130 @@
 <!-- BEGIN:nextjs-agent-rules -->
 
-# This is NOT the Next.js you know
+# Next.js çalışma notu
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+Bu proje Next.js 16 kullanır. Kod yazmadan önce gerekiyorsa ilgili Next.js belgelerini `node_modules/next/dist/docs/` içinden kontrol edin. App Router ve Turbopack davranışlarını eski Next.js varsayımlarıyla karıştırmayın.
 
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+Bu blok `next dev` tarafından yönetilir; silmeyin.
 
 <!-- END:nextjs-agent-rules -->
 
-# OSGB Yönetim Sistemi — Proje Notları
+# OSGB Yönetim Sistemi — Agent çalışma rehberi
 
-## Genel
+## Projenin amacı
 
-- Next.js 16 (App Router, Turbopack) + Tailwind CSS v4 + TypeScript
-- Frontend-only demo: tüm veriler `localStorage`'da saklanır (`hantech-*` anahtarları)
-- Tema: `next-themes` (dark/light), tasarım tokenları `app/globals.css` içinde tanımlı
+OSGB operasyonlarını yönetmek için hazırlanmış, Türkçe arayüzlü, responsive frontend demo uygulamasıdır. Firmalar, çalışanlar, taramalar, teklifler, saha takvimi, ekipman, istatistik ve çalışan sağlık sonuçları tek panelden takip edilir.
 
-## Komutlar
+Uygulama şu anda backend içermez. Tüm demo verileri tarayıcıdaki `localStorage` üzerinde tutulur. Bu nedenle bir tarayıcı profiline kaydedilen veriler başka kullanıcıya veya cihaza otomatik taşınmaz.
 
-- `npm run dev` — geliştirme sunucusu
-- `npm run build` — production build
-- `npm run typecheck` — TypeScript kontrolü (`tsc --noEmit`)
-- `npm run lint` — ESLint
-- `npm run format` — Prettier
+## Teknoloji ve komutlar
 
-## Mimari
+- Next.js 16, App Router ve Turbopack
+- React 19 ve TypeScript
+- Tailwind CSS v4 + `next-themes`
+- Recharts ile istatistik görselleştirmeleri
+- ExcelJS ile `.xlsx` dışa aktarma ve Excel içe aktarma
+- `pdfjs-dist` ile PDF metin çıkarma
+- Taranmış PDF sayfalarında istemci tarafı OCR için Tesseract.js
+- pdfmake ve QRCode ile PDF/iletişim çıktıları
+- Zod, React Hook Form ve Zustand yardımcıları
 
-### `lib/`
-- `storage.ts` — `useSyncExternalStore` tabanlı localStorage katmanı; `useStoredState`, `useHydrated`, `storageKeys`
-- `data.ts` — tip güvenli veri hook'ları: `useCompanies`, `useOffers`, `useTests`, `useTeam`, `useRoles`, `useSectors`, `useTestCategories`
-- `demo-data.ts` — tip tanımları ve demo kayıtlar (tek kaynak)
-- `format.ts` — `money`, `isoToLabel`, `labelToIso`, `todayIso`, `greeting`, `longDateWithWeekday`
-- `hooks.ts` — `useNotice`, `useDismiss`, `useSort`
-- `utils.ts` — `cn`, `compareTr`, `includesQuery`, `initials`
-- `auth.ts` — demo oturum yönetimi
-- `navigation.ts` — sidebar navigasyon konfigürasyonu
+```bash
+npm install
+npm run dev
+npm run typecheck
+npm run lint
+npm run build
+npm run start
+```
 
-### `components/ui/`
-Ortak UI bileşenleri (design tokenları kullanır, hardcoded renk yok):
-- `button.tsx`, `card.tsx`, `badge.tsx`, `table.tsx`, `field.tsx`, `modal.tsx`, `page-header.tsx`, `empty-state.tsx`, `pagination.tsx`, `switch.tsx`
+Formatlama için proje script’i yoktur; gerektiğinde `npx prettier --write <dosya veya klasör>` kullanın.
 
-### `components/panel/`
-Shell bileşenleri: `panel-shell.tsx` (auth guard), `sidebar.tsx`, `topbar.tsx`, `placeholder-page.tsx`
+## Uygulama yapısı
 
-### `components/settings/`
-Ayarlar bölümleri — her bölüm kendi state'ini yönetir, `SettingsCard` ve `SectionHeading` ortak iskelet
+### Rotalar
 
-### Tasarım Tokenları
-`globals.css` içinde CSS custom property'ler: `--color-brand`, `--color-border`, `--color-foreground` vb.
-Tailwind class'ları: `text-foreground`, `bg-card`, `border-border`, `text-brand`, `bg-brand-soft`, `text-muted`, `text-subtle`, `text-heading` vb.
-**Hardcoded hex renk kullanmayın** — her zaman token class'larını kullanın.
+- `/dashboard` — operasyon özeti ve günlük saha gündemi
+- `/firmalar` ve `/firmalar/[id]` — firma, sektör, sözleşme ve tarama geçmişi
+- `/personeller` — firma çalışanları, filtreleme, liste/kart görünümü, sayfalama ve toplu işlemler
+- `/personeller/[id]` — personel detayları ve sonuç geçmişi
+- `/personeller/sonuc-aktarimi` — çoklu PDF/CSV/TXT sonuç aktarım merkezi
+- `/sonuclar` — firma/tarama/tarih filtresiyle çalışan sonuçları ve analizleri
+- `/taramalar`, `/taramalar/[id]`, `/taramalar/yeni` — saha tarama planları ve detayları
+- `/teklifler`, `/teklifler/[id]`, `/teklifler/yeni` — teklif listesi, detay ve oluşturma sihirbazı
+- `/takvim` — yalnızca taramaların planlandığı saha takvimi
+- `/istatistikler` — genel ve modül bazlı raporlar, grafikler ve Excel dışa aktarma
+- `/ekipmanlar` — cihaz ve ekipman envanteri
+- `/ayarlar` — görünüm, organizasyon, ekip, güvenlik ve test ayarları
 
-## Önemli Düzeltmeler (refactor sırasında)
+### Klasörler
 
-1. **unitPrice bug**: Teklif sihirbazında `test.unitPrice ?? test.price` kullanılarak birim fiyat düzenlemesi korunur
-2. **Teklif numarası**: `nextOfferNumber()` silmelerden etkilenmeyen sıralı numara üretir
-3. **Paylaşılan veri**: Firmalar, teklifler ve firma detayı aynı `useCompanies`/`useOffers` hook'larını kullanır
-4. **Şifre formu**: `security-settings.tsx` içinde validasyon ve güç göstergesi ile
-5. **Ekip kalıcılığı**: `useTeam` hook'u localStorage'a yazar, sayfa yenilemede kaybolmaz
-6. **Dinamik dashboard**: Tarih ve selamlama `new Date()`'ten gelir, istatistikler gerçek veriden
+- `app/` — App Router sayfaları ve layout’lar
+- `components/ui/` — ortak Button, Card, Badge, Modal, Field, Table, Page ve benzeri UI parçaları
+- `components/panel/` — sidebar, topbar, panel shell ve alt navigasyon
+- `components/{dashboard,companies,personnel,results,screenings,offers,calendar,statistics,equipment}/` — modül bazlı ekranlar
+- `components/settings/` — ayar sekmeleri
+- `lib/storage.ts` — `useSyncExternalStore` tabanlı localStorage katmanı
+- `lib/data.ts` — tip güvenli demo veri hook’ları
+- `lib/demo-data.ts` — ortak demo verilerinin kaynağı
+- `lib/employees.ts` — çalışan tipleri ve örnek çalışan kayıtları
+- `lib/results.ts` — PDF metin analizi, laboratuvar bulguları, göz ve özel test çıkarımı
+- `lib/pdf/` — teklif ve tarama PDF üreticileri ile ortak PDF renkleri
+- `lib/format.ts`, `lib/utils.ts`, `lib/hooks.ts` — biçimlendirme, yardımcılar ve ortak hook’lar
+- `public/` — statik görseller
 
+## Veri ve localStorage kuralları
+
+`storageKeys` içindeki anahtarları kullanın; modül içinde rastgele localStorage anahtarı üretmeyin. Aynı veriyi birden fazla ekran farklı kopyalarda tutmamalıdır.
+
+Önemli ortak hook’lar: `useCompanies`, `useOffers`, `useTests`, `useTeam`, `useRoles`, `useSectors`, `useTestCategories` ve `useStoredState`.
+
+Yeni kayıt eklerken mevcut ID’leri ezmeyin. Silme işlemlerinden etkilenmeyen numaralandırma gereken yerlerde mevcut yardımcıları kullanın. `localStorage` erişimi SSR sırasında doğrudan yapılmamalıdır; `storage.ts` katmanını kullanın.
+
+## Sonuç/PDF aktarımı
+
+`/personeller/sonuc-aktarimi` ekranı bir modal değildir; çoklu dosya kuyruğu ve iki kolonlu eşleştirme çalışma alanıdır.
+
+Aktarım akışı:
+
+1. Firma seçilir.
+2. Bir veya daha fazla PDF, CSV veya TXT eklenir.
+3. PDF metni `pdfjs-dist` ile okunur.
+4. Metinsiz sayfalarda OCR denenir.
+5. Dosya adı ve içerik üzerinden çalışan eşleştirmesi yapılır.
+6. Kayıtlı olmayan isimler yeni personel adayı olarak gösterilir.
+7. Kullanıcı onaylarsa profil bilgileri ve sonuç kayıtları birlikte oluşturulur.
+
+Yeni sonuç analizleri eklenirken mevcut `ResultRecord`, `ResultAnalysis`, `SpecialTestResult` ve `EyeExamResult` tipleri genişletilmeli; sayfa içine uyumsuz yeni bir sonuç modeli eklenmemelidir. Tıbbi yorumlar kesin tanı gibi sunulmamalı, referans aralığı ve uzman değerlendirmesi gerektirdiği açıkça belirtilmelidir.
+
+PDF işlerinde `GlobalWorkerOptions.workerSrc` tanımlanmalıdır. Büyük PDF’ler için data URL ve OCR maliyeti göz önünde bulundurulmalıdır.
+
+## Tasarım sistemi
+
+`app/globals.css` içindeki tasarım tokenlarını kullanın. Hardcoded hex renk eklemeyin.
+
+Tercih edilen sınıflar: `bg-card`, `bg-card-muted`, `border-border`, `border-border-strong`, `text-heading`, `text-foreground`, `text-muted`, `text-subtle`, `text-brand`, `bg-brand-soft`, `text-brand-soft-fg`, `bg-warning-soft`, `text-warning`, `bg-danger-soft` ve `text-danger`.
+
+Ortak bileşenleri yeniden kullanın. Yeni bir buton, kart veya modal görünümü eklemeden önce `components/ui/` içindeki karşılığını kontrol edin. Masaüstünde ana içeriği sıkıştırmayın; yoğun listelerde filtre, sayfalama ve kompakt görünüm tercih edin.
+
+## Kodlama kuralları
+
+- Kullanıcıya görünen metinler Türkçe olmalı.
+- Formlarda erişilebilir `aria-label`, klavye erişimi ve belirgin focus durumları korunmalı.
+- Liste ekranlarında boş durum, yükleniyor durumu, hata durumu ve sayfalama düşünülmeli.
+- Sıralama ve filtreleme yalnızca görsel değil, gerçek state ile çalışmalı.
+- Dosya yükleme ve silme gibi işlemler kullanıcıya notice veya açık durum mesajı vermeli.
+- Kullanıcı onayı gereken silme ve yeni personel oluşturma işlemleri `ConfirmDialog` veya açık bir onay alanıyla yapılmalı.
+- Mevcut kullanıcı değişikliklerini ve localStorage verisini gereksiz yere sıfırlamayın.
+- Backend eklemeyin; kullanıcı açıkça istemedikçe frontend-only mimari korunmalı.
+
+## Değişiklik sonrası kontrol
+
+Her anlamlı değişiklikten sonra şu kontrolleri çalıştırın:
+
+```bash
+npm run typecheck
+npm run lint
+npm run build
+```
+
+UI değişikliği varsa ilgili rotayı tarayıcıda kontrol edin. Özellikle modal, dosya yükleme, PDF önizleme, Excel aktarımı, sayfalama ve yeni sekmede açılan detay bağlantılarını elle doğrulayın.
