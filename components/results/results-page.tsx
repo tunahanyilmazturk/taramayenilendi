@@ -227,16 +227,18 @@ export default function ResultsPage() {
               <div>
                 <span className="text-heading text-[11px] font-semibold">Hızlı durum</span>
                 <div className="mt-1.5 grid grid-cols-3 gap-1.5">
-                  <FilterChip active={status === "all"} label="Tümü" onClick={() => setStatus("all")} />
+                  <FilterChip active={status === "all"} label="Tümü" onClick={() => setStatus("all")} tone="neutral" />
                   <FilterChip
                     active={status === "Sonuç var"}
                     label={`Sonuç ${statusCounts["Sonuç var"]}`}
                     onClick={() => setStatus("Sonuç var")}
+                    tone="brand"
                   />
                   <FilterChip
                     active={status === "Bekliyor"}
                     label={`Bekliyor ${statusCounts.Bekliyor}`}
                     onClick={() => setStatus("Bekliyor")}
+                    tone="warning"
                   />
                 </div>
                 {statusCounts.Eksik ? (
@@ -252,9 +254,24 @@ export default function ResultsPage() {
               <div>
                 <span className="text-heading text-[11px] font-semibold">Tarih aralığı</span>
                 <div className="mt-1.5 grid grid-cols-3 gap-1.5">
-                  <FilterChip active={dateMode === "all"} label="Tümü" onClick={() => setDateMode("all")} />
-                  <FilterChip active={dateMode === "today"} label="Bugün" onClick={() => setDateMode("today")} />
-                  <FilterChip active={dateMode === "week"} label="7 gün" onClick={() => setDateMode("week")} />
+                  <FilterChip
+                    active={dateMode === "all"}
+                    label="Tümü"
+                    onClick={() => setDateMode("all")}
+                    tone="neutral"
+                  />
+                  <FilterChip
+                    active={dateMode === "today"}
+                    label="Bugün"
+                    onClick={() => setDateMode("today")}
+                    tone="brand"
+                  />
+                  <FilterChip
+                    active={dateMode === "week"}
+                    label="7 gün"
+                    onClick={() => setDateMode("week")}
+                    tone="brand"
+                  />
                 </div>
                 <label className="relative mt-1.5 block">
                   <CalendarDays className="text-subtle pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2" />
@@ -526,10 +543,35 @@ function fileToDataUrl(file: File) {
   });
 }
 
-function FilterChip({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+function FilterChip({
+  active,
+  label,
+  onClick,
+  tone = "neutral",
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+  tone?: "neutral" | "brand" | "warning" | "danger";
+}) {
+  const styles = {
+    neutral: active
+      ? "border-brand bg-brand text-brand-contrast shadow-sm"
+      : "border-border bg-card-muted text-muted hover:border-brand-outline hover:bg-brand-soft hover:text-brand-soft-fg",
+    brand: active
+      ? "border-brand bg-brand text-brand-contrast shadow-sm"
+      : "border-brand-outline bg-brand-soft/60 text-brand-soft-fg hover:border-brand-outline hover:bg-brand-soft",
+    warning: active
+      ? "border-warning bg-warning-soft text-warning shadow-sm"
+      : "border-warning bg-warning-soft/60 text-warning hover:bg-warning-soft",
+    danger: active
+      ? "border-danger-border bg-danger-soft text-danger shadow-sm"
+      : "border-danger-border bg-danger-soft/60 text-danger hover:bg-danger-soft",
+  };
   return (
     <button
-      className={`rounded-lg border px-2 py-2 text-[11px] font-semibold transition ${active ? "border-brand bg-brand text-brand-contrast" : "border-border bg-card-muted text-muted hover:border-brand-outline"}`}
+      aria-pressed={active}
+      className={`rounded-lg border px-2 py-2 text-[11px] font-semibold transition hover:-translate-y-px ${styles[tone]}`}
       onClick={onClick}
       type="button"
     >

@@ -47,18 +47,18 @@ export default function Sidebar({ open, collapsed, badges = {}, onClose, onToggl
           )}
         </div>
         {!collapsed && (
-          <div className="mt-4 flex items-center gap-2 px-2 text-[10px] font-medium tracking-wide text-sidebar-muted">
+          <div className="text-sidebar-muted mt-4 flex items-center gap-2 px-2 text-[10px] font-medium tracking-wide">
             <span className="bg-sidebar-accent size-1.5 rounded-full shadow-[0_0_0_3px_color-mix(in_srgb,var(--sidebar-accent)_15%,transparent)]" />
             <span>Operasyon merkezi</span>
           </div>
         )}
         <button
           aria-label={collapsed ? "Menüyü genişlet" : "Menüyü daralt"}
-          className="border-sidebar-border bg-sidebar-hover text-brand-strong hover:bg-sidebar-active absolute top-[68px] -right-3 hidden size-7 items-center justify-center rounded-full border shadow-sm transition lg:flex"
+          className="border-sidebar-border bg-sidebar-active text-sidebar-accent hover:bg-sidebar-hover absolute top-[72px] -right-3 hidden size-8 items-center justify-center rounded-lg border shadow-lg transition hover:scale-105 lg:flex"
           onClick={onToggleCollapse}
           type="button"
         >
-          {collapsed ? <PanelLeftOpen className="size-3.5" /> : <PanelLeftClose className="size-3.5" />}
+          {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
         </button>
         <nav aria-label="Panel navigasyonu" className={cn("mt-6 flex-1 space-y-7", !collapsed && "overflow-y-auto")}>
           {navGroups.map((group) => (
@@ -121,11 +121,11 @@ function NavLink({
     <Link
       aria-current={active ? "page" : undefined}
       className={cn(
-      "group relative flex items-center rounded-xl border py-2 text-sm font-medium transition-colors",
-      collapsed ? "justify-center px-2" : "gap-3 px-3",
-      active
+        "group relative flex items-center rounded-xl border py-2 text-sm font-medium transition-colors",
+        collapsed ? "justify-center px-2" : "gap-3 px-3",
+        active
           ? "border-sidebar-accent/25 bg-sidebar-active text-sidebar-active-fg shadow-[inset_3px_0_0_var(--sidebar-accent)]"
-          : "border-transparent text-sidebar-fg hover:bg-sidebar-hover hover:text-sidebar-fg-strong",
+          : "text-sidebar-fg hover:bg-sidebar-hover hover:text-sidebar-fg-strong border-transparent",
       )}
       href={item.href}
       onClick={onClick}

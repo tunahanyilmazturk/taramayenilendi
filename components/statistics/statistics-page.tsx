@@ -180,15 +180,15 @@ export default function StatisticsPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  const inDateRange = useCallback((label: string) => {
-    const iso = labelToIso(label);
-    if (!iso) return !dateFrom && !dateTo;
-    return (!dateFrom || iso >= dateFrom) && (!dateTo || iso <= dateTo);
-  }, [dateFrom, dateTo]);
-  const reportOffers = useMemo(
-    () => offers.filter((offer) => inDateRange(offer.createdAt)),
-    [offers, inDateRange],
+  const inDateRange = useCallback(
+    (label: string) => {
+      const iso = labelToIso(label);
+      if (!iso) return !dateFrom && !dateTo;
+      return (!dateFrom || iso >= dateFrom) && (!dateTo || iso <= dateTo);
+    },
+    [dateFrom, dateTo],
   );
+  const reportOffers = useMemo(() => offers.filter((offer) => inDateRange(offer.createdAt)), [offers, inDateRange]);
   const reportScreenings = useMemo(
     () => screenings.filter((item) => inDateRange(item.date)),
     [screenings, inDateRange],
@@ -486,7 +486,7 @@ export default function StatisticsPage() {
     <Page>
       <Card className="border-border bg-card shadow-card rounded-2xl border p-4 sm:p-5">
         <PageHeader
-          className="border-0 bg-transparent p-0 shadow-none"
+          className="border-0 bg-transparent p-0 pl-0 shadow-none before:hidden"
           actions={
             <Button aria-busy={isExporting} disabled={isExporting} onClick={handleExport}>
               <Download /> {isExporting ? "Hazırlanıyor…" : "Excel'e aktar"}
@@ -500,7 +500,9 @@ export default function StatisticsPage() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-heading text-sm font-semibold">Gelişmiş rapor filtreleri</p>
-              <p className="text-muted mt-1 text-xs">Tarih aralığını seçerek tüm metrikleri, grafikleri ve Excel çıktısını daraltın.</p>
+              <p className="text-muted mt-1 text-xs">
+                Tarih aralığını seçerek tüm metrikleri, grafikleri ve Excel çıktısını daraltın.
+              </p>
             </div>
             <div className="flex flex-wrap items-end gap-3">
               <Field label="Başlangıç tarihi">
