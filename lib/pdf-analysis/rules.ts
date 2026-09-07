@@ -189,8 +189,16 @@ export function extractReportValues(text: string): AnalyzedValue[] {
   }
 
   const normalized = fold(text);
-  const ekgComment = text.match(/yorumlar?\s*:\s*([\s\S]{3,180}?)(?=\s+onayla\s+ve\s+imzala|\n|$)/i)?.[1];
-  if (ekgComment) push({ key: "ecg_result", group: "EKG", label: "Sonuç yorumu", value: normalize(ekgComment), status: "unknown", confidence: 0.96, source: normalize(ekgComment) });
+  const ekgMarker = normalized.indexOf("yorumlar:");
+  const ekgEndMarker = ekgMarker >= 0 ? normalized.indexOf("onayla ve imzala", ekgMarker) : -1;
+  const rawEkgCandidate = text.match(/yorumlar?\s*:\s*([\s\S]{3,220}?)(?=\s+onayla\s+ve\s+[iİ]mzala\s*:)/i)?.[1] ?? (ekgMarker >= 0 ? text.slice(ekgMarker + "yorumlar:".length, ekgEndMarker > ekgMarker ? ekgEndMarker : ekgMarker + 220) : "");
+  const ekgStop = rawEkgCandidate.search(/\s+onayla\b/i);
+  const rawEkgComment = rawEkgCandidate.slice(0, ekgStop >= 0 ? ekgStop : rawEkgCandidate.length).replace(/\s+/g, " ").trim();
+  const isNoise = (value: string) => !value || /^(?:[a-zçğıöşüİ]{1}\s*){3,}$/i.test(value) || value.split(/\s+/).filter((part) => part.length > 1).length < 2;
+  const narrativeEkgComment = text.match(/((?:normal\s+s[iı]n[üu]s\s+ritmi|sinus\s+rhythm|normal\s+ecg)[\s\S]{0,240})/i)?.[1]?.replace(/\s+/g, " ").trim() ?? "";
+  const ekgComment = !isNoise(rawEkgComment) ? rawEkgComment : narrativeEkgComment;
+  const cleanEkgComment = normalize(ekgComment).replace(/\s+Onayla[\s\S]*$/u, "").trim();
+  if (cleanEkgComment) push({ key: "ecg_result", group: "EKG", label: "Sonuç yorumu", value: cleanEkgComment, status: "unknown", confidence: 0.96, source: cleanEkgComment });
   const narratives = [
     { key: "xray_result", group: "Radyoloji", label: "PA Akciğer sonucu", aliases: ["pa akciğer grafisi", "pa akciğer", "radyoloji"] as const },
     { key: "hearing_result", group: "Odyometri", label: "İşitme sonucu", aliases: ["odyometri", "odyogram"] as const },
