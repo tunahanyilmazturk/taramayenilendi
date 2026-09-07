@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, StatTile } from "@/components/ui/card";
 import { Page } from "@/components/ui/page-header";
 import { Avatar } from "@/components/ui/table";
-import { useCompanies, useOffers, useTeam, useScreenings, useEquipment } from "@/lib/data";
+import { useCompanies, useOffers, useTeam, useScreenings } from "@/lib/data";
 import { useSession } from "@/lib/auth";
 import { companyLocation, type Company, type Offer } from "@/lib/demo-data";
 import { greeting, labelToIso, longDateWithWeekday, money, todayIso } from "@/lib/format";
@@ -35,7 +35,6 @@ export default function DashboardPage() {
   const [offers] = useOffers();
   const [team] = useTeam();
   const [screenings] = useScreenings();
-  const [equipment] = useEquipment();
   const { session } = useSession();
 
   const now = useMemo(() => new Date(), []);
@@ -46,16 +45,6 @@ export default function DashboardPage() {
     .filter((item) => !["Tamamlandı", "İptal"].includes(item.status) && labelToIso(item.endDate || item.date) >= today)
     .sort((a, b) => `${labelToIso(a.date)} ${a.time}`.localeCompare(`${labelToIso(b.date)} ${b.time}`));
   const todayScreenings = agenda.filter((item) => labelToIso(item.date) <= today);
-  const maintenance = equipment.filter(
-    (item) =>
-      item.status === "Bakımda" ||
-      item.status === "Kalibrasyon bekliyor" ||
-      [item.nextCalibration, item.inspectionDate, item.insuranceEnd].some((date) => {
-        const days = daysUntil(date || "");
-        return days !== null && days <= 30;
-      }),
-  );
-
   const activeCompanies = companies.filter((c) => c.contract === "Aktif").length;
   const renewingCompanies = companies.filter((c) => c.contract === "Yenileniyor").length;
   const activeTeam = team.filter((m) => m.active).length;
@@ -90,7 +79,8 @@ export default function DashboardPage() {
 
   return (
     <Page>
-      <section className="relative isolate overflow-hidden rounded-2xl border border-sidebar-border bg-sidebar px-5 py-6 text-sidebar-fg-strong shadow-primary sm:px-7 sm:py-8 lg:px-9 lg:py-9">
+      <section className="relative isolate overflow-hidden rounded-2xl border border-sidebar-border bg-sidebar bg-[url('/images/dashboard-hero-bg.png')] bg-cover bg-center px-5 py-6 text-sidebar-fg-strong shadow-primary sm:px-7 sm:py-8 lg:px-9 lg:py-9">
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-sidebar/55" />
         <div className="pointer-events-none absolute -right-24 -top-32 -z-10 size-80 rounded-full border border-sidebar-accent/20 bg-sidebar-active/35 blur-[1px]" />
         <div className="pointer-events-none absolute -bottom-48 left-1/3 -z-10 size-96 rounded-full border border-brand/20 bg-brand/10 blur-2xl" />
         <div className="relative z-10 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
@@ -141,21 +131,21 @@ export default function DashboardPage() {
               </Button>
             }
           />
-          <div className="mt-5 grid grid-cols-2 gap-3">
-            <StatTile icon={ClipboardList} label="Bugünkü operasyon" value={todayScreenings.length} />
-            <StatTile
-              icon={UsersRound}
-              label="Bugünkü planlarda katılımcı"
-              value={todayScreenings.reduce((sum, item) => sum + item.participants, 0)}
-            />
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs text-muted">
+              <span className="rounded-full bg-brand-soft px-2 py-1 font-semibold text-brand-soft-fg">{todayScreenings.length} bugün</span>
+              <span>{agenda.length} planlı tarama</span>
+            </div>
+            <span className="text-subtle text-[11px]">Bu hafta</span>
           </div>
-          <div className="divide-divider mt-4 flex-1 divide-y">
+          <MiniWeekCalendar items={agenda.map((item) => ({ date: item.date, label: item.title }))} tone="brand" />
+          <div className="divide-divider mt-3 flex-1 divide-y">
             {agenda.length === 0 ? (
               <p className="text-muted py-6 text-sm">
                 Yaklaşan tarama bulunmuyor. Tarama planlayarak saha takviminizi oluşturabilirsiniz.
               </p>
             ) : (
-              agenda.slice(0, 5).map((item) => (
+              agenda.slice(0, 3).map((item) => (
                 <Link
                   key={item.id}
                   href={`/taramalar/${item.id}`}
@@ -178,34 +168,22 @@ export default function DashboardPage() {
         </Card>
         <Card className="flex h-full flex-col p-5 sm:p-6">
           <CardHeader
-            icon={Clock3}
-            title="Bakım ve geçerlilik takibi"
-            description="Bakım, kalibrasyon, muayene veya sigortası yaklaşan kaynaklar."
-            action={<CountPill>{maintenance.length} kayıt</CountPill>}
+            icon={Send}
+            title="Teklif takibi"
+            description="Tekliflerinizi haftalık akışta ve durumlarıyla takip edin."
+            action={<CountPill>{recentOffers.length} teklif</CountPill>}
           />
-          <div className="mt-5 flex-1 space-y-3">
-            {maintenance.length === 0 ? (
-              <p className="text-muted py-6 text-sm">Önümüzdeki 30 gün için takip gerektiren kaynak yok.</p>
-            ) : (
-              maintenance.slice(0, 5).map((item) => (
-                <Link
-                  href="/ekipmanlar"
-                  key={item.id}
-                  className="border-border bg-card-muted hover:border-brand-outline block rounded-xl border p-3"
-                >
-                  <p className="text-heading text-sm font-semibold">{item.name}</p>
-                  <p className="text-muted mt-1 text-xs">
-                    {item.kind} · {item.status}
-                  </p>
-                  <p className="text-muted mt-1 text-xs">Sorumlu: {item.responsible || "Atanmadı"}</p>
-                </Link>
-              ))
-            )}
+          <MiniWeekCalendar items={recentOffers.map((item) => ({ date: item.createdAt, label: item.title }))} tone="warning" />
+          <div className="mt-3 space-y-2">
+            {recentOffers.slice(0, 3).map((offer) => (
+              <Link key={offer.id} href={`/teklifler/${offer.id}`} className="border-border bg-card-muted hover:border-brand-outline flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5">
+                <span className="min-w-0 truncate text-xs font-semibold text-heading">{offer.title}</span>
+                <Badge tone={offerTone[offer.status]}>{offer.status}</Badge>
+              </Link>
+            ))}
           </div>
-          <Button asChild variant="outline" size="sm" className="mt-4">
-            <Link href="/ekipmanlar">
-              Kaynakları yönet <ArrowUpRight />
-            </Link>
+          <Button asChild variant="outline" size="sm" className="mt-3">
+            <Link href="/teklifler">Teklifleri yönet <ArrowUpRight /></Link>
           </Button>
         </Card>
       </div>
@@ -335,6 +313,44 @@ function HeroMetric({ label, value, icon: Icon }: { label: string; value: number
         <Icon className="size-3.5 text-sidebar-accent" />
       </div>
       <p className="mt-2 text-2xl font-semibold tracking-tight text-sidebar-fg-strong tabular-nums">{value}</p>
+    </div>
+  );
+}
+
+function MiniWeekCalendar({
+  items,
+  tone,
+}: {
+  items: Array<{ date: string; label: string }>;
+  tone: "brand" | "warning";
+}) {
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() + index);
+    const iso = date.toISOString().slice(0, 10);
+    return {
+      iso,
+      day: date.toLocaleDateString("tr-TR", { weekday: "short" }).replace(".", ""),
+      number: date.getDate(),
+      count: items.filter((item) => labelToIso(item.date) === iso).length,
+    };
+  });
+
+  return (
+    <div className="border-border bg-card-muted mt-3 grid grid-cols-7 gap-1 rounded-xl border p-2">
+      {days.map((day, index) => (
+        <div
+          key={day.iso}
+          className={`relative min-w-0 rounded-lg px-1 py-2 text-center ${index === 0 ? "bg-brand text-brand-fg" : "bg-card"}`}
+        >
+          <p className={`text-[9px] font-semibold uppercase ${index === 0 ? "text-brand-fg/75" : "text-subtle"}`}>{day.day}</p>
+          <p className={`mt-1 text-sm font-semibold ${index === 0 ? "text-brand-fg" : "text-heading"}`}>{day.number}</p>
+          {day.count > 0 && (
+            <span className={`mx-auto mt-1 block size-1.5 rounded-full ${tone === "warning" ? "bg-warning" : "bg-brand"}`} />
+          )}
+        </div>
+      ))}
     </div>
   );
 }

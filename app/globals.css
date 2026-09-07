@@ -40,6 +40,9 @@
   --danger-strong: #91483c;
   --danger-soft: #fff0ed;
   --danger-border: #efd3cc;
+  --success: #2f8f5b;
+  --success-soft: #eaf7ef;
+  --success-border: #c5e7d0;
   --info: #5575a8;
   --info-soft: #edf2fc;
   --neutral: #60778a;
@@ -94,6 +97,9 @@
   --danger-strong: #f6c7bc;
   --danger-soft: #49302c;
   --danger-border: #59362f;
+  --success: #7cd8a3;
+  --success-soft: #1d4a33;
+  --success-border: #2f7650;
   --info: #b9cdf4;
   --info-soft: #303d5b;
   --neutral: #c1d5dc;
@@ -149,6 +155,9 @@
   --color-danger-strong: var(--danger-strong);
   --color-danger-soft: var(--danger-soft);
   --color-danger-border: var(--danger-border);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-success-border: var(--success-border);
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
   --color-neutral: var(--neutral);
@@ -275,32 +284,4 @@ html[data-motion="off"] *::after {
 @utility scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
-}
-
-@media (min-width: 1280px) {
-  .results-detail-pane > .space-y-4 > :not(:first-child) {
-    margin-top: 0.75rem !important;
-  }
-
-  .results-detail-pane > .space-y-4 > :first-child {
-    padding: 0.875rem;
-  }
-
-  .results-detail-pane > .space-y-4 > :first-child > div:first-child {
-    gap: 0.5rem;
-  }
-
-  .results-detail-pane > .space-y-4 > :first-child > div:nth-child(2) {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 0.5rem;
-    margin-top: 0.75rem;
-  }
-
-  .results-detail-pane > .space-y-4 > :first-child > div:nth-child(2) > div {
-    padding: 0.625rem;
-  }
-
-  .results-detail-pane > .space-y-4 > :nth-child(2) {
-    padding: 1rem;
-  }
 }

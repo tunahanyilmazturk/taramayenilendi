@@ -32,21 +32,17 @@ import { useCompanies, useOffers, useSectors } from "@/lib/data";
 import { companyLocation, type Company, type Offer } from "@/lib/demo-data";
 import { labelToIso, money } from "@/lib/format";
 import { useNotice } from "@/lib/hooks";
-import { demoEmployees, type Employee } from "@/lib/employees";
-import { storageKeys, useHydrated, useStoredState } from "@/lib/storage";
+import { useHydrated } from "@/lib/storage";
 import { cn, initials } from "@/lib/utils";
 
 const tabs = [
   ["genel", "Genel bakış"],
-  ["calisanlar", "Çalışanlar"],
   ["taramalar", "Taramalar"],
   ["teklifler", "Teklifler"],
   ["sozlesme", "Sözleşme ve belgeler"],
   ["notlar", "Notlar"],
 ] as const;
 type TabId = (typeof tabs)[number][0];
-
-const emptyCompanyEmployees: Employee[] = demoEmployees;
 
 const recentActivity = [
   ["02 Eyl 2026", "Mobil sağlık taraması başladı", "Ekip 04 · 84 çalışan"],
@@ -59,11 +55,9 @@ export default function CompanyDetailPage({ companyId }: { companyId: string }) 
   const [companies, setCompanies] = useCompanies();
   const [sectors] = useSectors();
   const [notice, showNotice] = useNotice();
-  const [allEmployees] = useStoredState<Employee[]>(storageKeys.employees, emptyCompanyEmployees);
   const [activeTab, setActiveTab] = useState<TabId>("genel");
   const [editing, setEditing] = useState(false);
   const company = companies.find((item) => item.id === Number(companyId));
-  const companyEmployees = (allEmployees.length ? allEmployees : demoEmployees).filter((employee) => employee.companyId === Number(companyId));
 
   if (!hydrated) return <DetailSkeleton />;
   if (!company) {
@@ -152,9 +146,6 @@ export default function CompanyDetailPage({ companyId }: { companyId: string }) 
 
       <div className="mt-6">
         {activeTab === "genel" && <Overview company={company} />}
-        {activeTab === "calisanlar" && (
-          <CompanyEmployees employees={companyEmployees} expectedCount={company.employees} />
-        )}
         {activeTab === "taramalar" && (
           <PlaceholderModule
             description="Firmaya ait planlanan, devam eden ve tamamlanan mobil sağlık taramaları burada listelenecek."
@@ -255,34 +246,6 @@ function ContactLine({ icon: Icon, value }: { icon: LucideIcon; value: string })
       <Icon className="size-4 shrink-0 text-brand" />
       <span className={cn("truncate", !value && "text-subtle")}>{value || "Belirtilmedi"}</span>
     </p>
-  );
-}
-
-function CompanyEmployees({ employees, expectedCount }: { employees: Employee[]; expectedCount: number }) {
-  return (
-    <Card className="p-5 sm:p-6">
-      <CardHeader description={`${employees.length} kayıtlı personel · Firma çalışan sayısı ${expectedCount}`} icon={UsersRound} title="Firma çalışanları" />
-      {employees.length === 0 ? (
-        <EmptyState className="mt-5" description="Bu firmaya bağlı kayıtlı personel bulunmuyor. Personeller sayfasından Excel veya PDF ile aktarım yapabilirsiniz." icon={UsersRound} title="Henüz personel kaydı yok" />
-      ) : (
-        <div className="mt-5 overflow-x-auto rounded-2xl border border-border">
-          <table className="w-full min-w-[680px] text-left text-xs">
-            <thead className="bg-card-muted text-subtle"><tr><th className="px-4 py-3">Personel</th><th className="px-4 py-3">Departman / görev</th><th className="px-4 py-3">İletişim</th><th className="px-4 py-3">Durum</th><th className="px-4 py-3">Sonuç</th></tr></thead>
-            <tbody className="divide-divider divide-y">
-              {employees.map((employee) => (
-                <tr className="hover:bg-card-muted/60" key={employee.id}>
-                  <td className="px-4 py-3"><div className="flex items-center gap-3"><Avatar size="sm" text={initials(employee.name)} /><div><p className="text-heading font-semibold">{employee.name}</p><p className="text-subtle mt-0.5">{employee.email || "E-posta yok"}</p></div></div></td>
-                  <td className="px-4 py-3"><p className="text-heading font-medium">{employee.department || "—"}</p><p className="text-subtle mt-0.5">{employee.position || "Görev belirtilmedi"}</p></td>
-                  <td className="text-muted px-4 py-3">{employee.phone || "Telefon yok"}</td>
-                  <td className="px-4 py-3"><Badge tone={employee.status === "Aktif" ? "brand" : "danger"}>{employee.status}</Badge></td>
-                  <td className="px-4 py-3"><Badge tone={employee.lastResult === "Sonuç var" ? "brand" : employee.lastResult === "Eksik" ? "danger" : "warning"}>{employee.lastResult}</Badge></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </Card>
   );
 }
 

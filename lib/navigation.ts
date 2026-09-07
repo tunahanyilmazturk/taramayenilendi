@@ -2,13 +2,11 @@ import {
   BarChart3,
   Building2,
   CalendarClock,
-  ClipboardCheck,
   HardHat,
   FileText,
   LayoutDashboard,
   ScanLine,
   Settings2,
-  UsersRound,
   type LucideIcon,
 } from "lucide-react";
 
@@ -22,8 +20,6 @@ export const navGroups: NavGroup[] = [
     links: [
       { href: "/dashboard", label: "Genel Bakış", description: "Operasyon özeti", icon: LayoutDashboard },
       { href: "/firmalar", label: "Firmalar", description: "Müşteri ve sözleşmeler", icon: Building2 },
-      { href: "/personeller", label: "Personeller", description: "Firma çalışan kayıtları", icon: UsersRound },
-      { href: "/sonuclar", label: "Sonuçlar", description: "Çalışan sonuç takibi", icon: ClipboardCheck },
     ],
   },
   {

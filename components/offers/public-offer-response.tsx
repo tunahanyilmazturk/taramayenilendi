@@ -16,21 +16,25 @@ export default function PublicOfferResponse({ offerId }: { offerId: string }) {
   const [organization] = useOrganization();
   const [note, setNote] = useState("");
   const [sent, setSent] = useState(false);
+  const [shareToken] = useState(() =>
+    typeof window === "undefined" ? "" : (new URLSearchParams(window.location.search).get("paylas") ?? ""),
+  );
   const offer = offers.find((item) => item.id === Number(offerId));
+  const tokenValid = offer !== undefined && shareToken === (offer.shareToken || String(offer.id));
   const company = companies.find((item) => item.id === offer?.companyId);
 
   useEffect(() => {
-    if (!offer || offer.emailStatus === "Görüntülendi") return;
+    if (!offer || !tokenValid || offer.emailStatus === "Görüntülendi") return;
     const createdAt = new Date().toLocaleString("tr-TR");
     setOffers((current) => current.map((item) => item.id === offer.id ? {
       ...item,
       emailStatus: "Görüntülendi",
       activities: [...(item.activities ?? []), { id: `${Date.now()}`, type: "viewed", title: "Teklif görüntülendi", description: "Müşteri paylaşım bağlantısını açtı.", createdAt }],
     } : item));
-  }, [offer, setOffers]);
+  }, [offer, tokenValid, setOffers]);
 
   if (!hydrated) return <div className="min-h-screen bg-background" />;
-  if (!offer) return <main className="grid min-h-screen place-items-center bg-background p-6"><EmptyState title="Teklif bulunamadı" description="Bu teklif bağlantısı geçersiz veya teklif kaldırılmış olabilir." icon={FileText} /></main>;
+  if (!offer || !tokenValid) return <main className="grid min-h-screen place-items-center bg-background p-6"><EmptyState title="Teklif bulunamadı" description="Bu teklif bağlantısı geçersiz veya teklif kaldırılmış olabilir." icon={FileText} /></main>;
 
   const respond = (status: "Onaylandı" | "Reddedildi" | "Görüşülüyor") => {
     const respondedAt = new Date().toLocaleString("tr-TR");

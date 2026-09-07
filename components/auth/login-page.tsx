@@ -56,10 +56,10 @@ export default function LoginPage() {
       <div className="border-border bg-card relative grid w-full max-w-6xl overflow-hidden rounded-[28px] border shadow-[0_24px_80px_-24px_rgba(16,42,67,0.25)] lg:grid-cols-[1.05fr_0.95fr]">
         <section
           aria-label="HanTech marka bilgisi"
-          className="relative hidden overflow-hidden bg-[#123d56] bg-cover bg-center p-10 text-white lg:flex lg:flex-col lg:justify-between xl:p-14"
+          className="bg-primary relative hidden overflow-hidden bg-cover bg-center p-10 text-white lg:flex lg:flex-col lg:justify-between xl:p-14"
           style={{
             backgroundImage:
-              "linear-gradient(90deg, rgba(18,61,86,0.96) 0%, rgba(18,61,86,0.82) 42%, rgba(18,61,86,0.45) 100%), url('/images/hantech-health-network.png')",
+              "linear-gradient(90deg, color-mix(in srgb, var(--primary) 96%, transparent) 0%, color-mix(in srgb, var(--primary) 82%, transparent) 42%, color-mix(in srgb, var(--primary) 45%, transparent) 100%), url('/images/hantech-health-network.png')",
           }}
         >
           <div className="absolute -top-24 -right-24 size-80 rounded-full border-[32px] border-white/10" />

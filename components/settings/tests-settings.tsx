@@ -1,6 +1,6 @@
 "use client";
 
-import ExcelJS from "exceljs";
+import type ExcelJS from "exceljs";
 import {
   AlertCircle,
   Check,
@@ -154,7 +154,8 @@ export default function TestsSettings() {
   };
 
   const downloadTemplate = async () => {
-    const workbook = new ExcelJS.Workbook();
+    const { Workbook } = await import("exceljs/dist/exceljs.min.js");
+    const workbook = new Workbook();
     workbook.creator = "HanTech OSGB Yönetim Sistemi";
     const sheet = workbook.addWorksheet("Testler");
     sheet.columns = [
@@ -193,7 +194,8 @@ export default function TestsSettings() {
   };
 
   const importWorkbook = async (file: File) => {
-    const workbook = new ExcelJS.Workbook();
+    const { Workbook } = await import("exceljs/dist/exceljs.min.js");
+    const workbook = new Workbook();
     await workbook.xlsx.load(await file.arrayBuffer());
     const sheet = workbook.worksheets[0];
     if (!sheet) throw new Error("Dosyada çalışma sayfası bulunamadı.");

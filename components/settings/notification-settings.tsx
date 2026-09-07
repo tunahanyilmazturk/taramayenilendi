@@ -24,7 +24,6 @@ const storageKey = "hantech-notification-preferences";
 type NotificationPreferences = {
   inApp: boolean;
   assignmentUpdates: boolean;
-  resultReady: boolean;
   contractReminders: boolean;
   teamUpdates: boolean;
   securityAlerts: boolean;
@@ -36,7 +35,6 @@ type NotificationPreferences = {
 const defaults: NotificationPreferences = {
   inApp: true,
   assignmentUpdates: true,
-  resultReady: true,
   contractReminders: true,
   teamUpdates: true,
   securityAlerts: true,
@@ -107,7 +105,6 @@ export default function NotificationSettings() {
         setPreferences({
           inApp: next.inApp ?? defaults.inApp,
           assignmentUpdates: next.assignmentUpdates ?? defaults.assignmentUpdates,
-          resultReady: next.resultReady ?? defaults.resultReady,
           contractReminders: next.contractReminders ?? defaults.contractReminders,
           teamUpdates: next.teamUpdates ?? defaults.teamUpdates,
           securityAlerts: next.securityAlerts ?? defaults.securityAlerts,
@@ -136,7 +133,6 @@ export default function NotificationSettings() {
     preferences.inApp,
     screeningReminders,
     preferences.assignmentUpdates,
-    preferences.resultReady,
     preferences.contractReminders,
     preferences.teamUpdates,
     preferences.securityAlerts,
@@ -214,13 +210,6 @@ export default function NotificationSettings() {
               description="Ekip ataması, görev değişikliği ve saha personeli durumlarını izleyin."
               checked={preferences.assignmentUpdates}
               onChange={(value) => update("assignmentUpdates", value)}
-            />
-            <ToggleRow
-              icon={CheckCircle2}
-              title="Sonuç hazır bildirimleri"
-              description="Tarama sonuçları ve raporlar hazır olduğunda haberdar olun."
-              checked={preferences.resultReady}
-              onChange={(value) => update("resultReady", value)}
             />
             <ToggleRow
               icon={FileWarning}

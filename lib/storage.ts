@@ -17,6 +17,17 @@ let storageEventBound = false;
 
 const isBrowser = () => typeof window !== "undefined";
 
+/* One-time cleanup of keys left behind by the removed personnel/results modules. */
+if (isBrowser()) {
+  ["hantech-employees", "hantech-result-records"].forEach((key) => {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      /* Storage unavailable: nothing to clean up. */
+    }
+  });
+}
+
 function emit(key: string) {
   listeners.get(key)?.forEach((listener) => listener());
 }
@@ -125,8 +136,6 @@ export const storageKeys = {
   screenings: "hantech-screenings",
   testCategories: "hantech-test-categories",
   team: "hantech-team",
-  employees: "hantech-employees",
-  resultRecords: "hantech-result-records",
   roles: "hantech-roles",
   notifications: "hantech-notification-preferences",
   profile: "hantech-profile",

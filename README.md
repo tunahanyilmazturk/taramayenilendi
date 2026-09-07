@@ -1,6 +1,6 @@
 # OSGB Yönetim Sistemi
 
-OSGB operasyonlarını tek panelden yönetmek için hazırlanmış modern, responsive ve Türkçe bir frontend uygulamasıdır. Firma ve çalışan kayıtlarından saha taramalarına, tekliflerden sağlık sonuçlarının PDF analizine kadar operasyonun ana akışlarını kapsar.
+OSGB operasyonlarını tek panelden yönetmek için hazırlanmış modern, responsive ve Türkçe bir frontend uygulamasıdır. Firma kayıtlarından saha taramalarına, tekliflerden istatistiklere kadar operasyonun ana akışlarını kapsar.
 
 > Bu sürüm frontend-only demo olarak çalışır. Kalıcı veri tabanı veya API yoktur; kayıtlar tarayıcı `localStorage` alanında saklanır.
 
@@ -14,27 +14,9 @@ Günlük operasyon özeti, yaklaşan taramalar, saha gündemi, açık teklifler 
 
 Firma kayıtları, sektör bilgileri, sözleşme durumu, çalışan sayısı ve firma bazlı tarama geçmişi takip edilir. Firma detay sayfasından ilgili operasyonlara geçiş yapılabilir.
 
-### Personeller
+### Kaldırılan modüller
 
-Firma çalışanları için firma, aktif/pasif ve metin bazlı filtreleme; liste ve kart görünümü; sayfalama; toplu seçim; toplu sonuç durumu güncelleme; toplu silme; personel detay/düzenleme ve Excel’den çalışan aktarımı bulunur.
-
-### Toplu sonuç aktarımı
-
-`/personeller/sonuc-aktarimi` adresindeki aktarım merkezi, modal yerine geniş bir çalışma ekranı olarak tasarlanmıştır.
-
-1. Sonuçların ait olduğu firma seçilir.
-2. Birden fazla PDF, CSV veya TXT dosyası yüklenir.
-3. PDF metni `pdfjs-dist` ile okunur; metinsiz sayfalarda OCR denenir.
-4. Dosya adı ve içerik üzerinden kayıtlı personeller eşleştirilir.
-5. Kayıtlı olmayan isimler yeni personel adayı olarak gösterilir.
-6. Onay verilirse PDF’den çıkarılan profil bilgileriyle personel oluşturulur.
-7. Sonuç dosyası personele bağlanır ve analiz kaydı oluşturulur.
-
-### Sonuçlar
-
-Firma, tarama türü, tarih ve durum filtreleriyle çalışan sonuçları incelenebilir. Seçilen personelin kartı, sonuç geçmişi, PDF dosyaları ve analizleri görüntülenir.
-
-Desteklenen analiz alanları arasında hemogram, tam idrar tahlili, göz muayenesi, EKG, akciğer/röntgen, işitme testi, SFT/spirometri ve genel laboratuvar bulguları bulunur. Analizler bilgilendirme amaçlıdır; kesin tıbbi tanı yerine geçmez.
+Personeller, toplu sonuç aktarımı ve sağlık sonuçları modülleri sistemden kaldırılmıştır. Eski bağlantıların kırılmaması için `/personeller` rotası boş bırakılmıştır; sonuç ve sonuç aktarımı rotaları artık yoktur.
 
 ### Taramalar ve takvim
 
@@ -57,8 +39,8 @@ Ekipman bakım ve kalibrasyon takibi, aylık tarama takvimi, organizasyon/görü
 - Next.js 16 + App Router + Turbopack
 - React 19, TypeScript ve Tailwind CSS v4
 - `next-themes`, Recharts, ExcelJS
-- `pdfjs-dist`, Tesseract.js, pdfmake ve QRCode
-- React Hook Form, Zod ve Lucide React
+- pdfmake ve QRCode
+- Lucide React
 
 ## Gereksinimler
 
@@ -93,7 +75,7 @@ npm run start
 Formatlama için:
 
 ```bash
-npx prettier --write components/personnel/personnel-page.tsx
+npx prettier --write components/ui
 ```
 
 ## Proje yapısı
@@ -102,8 +84,6 @@ npx prettier --write components/personnel/personnel-page.tsx
 app/                 App Router rotaları
 components/ui/       Ortak tasarım bileşenleri
 components/panel/    Sidebar, topbar ve panel shell
-components/personnel Personel ve sonuç aktarımı
-components/results/  Sonuç merkezi
 components/screenings Tarama akışları
 components/offers/   Teklif akışları
 components/statistics İstatistik ekranı
@@ -111,15 +91,13 @@ components/settings/ Ayarlar sekmeleri
 lib/storage.ts        localStorage state katmanı
 lib/data.ts           Ortak veri hook’ları
 lib/demo-data.ts      Demo veri kaynağı
-lib/employees.ts      Personel modelleri
-lib/results.ts        PDF ve sonuç analizleri
 lib/pdf/              PDF üretim yardımcıları
 public/images/        Statik görseller
 ```
 
 ## Veri saklama
 
-Uygulama `lib/storage.ts` içindeki `storageKeys` ve `useStoredState` üzerinden tarayıcı storage kullanır. Demo veriler `lib/demo-data.ts` ve ilgili tip dosyalarından gelir. Tarayıcı localStorage alanını temizlemek demo firma, personel, teklif, tarama ve sonuç kayıtlarını siler.
+Uygulama `lib/storage.ts` içindeki `storageKeys` ve `useStoredState` üzerinden tarayıcı storage kullanır. Demo veriler `lib/demo-data.ts` ve ilgili tip dosyalarından gelir. Tarayıcı localStorage alanını temizlemek demo firma, teklif, tarama ve diğer uygulama kayıtlarını siler.
 
 ## Tasarım sistemi
 
