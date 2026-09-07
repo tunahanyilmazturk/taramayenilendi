@@ -14,9 +14,9 @@ Günlük operasyon özeti, yaklaşan taramalar, saha gündemi, açık teklifler 
 
 Firma kayıtları, sektör bilgileri, sözleşme durumu, çalışan sayısı ve firma bazlı tarama geçmişi takip edilir. Firma detay sayfasından ilgili operasyonlara geçiş yapılabilir.
 
-### Kaldırılan modüller
+### Personeller ve sonuçlar
 
-Personeller, toplu sonuç aktarımı ve sağlık sonuçları modülleri sistemden kaldırılmıştır. Eski bağlantıların kırılmaması için `/personeller` rotası boş bırakılmıştır; sonuç ve sonuç aktarımı rotaları artık yoktur.
+`/personeller` geriye dönük bağlantılar için boş uyumluluk rotasıdır. `/sonuclar` Excel çalışma sayfası görünümünde sağlık sonuçlarını yönetir. Toplu sonuç aktarımı ile birden fazla PDF tarayıcı içinde metin katmanı veya Türkçe/İngilizce OCR kullanılarak analiz edilir; kullanıcı onayından sonra Hemogram, TİT, biyokimya, EKG, SFT, odyometri, göz, radyoloji ve muayene alanlarına aktarılır.
 
 ### Taramalar ve takvim
 
@@ -38,7 +38,7 @@ Ekipman bakım ve kalibrasyon takibi, aylık tarama takvimi, organizasyon/görü
 
 - Next.js 16 + App Router + Turbopack
 - React 19, TypeScript ve Tailwind CSS v4
-- `next-themes`, Recharts, ExcelJS
+- `next-themes`, Recharts, ExcelJS, `pdfjs-dist`, `tesseract.js`
 - pdfmake ve QRCode
 - Lucide React
 
@@ -92,12 +92,15 @@ lib/storage.ts        localStorage state katmanı
 lib/data.ts           Ortak veri hook’ları
 lib/demo-data.ts      Demo veri kaynağı
 lib/pdf/              PDF üretim yardımcıları
+lib/pdf-analysis/     PDF metin/OCR analiz ve test eşleştirme kuralları
+lib/results-excel.ts  Sonuç tablosu Excel dışa aktarımı
+lib/result-tone.ts    Sonuç hücresi renk ve referans değerlendirmesi
 public/images/        Statik görseller
 ```
 
 ## Veri saklama
 
-Uygulama `lib/storage.ts` içindeki `storageKeys` ve `useStoredState` üzerinden tarayıcı storage kullanır. Demo veriler `lib/demo-data.ts` ve ilgili tip dosyalarından gelir. Tarayıcı localStorage alanını temizlemek demo firma, teklif, tarama ve diğer uygulama kayıtlarını siler.
+Uygulama `lib/storage.ts` içindeki `storageKeys` ve `useStoredState` üzerinden tarayıcı storage kullanır. Sonuç sütunları ve satırları da aynı katmanda saklanır. PDF analizleri sunucuya gönderilmez; aktarım öncesi inceleme ve onay ekranı kullanılır.
 
 ## Tasarım sistemi
 

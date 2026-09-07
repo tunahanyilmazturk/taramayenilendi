@@ -43,6 +43,7 @@ Formatlama için proje script’i yoktur; gerektiğinde `npx prettier --write <d
 - `/dashboard` — operasyon özeti ve günlük saha gündemi
 - `/firmalar` ve `/firmalar/[id]` — firma, sektör, sözleşme ve tarama geçmişi
 - `/personeller` — geriye dönük bağlantılar için boş bırakılan uyumluluk rotası
+- `/sonuclar` — Excel çalışma sayfası, PDF toplu sonuç aktarımı ve sonuç kayıt yönetimi
 - `/taramalar`, `/taramalar/[id]`, `/taramalar/yeni` — saha tarama planları ve detayları
 - `/teklifler`, `/teklifler/[id]`, `/teklifler/yeni` — teklif listesi, detay ve oluşturma sihirbazı
 - `/takvim` — yalnızca taramaların planlandığı saha takvimi
@@ -57,6 +58,9 @@ Formatlama için proje script’i yoktur; gerektiğinde `npx prettier --write <d
 - `components/panel/` — sidebar, topbar, panel shell ve alt navigasyon
 - `components/{dashboard,companies,screenings,offers,calendar,statistics,equipment}/` — modül bazlı ekranlar
 - `components/settings/` — ayar sekmeleri
+- `lib/pdf-analysis/` — PDF.js metin çıkarma, Tesseract OCR ve test sonucu eşleştirme kuralları
+- `lib/results-excel.ts` — biçimlendirilmiş Excel dışa aktarımı
+- `lib/result-tone.ts` — referans aralığı ve hücre renk değerlendirmesi
 - `lib/storage.ts` — `useSyncExternalStore` tabanlı localStorage katmanı
 - `lib/data.ts` — tip güvenli demo veri hook’ları
 - `lib/demo-data.ts` — ortak demo verilerinin kaynağı
@@ -74,7 +78,7 @@ Yeni kayıt eklerken mevcut ID’leri ezmeyin. Silme işlemlerinden etkilenmeyen
 
 ## Çalışan ve sonuç kapsamı
 
-Çalışan/personel ve sağlık sonucu modülleri uygulamadan kaldırılmıştır. Bu modüllere ait sidebar bağlantıları, alt rotalar, PDF analiz kodları, localStorage anahtarları ve firma detayındaki çalışan listesi kullanılmaz. `/personeller` yalnızca eski bookmark veya bağlantıların kırılmaması için boş bir rota olarak tutulur; `/sonuclar` ve sonuç aktarım rotaları mevcut değildir.
+`/personeller` yalnızca eski bookmark veya bağlantıların kırılmaması için boş bir rota olarak tutulur. `/sonuclar` aktif sonuç çalışma sayfasıdır. Toplu sonuç aktarımı PDF’leri tarayıcı içinde analiz eder; Hemogram ve TİT gibi çok parametreli testleri bölüm duyarlı şekilde ayrı sütunlara aktarır. Kullanıcı onayı olmadan Excel satırlarını değiştirmez. Aynı T.C. kimlik numarasına ait yeni aktarım mevcut satırı günceller; diğer kayıtlar korunur.
 
 ## Tasarım sistemi
 
