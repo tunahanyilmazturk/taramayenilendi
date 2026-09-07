@@ -143,4 +143,6 @@ export const storageKeys = {
   coverLetterTemplates: "hantech-cover-letter-templates",
   conditionTemplates: "hantech-condition-templates",
   screeningView: "hantech-screening-view",
+  resultColumns: "hantech-result-columns",
+  resultRows: "hantech-result-rows",
 } as const;

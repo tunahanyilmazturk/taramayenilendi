@@ -6,6 +6,8 @@ import {
   FileText,
   LayoutDashboard,
   ScanLine,
+  UsersRound,
+  ClipboardCheck,
   Settings2,
   type LucideIcon,
 } from "lucide-react";
@@ -26,6 +28,8 @@ export const navGroups: NavGroup[] = [
     label: "Operasyonlar",
     links: [
       { href: "/taramalar", label: "Taramalar", description: "Saha tarama planları", icon: ScanLine },
+      { href: "/personeller", label: "Personeller", description: "Personel kayıtları", icon: UsersRound },
+      { href: "/sonuclar", label: "Sonuçlar", description: "Tarama sonuçları", icon: ClipboardCheck },
       { href: "/teklifler", label: "Teklifler", description: "Teklif ve fiyatlandırma", icon: FileText },
       { href: "/istatistikler", label: "İstatistikler", description: "Performans raporları", icon: BarChart3 },
       { href: "/takvim", label: "Takvim", description: "Planlama takvimi", icon: CalendarClock },
