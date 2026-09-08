@@ -17,9 +17,20 @@ let storageEventBound = false;
 
 const isBrowser = () => typeof window !== "undefined";
 
-/* One-time cleanup of keys left behind by the removed personnel/results modules. */
+/* One-time cleanup of keys left behind by the removed personnel/results/AI modules. */
 if (isBrowser()) {
-  ["hantech-employees", "hantech-result-records"].forEach((key) => {
+  [
+    "hantech-employees",
+    "hantech-result-records",
+    "hantech-ai-settings",
+    "hantech-personnel",
+    "hantech-result-columns",
+    "hantech-result-rows",
+    "hantech-result-hidden-columns",
+    "hantech-result-column-widths",
+    "hantech-result-page-size",
+    "hantech-result-cell-styles",
+  ].forEach((key) => {
     try {
       window.localStorage.removeItem(key);
     } catch {
@@ -143,6 +154,4 @@ export const storageKeys = {
   coverLetterTemplates: "hantech-cover-letter-templates",
   conditionTemplates: "hantech-condition-templates",
   screeningView: "hantech-screening-view",
-  resultColumns: "hantech-result-columns",
-  resultRows: "hantech-result-rows",
 } as const;

@@ -4,7 +4,7 @@ Bu dosya, Claude tabanlı ajanlar için proje özeti ve hızlı yönlendirmedir.
 
 ## Kısa proje özeti
 
-OSGB Yönetim Sistemi; firmaları, saha taramalarını, teklifleri, takvimi, ekipmanları, istatistikleri ve PDF’den sonuç aktarımını yöneten Next.js 16 frontend-only uygulamasıdır. `/personeller` boş uyumluluk rotasıdır; `/sonuclar` Excel benzeri sonuç çalışma sayfasıdır. Backend yoktur; demo ve sonuç state’i `localStorage` üzerinde tutulur.
+OSGB Yönetim Sistemi; firmaları, saha taramalarını, teklifleri, takvimi, ekipmanları ve istatistikleri yöneten Next.js 16 frontend-only uygulamadır. Backend yoktur; demo state’i `localStorage` üzerinde tutulur.
 
 ## Hızlı komutlar
 
@@ -31,8 +31,6 @@ npm run build
 - `lib/storage.ts` — SSR uyumlu localStorage state katmanı
 - `components/screenings/` — tarama oluşturma, detay, PDF ve paylaşım akışları
 - `components/offers/` — teklif oluşturma, detay, PDF ve yanıt akışları
-- `lib/pdf-analysis/` — PDF metin/OCR analizi, test grupları ve sonuç eşleştirme kuralları
-- `lib/results-excel.ts` — sonuçların biçimlendirilmiş `.xlsx` dışa aktarımı
 
 ## Commit öncesi kontrol
 
