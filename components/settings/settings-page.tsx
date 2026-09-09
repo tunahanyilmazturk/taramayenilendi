@@ -66,6 +66,8 @@ export default function SettingsPage() {
   return (
     <Page size="narrow">
       <section className="relative isolate overflow-hidden rounded-2xl border border-sidebar-border bg-sidebar px-5 py-6 text-sidebar-fg-strong shadow-primary sm:px-7 sm:py-7">
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-20 bg-cover bg-right" style={{ backgroundImage: "url('/headers/settings.png')" }} />
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 bg-sidebar/75" />
         <div className="pointer-events-none absolute -right-20 -top-28 -z-10 size-72 rounded-full border border-sidebar-accent/20 bg-sidebar-active/35" />
         <div className="relative z-10 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-4">

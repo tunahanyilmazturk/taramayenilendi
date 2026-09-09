@@ -147,6 +147,7 @@ export const storageKeys = {
   screenings: "hantech-screenings",
   testCategories: "hantech-test-categories",
   team: "hantech-team",
+  personnel: "hantech-personnel",
   roles: "hantech-roles",
   notifications: "hantech-notification-preferences",
   profile: "hantech-profile",

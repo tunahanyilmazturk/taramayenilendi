@@ -79,7 +79,7 @@ export default function DashboardPage() {
 
   return (
     <Page>
-      <section className="relative isolate overflow-hidden rounded-2xl border border-sidebar-border bg-sidebar bg-[url('/images/dashboard-hero-bg.png')] bg-cover bg-center px-5 py-6 text-sidebar-fg-strong shadow-primary sm:px-7 sm:py-8 lg:px-9 lg:py-9">
+      <section className="relative isolate overflow-hidden rounded-2xl border border-sidebar-border bg-sidebar bg-[url('/headers/dashboard.png')] bg-cover bg-center px-5 py-6 text-sidebar-fg-strong shadow-primary sm:px-7 sm:py-8 lg:px-9 lg:py-9">
         <div className="pointer-events-none absolute inset-0 -z-10 bg-sidebar/55" />
         <div className="pointer-events-none absolute -right-24 -top-32 -z-10 size-80 rounded-full border border-sidebar-accent/20 bg-sidebar-active/35 blur-[1px]" />
         <div className="pointer-events-none absolute -bottom-48 left-1/3 -z-10 size-96 rounded-full border border-brand/20 bg-brand/10 blur-2xl" />

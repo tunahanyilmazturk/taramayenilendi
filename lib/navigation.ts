@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   ScanLine,
   Settings2,
+  UsersRound,
   type LucideIcon,
 } from "lucide-react";
 
@@ -20,6 +21,7 @@ export const navGroups: NavGroup[] = [
     links: [
       { href: "/dashboard", label: "Genel Bakış", description: "Operasyon özeti", icon: LayoutDashboard },
       { href: "/firmalar", label: "Firmalar", description: "Müşteri ve sözleşmeler", icon: Building2 },
+      { href: "/personeller", label: "Personeller", description: "Firma çalışanları", icon: UsersRound },
     ],
   },
   {
@@ -27,7 +29,7 @@ export const navGroups: NavGroup[] = [
     links: [
       { href: "/taramalar", label: "Taramalar", description: "Saha tarama planları", icon: ScanLine },
       { href: "/teklifler", label: "Teklifler", description: "Teklif ve fiyatlandırma", icon: FileText },
-      { href: "/istatistikler", label: "İstatistikler", description: "Performans raporları", icon: BarChart3 },
+      { href: "/istatistikler", label: "Analiz ve Raporlar", description: "Operasyon ve performans analizleri", icon: BarChart3 },
       { href: "/takvim", label: "Takvim", description: "Planlama takvimi", icon: CalendarClock },
       { href: "/ekipmanlar", label: "Ekipmanlar", description: "Cihaz ve ekipman envanteri", icon: HardHat },
     ],

@@ -6,6 +6,7 @@ import {
   CalendarDays,
   CalendarRange,
   CheckCircle2,
+  ClipboardCheck,
   ClipboardList,
   Clock3,
   CircleDollarSign,
@@ -38,7 +39,7 @@ import { Card, CardHeader, IconBadge, StatTile, SummaryCard } from "@/components
 import { EmptyState } from "@/components/ui/empty-state";
 import { Alert } from "@/components/ui/modal";
 import { Page, PageHeader } from "@/components/ui/page-header";
-import { Field, Input } from "@/components/ui/field";
+import { Field, Input, Select } from "@/components/ui/field";
 import { useCompanies, useEquipment, useOffers, useScreenings, useTeam } from "@/lib/data";
 import { useNotice } from "@/lib/hooks";
 import {
@@ -49,17 +50,19 @@ import {
   type Offer,
   type Screening,
   type ScreeningStatus,
+  type TeamMember,
 } from "@/lib/demo-data";
 import { labelToIso, money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-type Tab = "overview" | "offers" | "screenings" | "companies" | "equipment";
+type Tab = "overview" | "operations" | "offers" | "screenings" | "companies" | "equipment";
 type ExportColumn = { header: string; key: string; width?: number; currency?: boolean };
 type ExportRow = Record<string, string | number>;
 type DatePreset = "all" | "month" | "last30" | "custom";
 
 const tabs: Array<{ id: Tab; label: string; icon: typeof BarChart3 }> = [
   { id: "overview", label: "Genel bakış", icon: BarChart3 },
+  { id: "operations", label: "Operasyon", icon: ClipboardCheck },
   { id: "offers", label: "Teklifler", icon: FileText },
   { id: "screenings", label: "Taramalar", icon: ClipboardList },
   { id: "companies", label: "Firmalar", icon: Building2 },
@@ -188,6 +191,7 @@ export default function StatisticsPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [datePreset, setDatePreset] = useState<DatePreset>("all");
+  const [selectedCompanyId, setSelectedCompanyId] = useState("Tümü");
 
   const applyDatePreset = (preset: Exclude<DatePreset, "custom">) => {
     setDatePreset(preset);
@@ -212,14 +216,17 @@ export default function StatisticsPage() {
     },
     [dateFrom, dateTo],
   );
-  const reportOffers = useMemo(() => offers.filter((offer) => inDateRange(offer.createdAt)), [offers, inDateRange]);
+  const reportOffers = useMemo(
+    () => offers.filter((offer) => inDateRange(offer.createdAt) && (selectedCompanyId === "Tümü" || offer.companyId === Number(selectedCompanyId))),
+    [offers, inDateRange, selectedCompanyId],
+  );
   const reportScreenings = useMemo(
-    () => screenings.filter((item) => inDateRange(item.date)),
-    [screenings, inDateRange],
+    () => screenings.filter((item) => inDateRange(item.date) && (selectedCompanyId === "Tümü" || item.companyId === Number(selectedCompanyId))),
+    [screenings, inDateRange, selectedCompanyId],
   );
   const reportCompanies = useMemo(
-    () => companies.filter((company) => inDateRange(company.lastScreening)),
-    [companies, inDateRange],
+    () => companies.filter((company) => inDateRange(company.lastScreening) && (selectedCompanyId === "Tümü" || company.id === Number(selectedCompanyId))),
+    [companies, inDateRange, selectedCompanyId],
   );
   const reportEquipment = useMemo(
     () => equipment.filter((item) => inDateRange(item.lastMaintenance || item.calibrationDate || "")),
@@ -257,6 +264,18 @@ export default function StatisticsPage() {
   const attentionCount =
     reportOffers.filter((offer) => offer.status === "Süresi doldu").length +
     reportEquipment.filter((item) => item.status === "Kalibrasyon bekliyor" || item.status === "Bakımda").length;
+  const operationsRows = useMemo(
+    () => reportScreenings.map((screening) => ({
+      tarih: screening.date,
+      tarama: screening.title,
+      firma: screening.company,
+      durum: screening.status,
+      katilimci: screening.participants,
+      tamamlanan: screening.completed,
+      ekip: screening.team,
+    })),
+    [reportScreenings],
+  );
   const currentTab = tabs.find((item) => item.id === tab) ?? tabs[0];
 
   const handleExport = async () => {
@@ -345,6 +364,21 @@ export default function StatisticsPage() {
               description: "Aktif olarak saha operasyonlarında kullanılan kaynaklar",
             },
           ],
+        );
+      } else if (tab === "operations") {
+        await exportToExcel(
+          "operasyon-raporu",
+          "HanTech OSGB Operasyon Raporu",
+          [
+            { header: "Tarih", key: "tarih", width: 16 },
+            { header: "Tarama", key: "tarama", width: 38 },
+            { header: "Firma", key: "firma", width: 28 },
+            { header: "Durum", key: "durum", width: 18 },
+            { header: "Katılımcı", key: "katilimci", width: 14 },
+            { header: "Tamamlanan", key: "tamamlanan", width: 14 },
+            { header: "Ekip", key: "ekip", width: 28 },
+          ],
+          operationsRows,
         );
       } else if (tab === "offers") {
         await exportToExcel(
@@ -519,6 +553,7 @@ export default function StatisticsPage() {
           description="OSGB operasyonlarınızın performansını, kaynak kullanımını ve saha sonuçlarını tek merkezden izleyin."
           eyebrow="Raporlama ve analiz merkezi"
           title="İstatistikler"
+          visual="/headers/reports.png"
         />
         <div className="border-divider mt-4 border-t pt-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -527,7 +562,7 @@ export default function StatisticsPage() {
                 <CalendarRange className="text-brand size-4" /> Gelişmiş rapor filtreleri
               </p>
               <p className="text-muted mt-1 text-xs">
-                Tarih aralığını seçerek tüm metrikleri, grafikleri ve Excel çıktısını daraltın.
+                Tarih, firma ve sekme seçimini kullanarak tüm metrikleri, grafikleri ve Excel çıktısını daraltın.
               </p>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {[
@@ -553,6 +588,19 @@ export default function StatisticsPage() {
               </div>
             </div>
             <div className="flex flex-wrap items-end gap-3">
+              <Field label="Firma">
+                <Select
+                  aria-label="Rapor firması"
+                  className="h-10 w-full sm:w-56"
+                  onChange={(event) => setSelectedCompanyId(event.target.value)}
+                  value={selectedCompanyId}
+                >
+                  <option value="Tümü">Tüm firmalar</option>
+                  {companies.map((company) => (
+                    <option key={company.id} value={company.id}>{company.name}</option>
+                  ))}
+                </Select>
+              </Field>
               <Field label="Başlangıç tarihi">
                 <Input
                   aria-label="Rapor başlangıç tarihi"
@@ -656,6 +704,9 @@ export default function StatisticsPage() {
           screeningCompletionRate={screeningCompletionRate}
           attentionCount={attentionCount}
         />
+      )}
+      {tab === "operations" && (
+        <OperationsTab companies={reportCompanies} equipment={reportEquipment} screenings={reportScreenings} team={team} />
       )}
       {tab === "offers" && <OffersTab offers={reportOffers} stats={offerStats} />}
       {tab === "screenings" && <ScreeningsTab screenings={reportScreenings} stats={screeningStats} />}
@@ -937,6 +988,47 @@ function MetricBlock({ label, value }: { label: string; value: string }) {
       <p className="text-heading mt-2 text-lg font-semibold">{value}</p>
     </div>
   );
+}
+
+function OperationsTab({
+  companies,
+  equipment,
+  screenings,
+  team,
+}: {
+  companies: Company[];
+  equipment: Equipment[];
+  screenings: Screening[];
+  team: TeamMember[];
+}) {
+  const statusRows = screeningStatuses.map((status) => ({ status, count: screenings.filter((item) => item.status === status).length })).filter((row) => row.count > 0);
+  const companyRows = companies.map((company) => {
+    const rows = screenings.filter((screening) => screening.companyId === company.id);
+    return { company, count: rows.length, participants: rows.reduce((sum, item) => sum + item.participants, 0), completed: rows.reduce((sum, item) => sum + item.completed, 0) };
+  }).filter((row) => row.count > 0).sort((a, b) => b.count - a.count);
+  const teamRows = team.map((member) => {
+    const rows = screenings.filter((screening) => screening.teamMembers?.includes(member.name) || screening.team.includes(member.name));
+    return { member, total: rows.length, open: rows.filter((item) => !["Tamamlandı", "İptal"].includes(item.status)).length, done: rows.filter((item) => item.status === "Tamamlandı").length };
+  }).filter((row) => row.total > 0).sort((a, b) => b.total - a.total);
+  const calibrationDue = equipment.filter((item) => item.status === "Kalibrasyon bekliyor" || item.status === "Bakımda").length;
+  const openScreenings = screenings.filter((item) => !["Tamamlandı", "İptal"].includes(item.status)).length;
+  const participants = screenings.reduce((sum, item) => sum + item.participants, 0);
+  const completed = screenings.reduce((sum, item) => sum + item.completed, 0);
+
+  return <>
+    <section className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <SummaryCard icon={ClipboardList} label="Filtrelenen tarama" value={screenings.length} />
+      <SummaryCard icon={UsersRound} label="Katılımcı kapasitesi" value={participants} />
+      <SummaryCard icon={CheckCircle2} label="Tamamlanan kişi" value={completed} />
+      <SummaryCard icon={Clock3} label="Açık saha işi" value={openScreenings} />
+    </section>
+    <div className="mt-5 grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+      <Card className="p-5"><CardHeader description="Seçili tarih ve firma filtresindeki tarama durumları." icon={ClipboardCheck} title="Operasyon durumu" /><div className="mt-5 space-y-4">{statusRows.length === 0 ? <EmptyState className="py-8" description="Seçili filtrede tarama bulunmuyor." icon={ClipboardList} title="Veri yok" /> : statusRows.map((row) => <div key={row.status}><div className="flex items-center justify-between gap-3"><Badge tone={screeningTone(row.status)}>{row.status}</Badge><span className="text-xs font-semibold text-heading">{row.count} kayıt · %{percentage(row.count, screenings.length)}</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-card-muted"><div className="h-full rounded-full bg-brand" style={{ width: `${percentage(row.count, screenings.length)}%` }} /></div></div>)}</div></Card>
+      <Card className="p-5"><CardHeader description="Tarama kayıtlarında görünen ekip dağılımı." icon={UsersRound} title="Ekip yükü" /><div className="mt-5 space-y-3">{teamRows.length === 0 ? <p className="rounded-xl bg-card-muted p-5 text-center text-xs text-muted">Ekip verisi bulunmuyor.</p> : teamRows.map((row) => <div className="rounded-xl border border-border bg-card-muted p-3" key={row.member.id}><div className="flex items-center justify-between gap-3"><p className="truncate text-xs font-semibold text-foreground">{row.member.name}</p><span className="text-xs font-bold text-brand">{row.total} tarama</span></div><div className="mt-2 flex gap-3 text-[11px] text-muted"><span>{row.open} açık</span><span>{row.done} tamamlandı</span></div></div>)}</div></Card>
+    </div>
+    <Card className="mt-5 overflow-hidden"><CardHeader className="p-5" description="Firma bazında saha hacmi ve katılımcı tamamlanma oranı." title="Firma performansı" /><div className="overflow-x-auto"><table className="w-full min-w-[680px] text-left text-xs"><thead className="border-y border-divider bg-card-muted"><tr><th className="px-5 py-3 text-[10px] font-bold uppercase tracking-wide text-subtle">Firma</th><th className="px-5 py-3 text-[10px] font-bold uppercase tracking-wide text-subtle">Tarama</th><th className="px-5 py-3 text-[10px] font-bold uppercase tracking-wide text-subtle">Katılımcı</th><th className="px-5 py-3 text-[10px] font-bold uppercase tracking-wide text-subtle">Tamamlanma</th></tr></thead><tbody className="divide-y divide-divider">{companyRows.map((row) => { const completion = percentage(row.completed, row.participants); return <tr className="hover:bg-card-muted" key={row.company.id}><td className="px-5 py-3 font-semibold text-foreground">{row.company.name}</td><td className="px-5 py-3 text-muted">{row.count}</td><td className="px-5 py-3 text-muted">{row.participants}</td><td className="px-5 py-3"><div className="flex items-center gap-3"><Progress value={completion} /><span className="w-9 text-right font-semibold text-heading">{completion}%</span></div></td></tr>; })}</tbody></table>{companyRows.length === 0 && <p className="p-8 text-center text-xs text-muted">Firma verisi bulunmuyor.</p>}</div></Card>
+    <Card className="mt-5 p-5"><CardHeader description="Operasyon yöneticisinin hızlıca aksiyon alması gereken kayıtlar." icon={ShieldAlert} title="Takip merkezi" /><div className="mt-4 grid gap-3 sm:grid-cols-3"><AttentionTile icon={Clock3} label="Açık saha işi" value={openScreenings} tone="info" /><AttentionTile icon={Gauge} label="Bakım / kalibrasyon" value={calibrationDue} tone="warning" /><AttentionTile icon={CheckCircle2} label="Tamamlanma oranı" value={`${percentage(completed, participants)}%`} tone="brand" /></div></Card>
+  </>;
 }
 
 function SignalRow({

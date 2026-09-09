@@ -13,7 +13,7 @@ export function BrandMark({
   const mark = {
     default: "bg-primary text-brand-strong shadow-primary",
     light: "bg-white text-primary",
-    sidebar: "bg-sidebar-active text-brand-strong",
+    sidebar: "bg-sidebar-accent text-sidebar shadow-[0_8px_18px_color-mix(in_srgb,var(--sidebar-accent)_18%,transparent)]",
   }[variant];
   const title = { default: "text-heading", light: "text-white", sidebar: "text-sidebar-fg-strong" }[variant];
   const subtitle = { default: "text-muted", light: "text-white/70", sidebar: "text-sidebar-muted" }[variant];

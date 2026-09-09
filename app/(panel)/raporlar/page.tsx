@@ -1,10 +1,5 @@
-import PlaceholderPage from "@/components/panel/placeholder-page";
+import { redirect } from "next/navigation";
 
 export default function ReportsRoute() {
-  return (
-    <PlaceholderPage
-      title="Raporlar"
-      description="Tarama sonuçları, kurum performansı ve operasyon ölçümlerini raporlayacağınız alan."
-    />
-  );
+  redirect("/istatistikler");
 }

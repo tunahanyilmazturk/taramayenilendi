@@ -148,6 +148,7 @@ export default function CompaniesPage() {
         description="Hizmet verdiğiniz firmaları, sözleşmeleri ve tarama geçmişini yönetin."
         eyebrow="Müşteri ve sözleşme merkezi"
         title="Firmalar"
+        visual="/headers/companies.png"
       />
       {notice && <Alert className="mt-4 w-fit">{notice}</Alert>}
       {selectedIds.length > 0 && (

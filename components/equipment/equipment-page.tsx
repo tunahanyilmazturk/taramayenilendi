@@ -105,6 +105,7 @@ export default function EquipmentPage() {
         description="Tarama ve muayene süreçlerinde kullandığınız araç ve cihazları tek merkezden yönetin."
         eyebrow="Operasyon kaynakları"
         title="Araç ve ekipmanlar"
+        visual="/headers/equipment.png"
       />
       {notice && (
         <Alert className="mt-4" icon={Check}>

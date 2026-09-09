@@ -133,7 +133,7 @@ function NavLink({
       <span
         className={cn(
           "flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors",
-          active ? "bg-sidebar-accent/15 text-sidebar-accent" : "bg-sidebar-hover/60 text-sidebar-fg",
+          active ? "bg-sidebar-accent/15 text-sidebar-accent" : "text-sidebar-muted",
         )}
       >
         <Icon className="size-[17px]" />

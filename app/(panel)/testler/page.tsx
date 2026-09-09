@@ -5,6 +5,7 @@ export default function TestsRoute() {
     <PlaceholderPage
       title="Testler"
       description="Sağlık taramalarında kullanılacak test türlerini ve test süreçlerini yöneteceğiniz alan."
+      visual="/headers/screenings.png"
     />
   );
 }

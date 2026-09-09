@@ -26,6 +26,7 @@ import {
   type TeamMember,
   type TestItem,
 } from "@/lib/demo-data";
+import { demoPersonnel, normalizePersonnel, type Personnel } from "@/lib/personnel";
 import { storageKeys, useStoredState } from "@/lib/storage";
 
 export function useCompanies() {
@@ -116,6 +117,18 @@ export function useTeam() {
     [raw],
   );
   return [team, setTeam] as const;
+}
+
+export function usePersonnel() {
+  const [raw, setPersonnel] = useStoredState<Array<Partial<Personnel> & { id: number; companyId: number; name: string }>>(
+    storageKeys.personnel,
+    demoPersonnel,
+  );
+  const personnel = useMemo(
+    () => (Array.isArray(raw) ? raw.map(normalizePersonnel) : demoPersonnel),
+    [raw],
+  );
+  return [personnel, setPersonnel as (next: Personnel[] | ((current: Personnel[]) => Personnel[])) => void] as const;
 }
 
 export function useRoles() {

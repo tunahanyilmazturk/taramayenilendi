@@ -28,15 +28,17 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Alert } from "@/components/ui/modal";
 import { Page } from "@/components/ui/page-header";
 import { Avatar } from "@/components/ui/table";
-import { useCompanies, useOffers, useSectors } from "@/lib/data";
+import { useCompanies, useOffers, usePersonnel, useSectors } from "@/lib/data";
 import { companyLocation, type Company, type Offer } from "@/lib/demo-data";
-import { labelToIso, money } from "@/lib/format";
+import { isoToLabel, labelToIso, money } from "@/lib/format";
 import { useNotice } from "@/lib/hooks";
+import type { Personnel } from "@/lib/personnel";
 import { useHydrated } from "@/lib/storage";
 import { cn, initials } from "@/lib/utils";
 
 const tabs = [
   ["genel", "Genel bakış"],
+  ["personeller", "Personeller"],
   ["taramalar", "Taramalar"],
   ["teklifler", "Teklifler"],
   ["sozlesme", "Sözleşme ve belgeler"],
@@ -53,11 +55,13 @@ const recentActivity = [
 export default function CompanyDetailPage({ companyId }: { companyId: string }) {
   const hydrated = useHydrated();
   const [companies, setCompanies] = useCompanies();
+  const [personnel] = usePersonnel();
   const [sectors] = useSectors();
   const [notice, showNotice] = useNotice();
   const [activeTab, setActiveTab] = useState<TabId>("genel");
   const [editing, setEditing] = useState(false);
   const company = companies.find((item) => item.id === Number(companyId));
+  const companyPersonnel = personnel.filter((item) => item.companyId === Number(companyId));
 
   if (!hydrated) return <DetailSkeleton />;
   if (!company) {
@@ -111,6 +115,11 @@ export default function CompanyDetailPage({ companyId }: { companyId: string }) 
             <Button onClick={() => setEditing(true)} size="sm" variant="secondary">
               <Edit3 /> Firma bilgilerini düzenle
             </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/personeller">
+                <UsersRound /> Personeller
+              </Link>
+            </Button>
             <Button asChild size="sm">
               <Link href="/taramalar">
                 <CalendarDays /> Yeni tarama
@@ -146,6 +155,7 @@ export default function CompanyDetailPage({ companyId }: { companyId: string }) 
 
       <div className="mt-6">
         {activeTab === "genel" && <Overview company={company} />}
+        {activeTab === "personeller" && <CompanyPersonnel company={company} personnel={companyPersonnel} />}
         {activeTab === "taramalar" && (
           <PlaceholderModule
             description="Firmaya ait planlanan, devam eden ve tamamlanan mobil sağlık taramaları burada listelenecek."
@@ -236,6 +246,73 @@ function Overview({ company }: { company: Company }) {
           <ContactLine icon={MapPin} value={companyLocation(company)} />
         </div>
       </Card>
+    </div>
+  );
+}
+
+function CompanyPersonnel({ company, personnel }: { company: Company; personnel: Personnel[] }) {
+  return (
+    <Card className="p-5 sm:p-6">
+      <CardHeader
+        action={
+          <>
+            <CountPill>{personnel.length} kayıt</CountPill>
+            <Button asChild size="sm">
+              <Link href="/personeller">
+                <UsersRound /> Personelleri yönet
+              </Link>
+            </Button>
+          </>
+        }
+        description={`${company.name} firmasına bağlı personel kayıtları ve temel görev bilgileri.`}
+        icon={UsersRound}
+        title="Firma personelleri"
+      />
+      {personnel.length === 0 ? (
+        <EmptyState
+          action={
+            <Button asChild size="sm">
+              <Link href="/personeller">
+                <Plus /> Personel ekle
+              </Link>
+            </Button>
+          }
+          className="mt-6"
+          compact
+          description="Bu firmaya henüz personel bağlanmamış. Personeller sayfasından firma seçerek kayıt ekleyebilirsiniz."
+          icon={UsersRound}
+          title="Personel kaydı bulunmuyor"
+        />
+      ) : (
+        <div className="mt-5 divide-y divide-divider">
+          {personnel.map((item) => (
+            <CompanyPersonnelRow item={item} key={item.id} />
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function CompanyPersonnelRow({ item }: { item: Personnel }) {
+  return (
+    <div className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-center gap-3">
+        <Avatar size="sm" text={initials(item.name)} />
+        <div className="min-w-0">
+          <Link className="truncate text-sm font-semibold text-foreground hover:text-brand" href={`/personeller/${item.id}`}>{item.name}</Link>
+          <p className="mt-1 truncate text-xs text-muted">
+            {item.title || "Görev belirtilmedi"}
+            {item.department ? ` · ${item.department}` : ""}
+          </p>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted sm:justify-end">
+        <span>{item.employeeNo || "Sicil no yok"}</span>
+        <span>{item.nationalId || "Kimlik no yok"}</span>
+        <span>{item.startDate ? `İşe giriş: ${isoToLabel(item.startDate)}` : "İşe giriş tarihi yok"}</span>
+        <Badge tone={item.status === "Aktif" ? "brand" : item.status === "İzinli" ? "warning" : "danger"}>{item.status}</Badge>
+      </div>
     </div>
   );
 }

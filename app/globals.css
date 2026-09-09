@@ -48,15 +48,15 @@
   --neutral: #60778a;
   --neutral-soft: #eaf0f4;
 
-  --sidebar: #0b2238;
-  --sidebar-border: #173b56;
-  --sidebar-fg: #a8c2d5;
-  --sidebar-fg-strong: #edf5fb;
-  --sidebar-muted: #7e9fb8;
-  --sidebar-hover: #12344e;
-  --sidebar-active: #1b4b6b;
-  --sidebar-active-fg: #e1f1ff;
-  --sidebar-accent: #78b9e8;
+  --sidebar: #1a2226;
+  --sidebar-border: #303a3e;
+  --sidebar-fg: #b9c3c5;
+  --sidebar-fg-strong: #f1f4f3;
+  --sidebar-muted: #8d9a9d;
+  --sidebar-hover: #242e32;
+  --sidebar-active: #2d393d;
+  --sidebar-active-fg: #f4f6f4;
+  --sidebar-accent: #d7a064;
 
   --overlay: rgba(12, 35, 50, 0.6);
   --shadow-card: 0 1px 2px rgba(16, 42, 67, 0.04), 0 8px 24px -12px rgba(16, 42, 67, 0.12);
@@ -105,15 +105,15 @@
   --neutral: #c1d5dc;
   --neutral-soft: #24435d;
 
-  --sidebar: #061824;
-  --sidebar-border: #12364d;
-  --sidebar-fg: #9db9c9;
-  --sidebar-fg-strong: #e7f4fb;
-  --sidebar-muted: #7297ad;
-  --sidebar-hover: #0d2c43;
-  --sidebar-active: #154362;
-  --sidebar-active-fg: #dceeff;
-  --sidebar-accent: #70b4e4;
+  --sidebar: #101619;
+  --sidebar-border: #263238;
+  --sidebar-fg: #aeb9bb;
+  --sidebar-fg-strong: #eef2f1;
+  --sidebar-muted: #7f8b8e;
+  --sidebar-hover: #1b2529;
+  --sidebar-active: #263135;
+  --sidebar-active-fg: #f2f5f3;
+  --sidebar-accent: #e1b276;
 
   --overlay: rgba(3, 14, 27, 0.72);
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
@@ -240,6 +240,31 @@
   .dark input[type="time"]::-webkit-calendar-picker-indicator {
     filter: invert(1);
   }
+}
+
+.page-header-visual-actions > * > * {
+  border-color: color-mix(in srgb, var(--sidebar-fg-strong) 24%, transparent) !important;
+  background: color-mix(in srgb, var(--sidebar) 78%, transparent) !important;
+  color: var(--sidebar-fg-strong) !important;
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--sidebar) 22%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.page-header-visual-actions > * > *:hover {
+  border-color: color-mix(in srgb, var(--sidebar-accent) 70%, transparent) !important;
+  background: color-mix(in srgb, var(--sidebar-hover) 88%, transparent) !important;
+  color: var(--sidebar-fg-strong) !important;
+}
+
+.page-header-visual-actions > * > *:last-child {
+  border-color: color-mix(in srgb, var(--sidebar-accent) 72%, transparent) !important;
+  background: color-mix(in srgb, var(--sidebar-hover) 92%, transparent) !important;
+  color: var(--sidebar-fg-strong) !important;
+}
+
+.page-header-visual-actions > * > *:last-child:hover {
+  background: var(--sidebar-active) !important;
+  color: var(--sidebar-fg-strong) !important;
 }
 
 /* Appearance preferences (managed from Ayarlar > Görünüm). */

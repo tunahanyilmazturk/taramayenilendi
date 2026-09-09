@@ -153,6 +153,7 @@ export default function ScreeningsPage() {
         description="Mobil sağlık taramalarınızı, katılımcıları ve saha operasyonlarının sonuçlarını tek merkezden yönetin."
         eyebrow="Saha operasyonları"
         title="Taramalar"
+        visual="/headers/screenings.png"
       />
       {notice && (
         <Alert className="mt-4" icon={Check}>

@@ -228,6 +228,7 @@ export default function OffersPage() {
         eyebrow="Teklif ve fiyatlandırma merkezi"
         title="Teklifler"
         description="Firmalarınıza sunduğunuz OSGB hizmet tekliflerini ve dönüş süreçlerini yönetin."
+        visual="/headers/offers.png"
         actions={
           <Button asChild>
             <Link href="/teklifler/yeni">

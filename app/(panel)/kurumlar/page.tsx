@@ -5,6 +5,7 @@ export default function OrganizationsRoute() {
     <PlaceholderPage
       title="Kurumlar"
       description="Hizmet verilen kurumları, sözleşmeleri ve kurum bazlı sağlık taraması geçmişini yöneteceğiniz alan."
+      visual="/headers/companies.png"
     />
   );
 }

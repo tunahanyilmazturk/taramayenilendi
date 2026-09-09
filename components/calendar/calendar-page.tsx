@@ -182,12 +182,12 @@ export default function CalendarPage() {
   };
 
   return (
-    <Page className="xl:h-[calc(100dvh-126px)] xl:overflow-hidden xl:pb-0">
-      <div className="grid gap-5 xl:h-full xl:min-h-0 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <Card className="flex min-h-0 flex-col overflow-hidden p-4 sm:p-5">
+    <Page className="pt-1 xl:h-[calc(100dvh-118px)] xl:overflow-hidden xl:pb-0">
+      <div className="grid gap-4 xl:h-full xl:min-h-0 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <Card className="flex min-h-0 flex-col overflow-hidden border-border/80 bg-card/95 p-4 shadow-card sm:p-5">
           <div className="border-divider flex flex-wrap items-center justify-between gap-3 border-b pb-4">
             <div className="flex items-center gap-3">
-              <IconBadge icon={CalendarDays} size="lg" />
+              <IconBadge className="bg-brand-soft text-brand-soft-fg" icon={CalendarDays} size="lg" />
               <div>
                 <h2 className="text-heading text-base font-bold capitalize">{monthLabel(month)}</h2>
                 <p className="text-muted mt-0.5 text-[11px]">
@@ -316,8 +316,8 @@ export default function CalendarPage() {
           </div>
         </Card>
 
-        <div className="min-h-0 space-y-5 overflow-y-auto pr-1">
-          <Card className="p-4 sm:p-5">
+        <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
+          <Card className="border-border/80 bg-card/95 p-4 shadow-card sm:p-5">
             <CardHeader
               icon={CalendarDays}
               title="Seçili gün"
@@ -337,7 +337,7 @@ export default function CalendarPage() {
               )}
             </div>
           </Card>
-          <Card className="p-4 sm:p-5">
+          <Card className="border-border/80 bg-card/95 p-4 shadow-card sm:p-5">
             <CardHeader icon={Clock3} title="Yaklaşan taramalar" description="En yakın saha operasyonları" />
             <div className="mt-3 space-y-2">
               {upcoming.length ? (
