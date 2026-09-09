@@ -62,7 +62,7 @@ export function ScreeningTestPicker({
           {lines.length} kalem
         </span>
       </div>
-      <div className="grid min-h-[420px] gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+      <div className="grid min-h-[280px] gap-5 sm:min-h-[420px] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
         <div className="border-border bg-card min-w-0 rounded-2xl border p-4">
           <div className="flex items-center justify-between">
             <p className="text-foreground text-sm font-bold">Aktif test kataloğu</p>

@@ -41,7 +41,7 @@ export default function ScreeningStepCompany({
   };
   return (
     <section>
-      <div className="mt-4 grid min-h-[420px] gap-6 lg:grid-cols-2">
+      <div className="mt-4 grid min-h-[280px] gap-6 sm:min-h-[420px] lg:grid-cols-2">
         <div className="space-y-5">
           <div className="border-border bg-card rounded-2xl border p-4">
             <p className="text-foreground mb-4 text-sm font-bold">Firma seçimi</p>

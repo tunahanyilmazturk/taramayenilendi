@@ -55,7 +55,7 @@ export function Modal({ open, onClose, title, eyebrow, description, icon, footer
         )}
         role="dialog"
       >
-        <header className="flex items-start justify-between gap-4 border-b border-divider px-6 py-5 sm:px-7">
+        <header className="flex items-start justify-between gap-3 border-b border-divider px-4 py-4 sm:gap-4 sm:px-7 sm:py-5">
           <div className="flex min-w-0 items-start gap-3">
             {icon && <IconBadge icon={icon} size="lg" />}
             <div className="min-w-0">
@@ -75,9 +75,9 @@ export function Modal({ open, onClose, title, eyebrow, description, icon, footer
             <X className="size-5" />
           </button>
         </header>
-        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-6 py-6 sm:px-7">{children}</div>
+        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-7 sm:py-6">{children}</div>
         {footer && (
-          <footer className="flex flex-col-reverse gap-3 border-t border-divider bg-card px-6 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-7">
+          <footer className="flex flex-col-reverse gap-3 border-t border-divider bg-card px-4 py-4 [&>*]:w-full sm:flex-row sm:items-center sm:justify-end sm:px-7 sm:[&>*]:w-auto">
             {footer}
           </footer>
         )}

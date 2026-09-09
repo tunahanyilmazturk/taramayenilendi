@@ -9,29 +9,29 @@
 :root {
   color-scheme: light;
 
-  --background: #f4f7f9;
-  --foreground: #17324d;
-  --heading: #102a43;
-  --muted: #66798b;
-  --subtle: #8999a8;
-  --faint: #b7c3cd;
+  --background: #f3f6f8;
+  --foreground: #183747;
+  --heading: #102d3d;
+  --muted: #637783;
+  --subtle: #8798a1;
+  --faint: #b5c2c9;
 
   --card: #ffffff;
   --card-muted: #f8fafb;
-  --border: #dfe7ec;
-  --border-strong: #c7d7df;
-  --divider: #e9eef2;
+  --border: #dce5e9;
+  --border-strong: #c4d3d9;
+  --divider: #e7edef;
 
-  --brand: #256da8;
-  --brand-strong: #1b568a;
+  --brand: #286b88;
+  --brand-strong: #1e526c;
   --brand-fg: #ffffff;
-  --brand-soft: #e8f0f8;
-  --brand-soft-fg: #1d5b91;
-  --brand-ring: #dce9f5;
-  --brand-outline: #5b8fc2;
+  --brand-soft: #e6f0f3;
+  --brand-soft-fg: #225b73;
+  --brand-ring: #d4e5eb;
+  --brand-outline: #5b9ab2;
 
-  --primary: #123d56;
-  --primary-hover: #1b5269;
+  --primary: #153d50;
+  --primary-hover: #1e5368;
   --primary-fg: #ffffff;
 
   --warning: #a96f2f;
@@ -48,47 +48,47 @@
   --neutral: #60778a;
   --neutral-soft: #eaf0f4;
 
-  --sidebar: #1a2226;
-  --sidebar-border: #303a3e;
-  --sidebar-fg: #b9c3c5;
-  --sidebar-fg-strong: #f1f4f3;
-  --sidebar-muted: #8d9a9d;
-  --sidebar-hover: #242e32;
-  --sidebar-active: #2d393d;
-  --sidebar-active-fg: #f4f6f4;
-  --sidebar-accent: #d7a064;
+  --sidebar: #122b39;
+  --sidebar-border: #294654;
+  --sidebar-fg: #b8c7cc;
+  --sidebar-fg-strong: #f2f7f8;
+  --sidebar-muted: #8da2aa;
+  --sidebar-hover: #1b3a49;
+  --sidebar-active: #214758;
+  --sidebar-active-fg: #f4fafb;
+  --sidebar-accent: #8ec3d1;
 
   --overlay: rgba(12, 35, 50, 0.6);
-  --shadow-card: 0 1px 2px rgba(16, 42, 67, 0.04), 0 8px 24px -12px rgba(16, 42, 67, 0.12);
-  --shadow-primary: 0 8px 18px rgba(16, 42, 67, 0.16);
+  --shadow-card: 0 1px 2px rgba(16, 45, 61, 0.04), 0 8px 24px -12px rgba(16, 45, 61, 0.12);
+  --shadow-primary: 0 8px 18px rgba(16, 45, 61, 0.16);
 }
 
 .dark {
   color-scheme: dark;
 
-  --background: #071a2a;
-  --foreground: #e8f2fb;
-  --heading: #f2f7fc;
-  --muted: #9bb1c3;
-  --subtle: #7f97aa;
-  --faint: #536c80;
+  --background: #0b1d28;
+  --foreground: #e7f1f4;
+  --heading: #f2f8fa;
+  --muted: #9db3bb;
+  --subtle: #8098a2;
+  --faint: #526d79;
 
-  --card: #0d273d;
-  --card-muted: #12324a;
-  --border: #1d4865;
-  --border-strong: #2a5d7e;
-  --divider: #193d58;
+  --card: #102b38;
+  --card-muted: #153746;
+  --border: #245062;
+  --border-strong: #32677a;
+  --divider: #1d4352;
 
-  --brand: #58a6df;
-  --brand-strong: #a9d8f5;
-  --brand-fg: #071a2a;
-  --brand-soft: #163b58;
-  --brand-soft-fg: #b5dcf6;
-  --brand-ring: #24577b;
-  --brand-outline: #69b2e6;
+  --brand: #78b9cc;
+  --brand-strong: #acd9e3;
+  --brand-fg: #0b1d28;
+  --brand-soft: #173e4d;
+  --brand-soft-fg: #b7dce4;
+  --brand-ring: #285a6b;
+  --brand-outline: #72b7c9;
 
-  --primary: #286f99;
-  --primary-hover: #3485ae;
+  --primary: #276b82;
+  --primary-hover: #35869e;
   --primary-fg: #ffffff;
 
   --warning: #f2c27e;
@@ -105,15 +105,15 @@
   --neutral: #c1d5dc;
   --neutral-soft: #24435d;
 
-  --sidebar: #101619;
-  --sidebar-border: #263238;
-  --sidebar-fg: #aeb9bb;
-  --sidebar-fg-strong: #eef2f1;
-  --sidebar-muted: #7f8b8e;
-  --sidebar-hover: #1b2529;
-  --sidebar-active: #263135;
-  --sidebar-active-fg: #f2f5f3;
-  --sidebar-accent: #e1b276;
+  --sidebar: #091a24;
+  --sidebar-border: #1f3a46;
+  --sidebar-fg: #afc0c5;
+  --sidebar-fg-strong: #eef7f8;
+  --sidebar-muted: #7f99a2;
+  --sidebar-hover: #12303d;
+  --sidebar-active: #194252;
+  --sidebar-active-fg: #f1fafb;
+  --sidebar-accent: #8ec3d1;
 
   --overlay: rgba(3, 14, 27, 0.72);
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
@@ -195,6 +195,7 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    overflow-x: hidden;
   }
 
   a {
@@ -265,6 +266,138 @@
 .page-header-visual-actions > * > *:last-child:hover {
   background: var(--sidebar-active) !important;
   color: var(--sidebar-fg-strong) !important;
+}
+
+.page-header-visual-image {
+  filter: saturate(0.72) contrast(0.96) brightness(0.9);
+}
+
+.statistics-hero-filter label {
+  color: var(--sidebar-fg-strong);
+}
+
+.statistics-hero-filter > div > p {
+  color: var(--sidebar-fg);
+}
+
+.statistics-hero-filter .text-heading {
+  color: var(--sidebar-fg-strong);
+}
+
+.statistics-hero-filter button.text-muted {
+  color: var(--muted);
+}
+
+.visual-filter-surface h2,
+.visual-filter-surface h3,
+.visual-filter-surface label {
+  color: var(--sidebar-fg-strong);
+}
+
+.visual-filter-surface .text-muted,
+.visual-filter-surface .text-subtle {
+  color: var(--sidebar-fg);
+}
+
+.visual-filter-surface button.text-muted {
+  color: var(--muted);
+}
+
+.visual-filter-surface .border-divider {
+  border-color: color-mix(in srgb, var(--sidebar-border) 78%, transparent);
+}
+
+/* Collapsed list headers share one compact baseline; expanded filters may grow naturally. */
+.visual-filter-surface,
+.statistics-hero-shell {
+  min-height: 300px;
+}
+
+/* Keep every list's filter block aligned with the Teklifler toolbar. */
+.visual-filter-surface [aria-label*="filtreleri"] {
+  margin-top: 1rem !important;
+  border: 1px solid color-mix(in srgb, var(--sidebar-fg) 18%, transparent) !important;
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--sidebar) 34%, transparent) !important;
+  padding: 0.75rem !important;
+  box-shadow: none !important;
+}
+
+.visual-filter-surface [aria-label="Personel listesi filtreleri"] {
+  display: none !important;
+}
+
+@media (min-width: 640px) {
+  .visual-filter-surface [aria-label*="filtreleri"] {
+    padding: 1rem !important;
+  }
+}
+
+/* Filters that sit on image-backed headers use the same dark surface as the hero. */
+.visual-filter-surface input:not([type="checkbox"]):not([type="radio"]),
+.visual-filter-surface select,
+.statistics-hero-filter input:not([type="checkbox"]):not([type="radio"]),
+.statistics-hero-filter select {
+  border-color: color-mix(in srgb, var(--sidebar-fg) 22%, transparent) !important;
+  background: color-mix(in srgb, var(--sidebar) 78%, transparent) !important;
+  color: var(--sidebar-fg-strong) !important;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--sidebar-fg) 8%, transparent);
+}
+
+.visual-filter-surface input::placeholder,
+.statistics-hero-filter input::placeholder {
+  color: var(--sidebar-muted) !important;
+}
+
+.visual-filter-surface [role="group"],
+.statistics-hero-filter [role="group"] {
+  border-color: color-mix(in srgb, var(--sidebar-fg) 22%, transparent) !important;
+  background: color-mix(in srgb, var(--sidebar) 62%, transparent) !important;
+}
+
+.visual-filter-surface [role="group"] > button,
+.statistics-hero-filter [role="group"] > button {
+  color: var(--sidebar-fg) !important;
+}
+
+.visual-filter-surface [role="group"] > button.bg-card,
+.statistics-hero-filter [role="group"] > button.bg-card {
+  background: var(--sidebar-accent) !important;
+  color: var(--sidebar) !important;
+}
+
+.statistics-hero-filter button.border-border,
+.visual-filter-surface button.border-border {
+  border-color: color-mix(in srgb, var(--sidebar-fg) 24%, transparent) !important;
+  background: color-mix(in srgb, var(--sidebar) 62%, transparent) !important;
+  color: var(--sidebar-fg) !important;
+}
+
+.statistics-hero-filter button.border-border:hover,
+.visual-filter-surface button.border-border:hover {
+  border-color: color-mix(in srgb, var(--sidebar-accent) 70%, transparent) !important;
+  background: color-mix(in srgb, var(--sidebar-hover) 82%, transparent) !important;
+  color: var(--sidebar-fg-strong) !important;
+}
+
+.visual-filter-surface .list-count-pill {
+  border: 1px solid color-mix(in srgb, var(--sidebar-fg) 22%, transparent);
+  background: color-mix(in srgb, var(--sidebar-hover) 82%, transparent) !important;
+  color: var(--sidebar-fg-strong) !important;
+}
+
+.visual-filter-surface .list-view-toggle {
+  border-color: color-mix(in srgb, var(--sidebar-fg) 24%, transparent) !important;
+  background: color-mix(in srgb, var(--sidebar) 62%, transparent) !important;
+}
+
+.visual-filter-surface .list-view-toggle > button {
+  color: var(--sidebar-fg) !important;
+}
+
+.visual-filter-surface .list-view-toggle > button[aria-pressed="true"] {
+  background: var(--sidebar-accent) !important;
+  color: var(--sidebar) !important;
 }
 
 /* Appearance preferences (managed from Ayarlar > Görünüm). */

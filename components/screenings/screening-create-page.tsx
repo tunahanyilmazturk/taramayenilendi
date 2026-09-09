@@ -19,17 +19,18 @@ import {
   Wrench,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { Alert } from "@/components/ui/modal";
 import { Page } from "@/components/ui/page-header";
 import { useCompanies, useEquipment, useScreenings, useTeam, useTests } from "@/lib/data";
-import { companyLocation, screeningStatuses, type Company, type ScreeningStatus, type TestItem } from "@/lib/demo-data";
+import { companyLocation, screeningStatuses, type Company, type Screening, type ScreeningStatus, type TestItem } from "@/lib/demo-data";
 import { useNotice } from "@/lib/hooks";
-import { isoToLabel, money, todayIso } from "@/lib/format";
+import { isoToLabel, labelToIso, money, todayIso } from "@/lib/format";
+import { nextNumericId } from "@/lib/utils";
 import { ScreeningTestPicker } from "./screening-test-picker";
 import ScreeningStepCompany from "./screening-step-company";
 import ScreeningStepPricing from "./screening-step-pricing";
@@ -108,14 +109,33 @@ const steps = [
 ];
 
 export default function NewScreeningPage() {
+  return (
+    <Suspense fallback={null}>
+      <NewScreeningInner />
+    </Suspense>
+  );
+}
+
+function NewScreeningInner() {
   const [screenings, setScreenings] = useScreenings();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [companies] = useCompanies();
   const [team] = useTeam();
   const [assets] = useEquipment();
   const [tests] = useTests();
+  const editScreening = screenings.find((item) => item.id === Number(searchParams.get("edit")));
+  const repeatedScreening = screenings.find((item) => item.id === Number(searchParams.get("tekrarla")));
+  const requestedDate = searchParams.get("tarih");
   const [step, setStep] = useState<Step>(1);
-  const [draft, setDraft] = useState<Draft>(emptyDraft);
+  const [draft, setDraft] = useState<Draft>(() => {
+    if (editScreening) return screeningToDraft(editScreening, false);
+    if (repeatedScreening) return screeningToDraft(repeatedScreening);
+    if (requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) {
+      return { ...emptyDraft, date: requestedDate, endDate: requestedDate };
+    }
+    return emptyDraft;
+  });
   const [notice, showNotice] = useNotice();
   const update = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((current) => ({ ...current, [key]: value }));
@@ -157,10 +177,10 @@ export default function NewScreeningPage() {
         )?.name ?? "",
       companyId: company.id,
       company: company.name,
-      id: Date.now(),
+      id: editScreening?.id ?? nextNumericId(screenings),
     };
-    setScreenings([...screenings, record]);
-    showNotice("Tarama planı oluşturuldu.");
+    setScreenings(editScreening ? screenings.map((item) => item.id === editScreening.id ? record : item) : [...screenings, record]);
+    showNotice(editScreening ? "Tarama güncellendi." : repeatedScreening ? "Tarama tekrarı oluşturuldu." : "Tarama planı oluşturuldu.");
     window.setTimeout(() => router.push(`/taramalar/${record.id}`), 500);
   };
   return (
@@ -175,8 +195,8 @@ export default function NewScreeningPage() {
                 </Link>
               </Button>
               <p className="text-muted mt-4 text-xs font-medium">Saha operasyonları merkezi</p>
-              <h1 className="text-heading mt-1 text-2xl font-semibold tracking-[-0.04em]">Yeni tarama oluştur</h1>
-              <p className="text-muted mt-2 text-xs leading-5">Firma, kapsam ve saha planını adım adım tamamlayın.</p>
+               <h1 className="text-heading mt-1 text-2xl font-semibold tracking-[-0.04em]">{editScreening ? "Tarama düzenle" : repeatedScreening ? "Tarama tekrarı oluştur" : "Yeni tarama oluştur"}</h1>
+               <p className="text-muted mt-2 text-xs leading-5">{editScreening ? "Tarama bilgilerini güncelleyin ve değişiklikleri kaydedin." : repeatedScreening ? "Önceki tarama bilgileri dolduruldu. Tarih ve saha detaylarını kontrol ederek kaydedin." : "Firma, kapsam ve saha planını adım adım tamamlayın."}</p>
             </div>
           </div>
           {steps.map((item, index) => {
@@ -202,7 +222,7 @@ export default function NewScreeningPage() {
             );
           })}
         </aside>
-        <Card className="flex min-h-[640px] min-w-0 flex-col p-5 sm:min-h-[680px] sm:p-7 lg:min-h-[calc(100dvh-12rem)]">
+        <Card className="flex min-h-[520px] min-w-0 flex-col p-4 sm:min-h-[680px] sm:p-7 lg:min-h-[calc(100dvh-12rem)]">
           {notice && (
             <Alert className="mb-5" tone="warning">
               {notice}
@@ -266,6 +286,44 @@ export default function NewScreeningPage() {
   );
 }
 
+function screeningToDraft(screening: Screening, resetDate = true): Draft {
+  const start = labelToIso(screening.date);
+  const end = labelToIso(screening.endDate || screening.date);
+  const duration = start && end
+    ? Math.max(0, Math.round((new Date(`${end}T12:00:00`).getTime() - new Date(`${start}T12:00:00`).getTime()) / 86_400_000))
+    : 0;
+  const testLines = screening.testLines ?? [];
+  return {
+    title: screening.title,
+    companyId: screening.companyId,
+    screeningType: screening.screeningType ?? "Periyodik sağlık taraması",
+    testIds: screening.testIds ?? testLines.map((line) => line.testId),
+    testLines: testLines.map((line) => ({ ...line })),
+    date: resetDate ? todayIso() : labelToIso(screening.date),
+    endDate: resetDate ? todayIso(duration) : labelToIso(screening.endDate || screening.date),
+    time: screening.time || "08:30",
+    endTime: screening.endTime || "17:30",
+    location: screening.location || "",
+    team: screening.team || "",
+    teamMembers: screening.teamMembers ?? screening.team.split(",").map((member) => member.trim()).filter(Boolean),
+    vehicle: screening.vehicle || "",
+    equipmentIds: [...(screening.equipmentIds ?? [])],
+    participants: screening.participants || 0,
+    completed: 0,
+    status: "Planlandı",
+    notes: screening.notes || "",
+    contact: screening.contact || "",
+    email: screening.email || "",
+    discount: String(screening.discount ?? 0),
+    tax: String(screening.tax ?? 20),
+    paymentTerms: screening.paymentTerms || "net30",
+    deliveryDays: String(screening.deliveryDays ?? 7),
+    showPriceOnPdf: Boolean(screening.showPriceOnPdf),
+    coverLetter: screening.coverLetter || "",
+    conditions: screening.conditions || "",
+  };
+}
+
 function StepOne({
   companies,
   draft,
@@ -293,7 +351,7 @@ function StepOne({
         title="Firma ve tarama bilgileri"
         description="Taramanın hangi firmaya ve hangi kapsamda yapılacağını belirleyin."
       />
-      <div className="mt-4 grid min-h-[420px] gap-4 sm:grid-cols-2">
+      <div className="mt-4 grid min-h-[280px] gap-4 sm:min-h-[420px] sm:grid-cols-2">
         <Field label="Firma" required>
           <Select onChange={(event) => selectCompany(Number(event.target.value))} value={draft.companyId}>
             <option value={0}>Firma seçin</option>
@@ -349,7 +407,7 @@ function StepTwo({
 }) {
   return (
     <section>
-      <div className="mt-4 grid min-h-[420px] gap-4 sm:grid-cols-2">
+      <div className="mt-4 grid min-h-[280px] gap-4 sm:min-h-[420px] sm:grid-cols-2">
         <Field label="Başlangıç tarihi" required>
           <Input onChange={(event) => update("date", event.target.value)} type="date" value={draft.date} />
         </Field>
@@ -455,7 +513,7 @@ function StepFour({
     );
   return (
     <section>
-      <div className="mt-4 grid min-h-[420px] gap-5 sm:grid-cols-2">
+      <div className="mt-4 grid min-h-[280px] gap-5 sm:min-h-[420px] sm:grid-cols-2">
         <div className="border-border bg-card h-full rounded-2xl border p-4">
           <div className="flex items-center justify-between">
             <p className="text-foreground text-sm font-bold">Sorumlu ekip üyeleri</p>

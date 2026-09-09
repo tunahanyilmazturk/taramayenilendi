@@ -8,7 +8,8 @@ import { IconBadge } from "@/components/ui/card";
 import { Field, Input, Select } from "@/components/ui/field";
 import { Alert, Modal } from "@/components/ui/modal";
 import { contractStatuses, type Company, type ContractStatus } from "@/lib/demo-data";
-import { isoToLabel, labelToIso } from "@/lib/format";
+import { isoToLabel, labelToIso, todayIso } from "@/lib/format";
+import { nextNumericId } from "@/lib/utils";
 
 export type CompanyFormValues = {
   name: string;
@@ -34,7 +35,7 @@ export const emptyCompanyForm: CompanyFormValues = {
   phone: "",
   employees: "",
   contract: "Aktif",
-  contractEnd: "",
+  contractEnd: todayIso(),
 };
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -62,6 +63,7 @@ export function validateCompanyForm(form: CompanyFormValues): FormErrors {
   if (!form.contact.trim()) errors.contact = "Firma yetkilisi zorunludur.";
   if (!(Number(form.employees) > 0)) errors.employees = "Çalışan sayısı 0'dan büyük olmalıdır.";
   if (form.email.trim() && !emailPattern.test(form.email.trim())) errors.email = "Geçerli bir e-posta adresi girin.";
+  if (form.contract !== "Pasif" && !form.contractEnd) errors.contractEnd = "Aktif veya yenilenen sözleşmelerde bitiş tarihi zorunludur.";
   return errors;
 }
 
@@ -80,7 +82,7 @@ export function applyCompanyForm(companies: Company[], form: CompanyFormValues, 
     contractEnd: isoToLabel(form.contractEnd),
   };
   if (editingId === null) {
-    const id = companies.length ? Math.max(...companies.map((company) => company.id)) + 1 : 1;
+    const id = nextNumericId(companies);
     return [...companies, { ...values, id, screenings: 0, lastScreening: "Henüz yok" }];
   }
   return companies.map((company) => (company.id === editingId ? { ...company, ...values } : company));
@@ -235,9 +237,10 @@ function CompanyFormDialog({ company, sectors, onClose, onSave }: Omit<CompanyFo
             title="Sözleşme ve hizmet"
           >
             <div className="space-y-4">
-              <Field label="Sözleşme bitiş tarihi">
+              <Field error={shown.contractEnd} label="Sözleşme bitiş tarihi" required={form.contract !== "Pasif"}>
                 <Input
                   icon={CalendarDays}
+                  invalid={Boolean(shown.contractEnd)}
                   onChange={(event) => setField("contractEnd", event.target.value)}
                   type="date"
                   value={form.contractEnd}

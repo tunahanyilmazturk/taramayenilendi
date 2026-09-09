@@ -12,10 +12,12 @@ import {
   CircleDollarSign,
   Download,
   FileText,
+  FlaskConical,
   Gauge,
   ListChecks,
   Package,
   RotateCcw,
+  Search,
   ShieldAlert,
   TrendingUp,
   UsersRound,
@@ -39,8 +41,9 @@ import { Card, CardHeader, IconBadge, StatTile, SummaryCard } from "@/components
 import { EmptyState } from "@/components/ui/empty-state";
 import { Alert } from "@/components/ui/modal";
 import { Page, PageHeader } from "@/components/ui/page-header";
-import { Field, Input, Select } from "@/components/ui/field";
-import { useCompanies, useEquipment, useOffers, useScreenings, useTeam } from "@/lib/data";
+import { Field, Input } from "@/components/ui/field";
+import { SearchableCompanySelect } from "@/components/ui/searchable-company-select";
+import { useCompanies, useEquipment, useOffers, useScreenings, useTeam, useTests } from "@/lib/data";
 import { useNotice } from "@/lib/hooks";
 import {
   equipmentStatuses,
@@ -51,13 +54,15 @@ import {
   type Screening,
   type ScreeningStatus,
   type TeamMember,
+  type TestItem,
 } from "@/lib/demo-data";
 import { labelToIso, money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-type Tab = "overview" | "operations" | "offers" | "screenings" | "companies" | "equipment";
-type ExportColumn = { header: string; key: string; width?: number; currency?: boolean };
+type Tab = "overview" | "operations" | "offers" | "screenings" | "tests" | "companies" | "equipment";
+type ExportColumn = { header: string; key: string; width?: number; currency?: boolean; percent?: boolean };
 type ExportRow = Record<string, string | number>;
+type ExportContext = Array<{ label: string; value: string | number }>;
 type DatePreset = "all" | "month" | "last30" | "custom";
 
 const tabs: Array<{ id: Tab; label: string; icon: typeof BarChart3 }> = [
@@ -65,6 +70,7 @@ const tabs: Array<{ id: Tab; label: string; icon: typeof BarChart3 }> = [
   { id: "operations", label: "Operasyon", icon: ClipboardCheck },
   { id: "offers", label: "Teklifler", icon: FileText },
   { id: "screenings", label: "Taramalar", icon: ClipboardList },
+  { id: "tests", label: "Testler", icon: FlaskConical },
   { id: "companies", label: "Firmalar", icon: Building2 },
   { id: "equipment", label: "Ekipmanlar", icon: Package },
 ];
@@ -86,6 +92,13 @@ function percentage(value: number, total: number) {
 function toLocalIso(date: Date) {
   const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
   return offsetDate.toISOString().slice(0, 10);
+}
+
+function displayIso(value: string) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "short", year: "numeric" }).format(
+    new Date(`${value}T12:00:00`),
+  );
 }
 
 function Progress({ value }: { value: number }) {
@@ -111,7 +124,7 @@ function downloadBlob(blob: Blob, filename: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
 
-function exportFallbackExcel(name: string, title: string, columns: ExportColumn[], rows: ExportRow[]) {
+function exportFallbackExcel(name: string, title: string, columns: ExportColumn[], rows: ExportRow[], context: ExportContext) {
   const escapeHtml = (value: string | number) =>
     String(value ?? "")
       .replaceAll("&", "&amp;")
@@ -127,11 +140,12 @@ function exportFallbackExcel(name: string, title: string, columns: ExportColumn[
           .join("")}</tr>`,
     )
     .join("");
-  const html = `<html><head><meta charset="utf-8"><style>body{font-family:Arial;color:#17324d}table{border-collapse:collapse}th,td{border:1px solid #d9e2ea;padding:8px 10px;text-align:left}th{background:#2878b5;color:white}h1{color:#17324d}</style></head><body><h1>${escapeHtml(title)}</h1><p>HanTech OSGB · ${escapeHtml(new Date().toLocaleDateString("tr-TR"))}</p><table><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table></body></html>`;
+  const contextRows = context.map((item) => `<tr><td><strong>${escapeHtml(item.label)}</strong></td><td>${escapeHtml(item.value)}</td></tr>`).join("");
+  const html = `<html><head><meta charset="utf-8"><style>body{font-family:Arial;color:#17324d}table{border-collapse:collapse;margin-bottom:22px}th,td{border:1px solid #d9e2ea;padding:8px 10px;text-align:left}th{background:#2878b5;color:white}h1{color:#17324d}.meta td:first-child{background:#f1f5f9;width:210px}</style></head><body><h1>${escapeHtml(title)}</h1><p>HanTech OSGB · ${escapeHtml(new Date().toLocaleDateString("tr-TR"))}</p><table class="meta"><thead><tr><th>Rapor bilgisi</th><th>Değer</th></tr></thead><tbody>${contextRows}</tbody></table><table><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table></body></html>`;
   downloadBlob(new Blob(["\ufeff", html], { type: "application/vnd.ms-excel" }), `${name}.xls`);
 }
 
-async function exportToExcel(name: string, title: string, columns: ExportColumn[], rows: ExportRow[]) {
+async function exportToExcel(name: string, title: string, columns: ExportColumn[], rows: ExportRow[], context: ExportContext = []) {
   try {
     const { Workbook } = await Promise.race([
       import("exceljs/dist/exceljs.min.js"),
@@ -140,6 +154,35 @@ async function exportToExcel(name: string, title: string, columns: ExportColumn[
       ),
     ]);
     const workbook = new Workbook();
+    const summary = workbook.addWorksheet("Rapor özeti");
+    summary.columns = [
+      { key: "label", width: 28 },
+      { key: "value", width: 52 },
+    ];
+    summary.mergeCells(1, 1, 1, 2);
+    summary.getCell(1, 1).value = title;
+    summary.getCell(1, 1).font = { bold: true, size: 16, color: { argb: "FFFFFFFF" } };
+    summary.getCell(1, 1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF153D50" } };
+    summary.getCell(1, 1).alignment = { vertical: "middle" };
+    summary.getRow(1).height = 28;
+    summary.mergeCells(2, 1, 2, 2);
+    summary.getCell(2, 1).value = "HanTech OSGB · Rapor özeti";
+    summary.getCell(2, 1).font = { italic: true, color: { argb: "FF637783" } };
+    const summaryHeader = summary.addRow(["Rapor bilgisi", "Değer"]);
+    summaryHeader.eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF286B88" } };
+    });
+    [...context, { label: "Aktarılan kayıt", value: rows.length }].forEach((item) => summary.addRow([item.label, item.value]));
+    summary.getColumn(1).eachCell((cell, rowNumber) => {
+      if (rowNumber >= 4) cell.font = { bold: true, color: { argb: "FF183747" } };
+    });
+    summary.getColumn(2).eachCell((cell, rowNumber) => {
+      if (rowNumber >= 4 && typeof cell.value === "number") cell.numFmt = "#,##0";
+    });
+    summary.autoFilter = { from: { row: 3, column: 1 }, to: { row: context.length + 3, column: 2 } };
+    summary.views = [{ state: "frozen", ySplit: 3 }];
+
     const sheet = workbook.addWorksheet(name.slice(0, 31));
     sheet.mergeCells(1, 1, 1, columns.length);
     sheet.getCell(1, 1).value = title;
@@ -160,7 +203,8 @@ async function exportToExcel(name: string, title: string, columns: ExportColumn[
     sheet.columns = columns.map((column) => ({ key: column.key, width: column.width ?? 18 }));
     rows.forEach((_, rowIndex) => {
       columns.forEach((column, columnIndex) => {
-        if (column.currency) sheet.getCell(rowIndex + 4, columnIndex + 1).numFmt = "₺#,##0";
+        if (column.currency) sheet.getCell(rowIndex + 4, columnIndex + 1).numFmt = '₺#,##0';
+        if (column.percent) sheet.getCell(rowIndex + 4, columnIndex + 1).numFmt = '0"%"';
       });
       if (rowIndex % 2 === 1) {
         sheet.getRow(rowIndex + 4).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } };
@@ -175,8 +219,32 @@ async function exportToExcel(name: string, title: string, columns: ExportColumn[
     );
   } catch (error) {
     console.error("Excel aktarımı başarısız oldu, uyumlu yedek dosya hazırlanıyor.", error);
-    exportFallbackExcel(name, title, columns, rows);
+    exportFallbackExcel(name, title, columns, rows, context);
   }
+}
+
+type TestReportRow = {
+  id: string;
+  testId: number;
+  name: string;
+  category: string;
+  company: string;
+  companyId: number;
+  screening: string;
+  date: string;
+  status: ScreeningStatus;
+  quantity: number;
+  estimatedCompleted: number;
+};
+
+function screeningTestLines(screening: Screening, tests: TestItem[]) {
+  if (screening.testLines?.length) return screening.testLines;
+  return (screening.testIds ?? []).map((testId) => {
+    const test = tests.find((item) => item.id === testId);
+    return test
+      ? { testId, name: test.name, category: test.category, quantity: screening.participants, unitPrice: test.price }
+      : null;
+  }).filter((line): line is NonNullable<typeof line> => Boolean(line));
 }
 
 export default function StatisticsPage() {
@@ -186,12 +254,18 @@ export default function StatisticsPage() {
   const [companies] = useCompanies();
   const [offers] = useOffers();
   const [screenings] = useScreenings();
+  const [tests] = useTests();
   const [equipment] = useEquipment();
   const [team] = useTeam();
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [datePreset, setDatePreset] = useState<DatePreset>("all");
   const [selectedCompanyId, setSelectedCompanyId] = useState("Tümü");
+  const [selectedTestIds, setSelectedTestIds] = useState<number[]>([]);
+  const [testQuery, setTestQuery] = useState("");
+  const [testCompanyId, setTestCompanyId] = useState("Tümü");
+  const [testDateFrom, setTestDateFrom] = useState("");
+  const [testDateTo, setTestDateTo] = useState("");
 
   const applyDatePreset = (preset: Exclude<DatePreset, "custom">) => {
     setDatePreset(preset);
@@ -224,6 +298,30 @@ export default function StatisticsPage() {
     () => screenings.filter((item) => inDateRange(item.date) && (selectedCompanyId === "Tümü" || item.companyId === Number(selectedCompanyId))),
     [screenings, inDateRange, selectedCompanyId],
   );
+  const testReportRows = useMemo<TestReportRow[]>(
+    () => reportScreenings.flatMap((screening) => screeningTestLines(screening, tests).map((line) => ({
+      id: `${screening.id}-${line.testId}`,
+      testId: line.testId,
+      name: line.name,
+      category: line.category,
+      company: screening.company,
+      companyId: screening.companyId,
+      screening: screening.title,
+      date: screening.date,
+      status: screening.status,
+      quantity: Number(line.quantity) || 0,
+      estimatedCompleted: Math.round((Number(line.quantity) || 0) * (screening.participants ? screening.completed / screening.participants : 0)),
+    }))).filter((row) => {
+      const iso = labelToIso(row.date);
+      return (
+        (!selectedTestIds.length || selectedTestIds.includes(row.testId)) &&
+        (testCompanyId === "Tümü" || row.companyId === Number(testCompanyId)) &&
+        (!testDateFrom || iso >= testDateFrom) &&
+        (!testDateTo || iso <= testDateTo)
+      );
+    }),
+    [reportScreenings, selectedTestIds, testCompanyId, testDateFrom, testDateTo, tests],
+  );
   const reportCompanies = useMemo(
     () => companies.filter((company) => inDateRange(company.lastScreening) && (selectedCompanyId === "Tümü" || company.id === Number(selectedCompanyId))),
     [companies, inDateRange, selectedCompanyId],
@@ -233,6 +331,8 @@ export default function StatisticsPage() {
     [equipment, inDateRange],
   );
   const hasDateFilter = Boolean(dateFrom || dateTo);
+  const hasReportFilter = hasDateFilter || selectedCompanyId !== "Tümü";
+  const invalidDateRange = Boolean(dateFrom && dateTo && dateFrom > dateTo);
 
   const screeningStats = useMemo(
     () =>
@@ -277,19 +377,34 @@ export default function StatisticsPage() {
     [reportScreenings],
   );
   const currentTab = tabs.find((item) => item.id === tab) ?? tabs[0];
+  const exportContext: ExportContext = [
+    { label: "Rapor sekmesi", value: currentTab.label },
+    {
+      label: "Firma filtresi",
+      value: selectedCompanyId === "Tümü" ? "Tüm firmalar" : companies.find((company) => company.id === Number(selectedCompanyId))?.name ?? "Seçili firma",
+    },
+    { label: "Tarih aralığı", value: dateFrom || dateTo ? `${dateFrom || "Başlangıç yok"} – ${dateTo || "Bitiş yok"}` : "Tüm zamanlar" },
+    { label: "Oluşturulma tarihi", value: new Date().toLocaleString("tr-TR") },
+  ];
 
   const handleExport = async () => {
+    if (invalidDateRange) {
+      showNotice("Excel aktarımı için başlangıç tarihi, bitiş tarihinden önce olmalıdır.");
+      return;
+    }
     setIsExporting(true);
     try {
+      const exportReport = (name: string, title: string, columns: ExportColumn[], rows: ExportRow[]) =>
+        exportToExcel(name, title, columns, rows, exportContext);
       if (tab === "overview") {
-        await exportToExcel(
+        await exportReport(
           "genel-bakis",
           "HanTech OSGB Genel İstatistikler",
           [
             { header: "Kategori", key: "category", width: 20 },
             { header: "Metrik", key: "metric", width: 30 },
             { header: "Değer", key: "value", width: 18 },
-            { header: "Oran %", key: "ratio", width: 14 },
+            { header: "Oran %", key: "ratio", width: 14, percent: true },
             { header: "Açıklama", key: "description", width: 42 },
           ],
           [
@@ -366,7 +481,7 @@ export default function StatisticsPage() {
           ],
         );
       } else if (tab === "operations") {
-        await exportToExcel(
+        await exportReport(
           "operasyon-raporu",
           "HanTech OSGB Operasyon Raporu",
           [
@@ -381,7 +496,7 @@ export default function StatisticsPage() {
           operationsRows,
         );
       } else if (tab === "offers") {
-        await exportToExcel(
+        await exportReport(
           "teklif-istatistikleri",
           "Teklif İstatistikleri",
           [
@@ -416,7 +531,7 @@ export default function StatisticsPage() {
           })),
         );
       } else if (tab === "screenings") {
-        await exportToExcel(
+        await exportReport(
           "tarama-istatistikleri",
           "Tarama İstatistikleri",
           [
@@ -434,7 +549,7 @@ export default function StatisticsPage() {
             { header: "Durum", key: "status", width: 18 },
             { header: "Katılımcı", key: "participants", width: 14 },
             { header: "Tamamlanan", key: "completed", width: 14 },
-            { header: "İlerleme %", key: "progress", width: 14 },
+            { header: "İlerleme %", key: "progress", width: 14, percent: true },
             { header: "Ücret PDF’de", key: "showPriceOnPdf", width: 16 },
           ],
           reportScreenings.map((item) => ({
@@ -456,8 +571,33 @@ export default function StatisticsPage() {
             showPriceOnPdf: item.showPriceOnPdf ? "Evet" : "Hayır",
           })),
         );
+      } else if (tab === "tests") {
+        await exportReport(
+          "test-istatistikleri",
+          "Test Kullanım İstatistikleri",
+          [
+            { header: "Test", key: "test", width: 34 },
+            { header: "Kategori", key: "category", width: 18 },
+            { header: "Firma", key: "company", width: 28 },
+            { header: "Tarama", key: "screening", width: 34 },
+            { header: "Tarih", key: "date", width: 16 },
+            { header: "Durum", key: "status", width: 18 },
+            { header: "Planlanan adet", key: "quantity", width: 16 },
+            { header: "Tamamlanan", key: "completed", width: 16 },
+          ],
+          testReportRows.map((row) => ({
+            test: row.name,
+            category: row.category,
+            company: row.company,
+            screening: row.screening,
+            date: row.date,
+            status: row.status,
+            quantity: row.quantity,
+            completed: row.estimatedCompleted,
+          })),
+        );
       } else if (tab === "companies") {
-        await exportToExcel(
+        await exportReport(
           "firma-istatistikleri",
           "Firma İstatistikleri",
           [
@@ -492,7 +632,7 @@ export default function StatisticsPage() {
           })),
         );
       } else {
-        await exportToExcel(
+        await exportReport(
           "ekipman-istatistikleri",
           "Ekipman İstatistikleri",
           [
@@ -542,7 +682,10 @@ export default function StatisticsPage() {
 
   return (
     <Page>
-      <Card className="border-border bg-card shadow-card rounded-2xl border p-4 sm:p-5">
+      <Card className="statistics-hero-shell relative isolate overflow-hidden border-sidebar-border bg-sidebar shadow-primary rounded-2xl border p-4 sm:p-5">
+        <div aria-hidden="true" className="page-header-visual-image absolute inset-0 z-0 bg-cover bg-right bg-no-repeat" style={{ backgroundImage: 'url("/headers/reports.png")' }} />
+        <div aria-hidden="true" className="absolute inset-0 z-0 bg-gradient-to-br from-sidebar/58 via-sidebar/36 to-sidebar/12" />
+        <div className="relative z-10">
         <PageHeader
           className="border-0 bg-transparent p-0 pl-0 shadow-none before:hidden"
           actions={
@@ -551,11 +694,11 @@ export default function StatisticsPage() {
             </Button>
           }
           description="OSGB operasyonlarınızın performansını, kaynak kullanımını ve saha sonuçlarını tek merkezden izleyin."
+          dark
           eyebrow="Raporlama ve analiz merkezi"
           title="İstatistikler"
-          visual="/headers/reports.png"
         />
-        <div className="border-divider mt-4 border-t pt-4">
+        <div className="statistics-hero-filter border-sidebar-border/70 mt-4 border-t pt-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-heading flex items-center gap-2 text-sm font-semibold">
@@ -589,17 +732,13 @@ export default function StatisticsPage() {
             </div>
             <div className="flex flex-wrap items-end gap-3">
               <Field label="Firma">
-                <Select
-                  aria-label="Rapor firması"
-                  className="h-10 w-full sm:w-56"
-                  onChange={(event) => setSelectedCompanyId(event.target.value)}
+                <SearchableCompanySelect
+                  allLabel="Tüm firmalar"
+                  companies={companies}
+                  includeAll
+                  onChange={(value) => setSelectedCompanyId(String(value ?? "Tümü"))}
                   value={selectedCompanyId}
-                >
-                  <option value="Tümü">Tüm firmalar</option>
-                  {companies.map((company) => (
-                    <option key={company.id} value={company.id}>{company.name}</option>
-                  ))}
-                </Select>
+                />
               </Field>
               <Field label="Başlangıç tarihi">
                 <Input
@@ -625,11 +764,12 @@ export default function StatisticsPage() {
                   value={dateTo}
                 />
               </Field>
-              {hasDateFilter && (
+              {hasReportFilter && (
                 <Button
                   onClick={() => {
                     setDateFrom("");
                     setDateTo("");
+                    setSelectedCompanyId("Tümü");
                     setDatePreset("all");
                   }}
                   size="sm"
@@ -640,14 +780,20 @@ export default function StatisticsPage() {
               )}
             </div>
           </div>
+          {invalidDateRange && (
+            <p className="mt-3 rounded-xl border border-danger/30 bg-danger-soft px-3 py-2 text-xs font-medium text-danger">
+              Başlangıç tarihi, bitiş tarihinden önce veya aynı gün olmalıdır.
+            </p>
+          )}
           {hasDateFilter && (
             <div className="border-divider mt-4 flex flex-wrap items-center gap-2 border-t pt-3 text-xs">
               <span className="text-muted">Aktif aralık:</span>
-              <CountPill>{dateFrom || "Başlangıç yok"}</CountPill>
+              <CountPill>{dateFrom ? displayIso(dateFrom) : "Başlangıç yok"}</CountPill>
               <span className="text-subtle">→</span>
-              <CountPill>{dateTo || "Bitiş yok"}</CountPill>
+              <CountPill>{dateTo ? displayIso(dateTo) : "Bitiş yok"}</CountPill>
             </div>
           )}
+        </div>
         </div>
       </Card>
       {notice && (
@@ -710,6 +856,7 @@ export default function StatisticsPage() {
       )}
       {tab === "offers" && <OffersTab offers={reportOffers} stats={offerStats} />}
       {tab === "screenings" && <ScreeningsTab screenings={reportScreenings} stats={screeningStats} />}
+      {tab === "tests" && <TestsTab companies={companies} rows={testReportRows} selectedTestIds={selectedTestIds} setSelectedTestIds={setSelectedTestIds} testCompanyId={testCompanyId} setTestCompanyId={setTestCompanyId} testDateFrom={testDateFrom} setTestDateFrom={setTestDateFrom} testDateTo={testDateTo} setTestDateTo={setTestDateTo} testQuery={testQuery} setTestQuery={setTestQuery} tests={tests} />}
       {tab === "companies" && <CompaniesTab companies={reportCompanies} />}
       {tab === "equipment" && <EquipmentTab equipment={reportEquipment} />}
     </Page>
@@ -1144,6 +1291,131 @@ function OffersTab({ offers, stats }: { offers: Offer[]; stats: Array<{ name: st
           </div>
         </Card>
       </div>
+    </>
+  );
+}
+
+function TestsTab({
+  companies,
+  rows,
+  selectedTestIds,
+  setSelectedTestIds,
+  testCompanyId,
+  setTestCompanyId,
+  testDateFrom,
+  setTestDateFrom,
+  testDateTo,
+  setTestDateTo,
+  testQuery,
+  setTestQuery,
+  tests,
+}: {
+  companies: Company[];
+  rows: TestReportRow[];
+  selectedTestIds: number[];
+  setSelectedTestIds: (value: number[]) => void;
+  testCompanyId: string;
+  setTestCompanyId: (value: string) => void;
+  testDateFrom: string;
+  setTestDateFrom: (value: string) => void;
+  testDateTo: string;
+  setTestDateTo: (value: string) => void;
+  testQuery: string;
+  setTestQuery: (value: string) => void;
+  tests: TestItem[];
+}) {
+  const matchingTests = tests.filter((test) => `${test.name} ${test.code} ${test.category}`.toLocaleLowerCase("tr-TR").includes(testQuery.toLocaleLowerCase("tr-TR")));
+  const toggleTest = (id: number) => setSelectedTestIds(selectedTestIds.includes(id) ? selectedTestIds.filter((item) => item !== id) : [...selectedTestIds, id]);
+  const clearTestFilters = () => {
+    setSelectedTestIds([]);
+    setTestQuery("");
+    setTestCompanyId("Tümü");
+    setTestDateFrom("");
+    setTestDateTo("");
+  };
+  const totalQuantity = rows.reduce((sum, row) => sum + row.quantity, 0);
+  const totalCompleted = rows.reduce((sum, row) => sum + row.estimatedCompleted, 0);
+  const screeningCount = new Set(rows.map((row) => row.id.split("-")[0])).size;
+  const companyRows = Array.from(new Set(rows.map((row) => row.companyId))).map((companyId) => {
+    const companyRows = rows.filter((row) => row.companyId === companyId);
+    return {
+      company: companyRows[0]?.company ?? "—",
+      screenings: new Set(companyRows.map((row) => row.id.split("-")[0])).size,
+      quantity: companyRows.reduce((sum, row) => sum + row.quantity, 0),
+      completed: companyRows.reduce((sum, row) => sum + row.estimatedCompleted, 0),
+    };
+  }).sort((a, b) => b.quantity - a.quantity);
+  const monthlyRows = Array.from(rows.reduce((map, row) => {
+    const iso = labelToIso(row.date);
+    const key = iso ? iso.slice(0, 7) : "Belirsiz";
+    map.set(key, (map.get(key) ?? 0) + row.quantity);
+    return map;
+  }, new Map<string, number>())).sort(([a], [b]) => a.localeCompare(b)).map(([key, quantity]) => ({
+    month: key === "Belirsiz" ? key : new Intl.DateTimeFormat("tr-TR", { month: "short", year: "numeric" }).format(new Date(`${key}-15T12:00:00`)),
+    quantity,
+  }));
+
+  return (
+    <>
+      <Card className="mt-5 border-brand/25 bg-brand-soft/30 p-4">
+        <div>
+          <p className="text-heading text-sm font-semibold">Test analizi</p>
+          <p className="text-muted mt-1 text-xs">Bu alana özel tarih, firma ve birden fazla test seçimiyle kullanım adetlerini inceleyin.</p>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(260px,1.4fr)_minmax(180px,0.8fr)_160px_160px_auto] xl:items-end">
+          <Field label="Test ara ve seç">
+            <div className="relative">
+              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-subtle" />
+              <Input aria-label="Test ara" className="h-10 pl-9" onChange={(event) => setTestQuery(event.target.value)} placeholder="Test adı, kodu veya kategori ara..." value={testQuery} />
+            </div>
+          </Field>
+          <Field label="Firma">
+            <SearchableCompanySelect
+              allLabel="Tüm firmalar"
+              companies={companies}
+              includeAll
+              onChange={(value) => setTestCompanyId(String(value ?? "Tümü"))}
+              value={testCompanyId}
+            />
+          </Field>
+          <Field label="Başlangıç tarihi"><Input aria-label="Test raporu başlangıç tarihi" className="h-10" onChange={(event) => setTestDateFrom(event.target.value)} type="date" value={testDateFrom} /></Field>
+          <Field label="Bitiş tarihi"><Input aria-label="Test raporu bitiş tarihi" className="h-10" onChange={(event) => setTestDateTo(event.target.value)} type="date" value={testDateTo} /></Field>
+          <Button onClick={clearTestFilters} size="sm" variant="outline"><RotateCcw /> Temizle</Button>
+        </div>
+        <div className="mt-3 rounded-xl border border-border bg-card p-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[10px] font-bold tracking-[0.12em] text-subtle uppercase">Seçilen testler</p>
+            <span className="text-[10px] text-muted">{selectedTestIds.length ? `${selectedTestIds.length} test seçildi` : "Tüm testler dahil"}</span>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {selectedTestIds.length ? selectedTestIds.map((id) => { const test = tests.find((item) => item.id === id); return test ? <button className="bg-brand-soft text-brand-soft-fg inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold" key={id} onClick={() => toggleTest(id)} type="button">{test.name}<span aria-hidden="true">×</span></button> : null; }) : <span className="text-xs text-muted">Arama sonucundan testleri seçin; seçim yapılmazsa tüm testler raporlanır.</span>}
+          </div>
+          <div className="mt-3 flex max-h-28 flex-wrap gap-2 overflow-y-auto border-t border-divider pt-3">
+            {matchingTests.map((test) => <button aria-pressed={selectedTestIds.includes(test.id)} className={cn("rounded-lg border px-2.5 py-1.5 text-left text-[11px] transition", selectedTestIds.includes(test.id) ? "border-brand bg-brand text-brand-fg" : "border-border bg-background text-muted hover:border-brand-outline hover:text-foreground")} key={test.id} onClick={() => toggleTest(test.id)} type="button"><span className="font-semibold">{test.name}</span><span className="ml-1 opacity-70">{test.code}</span></button>)}
+            {!matchingTests.length && <span className="text-xs text-muted">Aramanızla eşleşen test bulunamadı.</span>}
+          </div>
+        </div>
+      </Card>
+      <section className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <SummaryCard icon={FlaskConical} label="Test uygulama adedi" value={totalQuantity} />
+        <SummaryCard icon={CheckCircle2} label="Tamamlanan (tahmini)" value={totalCompleted} />
+        <SummaryCard icon={ClipboardList} label="İlgili tarama" value={screeningCount} />
+        <SummaryCard icon={Building2} label="Firma" value={companyRows.length} />
+      </section>
+      <div className="mt-5 grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+        <Card className="p-5">
+          <CardHeader icon={BarChart3} title="Aylık test yoğunluğu" description="Seçili testlerin planlanan adet bazında dağılımı." />
+          {monthlyRows.length ? <div className="mt-5 h-72"><ResponsiveContainer height="100%" width="100%"><BarChart data={monthlyRows} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}><CartesianGrid stroke="var(--divider)" vertical={false} /><XAxis axisLine={false} dataKey="month" tick={{ fill: "var(--muted)", fontSize: 11 }} tickLine={false} /><YAxis allowDecimals={false} axisLine={false} tick={{ fill: "var(--muted)", fontSize: 11 }} tickLine={false} /><Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--foreground)" }} /><Bar dataKey="quantity" fill="var(--brand)" name="Test adedi" radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer></div> : <EmptyState className="mt-5 py-10" description="Seçili filtrelerde test verisi bulunmuyor." icon={FlaskConical} title="Test verisi yok" />}
+        </Card>
+        <Card className="p-5">
+          <CardHeader icon={Building2} title="Firma dağılımı" description="Test adetlerinin firmalara göre özeti." />
+          <div className="mt-4 space-y-4">{companyRows.length ? companyRows.slice(0, 6).map((row) => <div key={row.company}><div className="flex items-center justify-between gap-3 text-xs"><span className="truncate font-semibold text-foreground">{row.company}</span><span className="text-muted">{row.quantity} adet</span></div><div className="mt-2"><Progress value={percentage(row.quantity, totalQuantity)} /></div><p className="text-subtle mt-1 text-[10px]">{row.screenings} tarama · {row.completed} tamamlanan</p></div>) : <p className="text-muted py-8 text-center text-xs">Firma dağılımı için test kaydı bulunmuyor.</p>}</div>
+        </Card>
+      </div>
+      <Card className="mt-5 overflow-hidden">
+        <CardHeader className="p-5" icon={ClipboardList} title="Test kullanım detayları" description="Her tarama ve test kaleminin planlanan ve tamamlanan adetleri." />
+        {rows.length ? <div className="overflow-x-auto"><table className="w-full min-w-[860px] text-left text-xs"><thead className="border-y border-divider bg-card-muted"><tr><th className="px-5 py-3 text-[10px] font-bold uppercase tracking-wide text-subtle">Test</th><th className="px-5 py-3 text-[10px] font-bold uppercase tracking-wide text-subtle">Firma</th><th className="px-5 py-3 text-[10px] font-bold uppercase tracking-wide text-subtle">Tarama / tarih</th><th className="px-5 py-3 text-[10px] font-bold uppercase tracking-wide text-subtle">Durum</th><th className="px-5 py-3 text-right text-[10px] font-bold uppercase tracking-wide text-subtle">Planlanan</th><th className="px-5 py-3 text-right text-[10px] font-bold uppercase tracking-wide text-subtle">Tamamlanan</th></tr></thead><tbody className="divide-y divide-divider">{rows.map((row) => <tr className="hover:bg-card-muted" key={row.id}><td className="px-5 py-3"><p className="font-semibold text-foreground">{row.name}</p><p className="text-[10px] text-muted">{row.category}</p></td><td className="px-5 py-3 text-muted">{row.company}</td><td className="px-5 py-3"><p className="max-w-[280px] truncate font-medium text-foreground">{row.screening}</p><p className="text-[10px] text-muted">{row.date}</p></td><td className="px-5 py-3"><Badge tone={screeningTone(row.status)}>{row.status}</Badge></td><td className="px-5 py-3 text-right font-semibold text-foreground">{row.quantity}</td><td className="px-5 py-3 text-right font-semibold text-brand">{row.estimatedCompleted}</td></tr>)}</tbody></table></div> : <EmptyState className="border-0 py-12" description="Test seçimini veya üstteki tarih/firma filtrelerini değiştirin." icon={FlaskConical} title="Test kaydı bulunamadı" />}
+      </Card>
     </>
   );
 }

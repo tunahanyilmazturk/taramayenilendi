@@ -6,8 +6,6 @@ import {
   ClipboardList,
   Edit3,
   Eye,
-  LayoutGrid,
-  List as ListIcon,
   MapPin,
   Plus,
   RotateCcw,
@@ -18,25 +16,29 @@ import {
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Badge, CountPill } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Field, Input, SearchInput, Select, Textarea } from "@/components/ui/field";
+import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { Alert, ConfirmDialog, Modal } from "@/components/ui/modal";
 import { Page, PageHeader } from "@/components/ui/page-header";
+import { VisualFilterSurface } from "@/components/ui/visual-filter-surface";
+import { ListToolbar } from "@/components/ui/list-toolbar";
 import { Pagination, paginate } from "@/components/ui/pagination";
+import { SearchableCompanySelect } from "@/components/ui/searchable-company-select";
 import { useCompanies, useEquipment, useScreenings, useTeam } from "@/lib/data";
-import { screeningStatuses, type Screening, type ScreeningStatus } from "@/lib/demo-data";
+import { screeningStatuses, type Company, type Screening, type ScreeningStatus } from "@/lib/demo-data";
 import { useConfirm, useNotice } from "@/lib/hooks";
 import { storageKeys, useStoredState } from "@/lib/storage";
-import { includesQuery } from "@/lib/utils";
+import { includesQuery, nextNumericId } from "@/lib/utils";
+import { labelToIso, todayIso } from "@/lib/format";
 
 type ScreeningForm = Omit<Screening, "id" | "company">;
 const emptyForm: ScreeningForm = {
   title: "",
   companyId: 0,
-  date: "",
+  date: todayIso(),
   time: "",
   location: "",
   team: "",
@@ -65,22 +67,32 @@ export default function ScreeningsPage() {
   const { request: confirmRequest, confirm, close: closeConfirm } = useConfirm();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("Tümü");
+  const [companyFilter, setCompanyFilter] = useState<number | string>("Tümü");
+  const [teamFilter, setTeamFilter] = useState("Tümü");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [view, setView] = useStoredState<"cards" | "list">(storageKeys.screeningView, "list");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [editor, setEditor] = useState<{ open: boolean; item: Screening | null }>({ open: false, item: null });
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const teamOptions = useMemo(() => ["Tümü", ...Array.from(new Set(screenings.map((item) => item.team).filter(Boolean)))], [screenings]);
   const filtered = useMemo(
     () =>
       screenings.filter(
         (item) =>
           (status === "Tümü" || item.status === status) &&
+          (companyFilter === "Tümü" || item.companyId === Number(companyFilter)) &&
+          (teamFilter === "Tümü" || item.team === teamFilter) &&
+          (!dateFrom || labelToIso(item.date) >= dateFrom) &&
+          (!dateTo || labelToIso(item.date) <= dateTo) &&
           includesQuery(`${item.title} ${item.company} ${item.location} ${item.team} ${item.vehicle}`, query),
       ),
-    [screenings, query, status],
+    [companyFilter, dateFrom, dateTo, query, screenings, status, teamFilter],
   );
   const { safePage, items: paged } = paginate(filtered, page, pageSize);
-  const hasFilters = Boolean(query || status !== "Tümü");
+  const hasFilters = Boolean(query || status !== "Tümü" || companyFilter !== "Tümü" || teamFilter !== "Tümü" || dateFrom || dateTo);
   const openNew = () => router.push("/taramalar/yeni");
   const openEdit = (item: Screening) => setEditor({ open: true, item });
   const save = (values: ScreeningForm) => {
@@ -97,7 +109,7 @@ export default function ScreeningsPage() {
     setScreenings((current) =>
       editor.item
         ? current.map((item) => (item.id === editor.item?.id ? { ...record, id: item.id } : item))
-        : [...current, { ...record, id: Date.now() }],
+        : [...current, { ...record, id: nextNumericId(current) }],
     );
     setEditor({ open: false, item: null });
     showNotice(editor.item ? "Tarama güncellendi." : "Yeni tarama planlandı.");
@@ -139,12 +151,17 @@ export default function ScreeningsPage() {
   const clearFilters = () => {
     setQuery("");
     setStatus("Tümü");
+    setCompanyFilter("Tümü");
+    setTeamFilter("Tümü");
+    setDateFrom("");
+    setDateTo("");
     setPage(1);
   };
   return (
     <Page>
+      <VisualFilterSurface visual="/headers/screenings.png">
       <PageHeader
-        className="border-border bg-card shadow-card rounded-2xl border px-5 py-5 sm:px-6 sm:py-6"
+        className="border-0 bg-transparent p-0 shadow-none before:hidden"
         actions={
           <Button onClick={openNew}>
             <Plus /> Yeni tarama planla
@@ -153,7 +170,7 @@ export default function ScreeningsPage() {
         description="Mobil sağlık taramalarınızı, katılımcıları ve saha operasyonlarının sonuçlarını tek merkezden yönetin."
         eyebrow="Saha operasyonları"
         title="Taramalar"
-        visual="/headers/screenings.png"
+        dark
       />
       {notice && (
         <Alert className="mt-4" icon={Check}>
@@ -170,7 +187,14 @@ export default function ScreeningsPage() {
           </Button>
         </Card>
       )}
-      <Card aria-label="Tarama filtreleri" className="mt-5 p-4 sm:p-5">
+      <ListToolbar advancedOpen={advancedOpen} count={filtered.length} description="Arama ve gelişmiş filtrelerle saha planlarını hızlıca daraltın." onAdvanced={() => setAdvancedOpen((value) => !value)} onCards={() => setView("cards")} onList={() => setView("list")} onQuery={(value) => { setQuery(value); setPage(1); }} placeholder="Firma, tarama, konum veya ekip ara..." query={query} title="Tarama listesi" view={view}>
+        <SearchableCompanySelect companies={companies} includeAll onChange={(value) => { setCompanyFilter(value ?? "Tümü"); setPage(1); }} value={companyFilter} />
+        <Select aria-label="Tarama ekibi filtresi" onChange={(event) => { setTeamFilter(event.target.value); setPage(1); }} value={teamFilter}>{teamOptions.map((item) => <option key={item}>{item}</option>)}</Select>
+        <Field label="Başlangıç tarihi"><Input aria-label="Tarama başlangıç tarihi" onChange={(event) => { setDateFrom(event.target.value); setPage(1); }} type="date" value={dateFrom} /></Field>
+        <Field label="Bitiş tarihi"><Input aria-label="Tarama bitiş tarihi" onChange={(event) => { setDateTo(event.target.value); setPage(1); }} type="date" value={dateTo} /></Field>
+        <div className="flex flex-wrap items-center gap-2 sm:col-span-2 lg:col-span-4"><span className="text-[10px] font-bold tracking-[0.12em] text-subtle uppercase">Durum</span>{statusFilters.map((item) => <Button aria-pressed={status === item} key={item} onClick={() => { setStatus(item); setPage(1); }} size="sm" variant={status === item ? "soft" : "outline"}>{item}</Button>)}{hasFilters && <Button onClick={clearFilters} size="sm" variant="danger"><RotateCcw /> Temizle</Button>}</div>
+      </ListToolbar>
+      {/*
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="flex items-center gap-2">
@@ -179,36 +203,8 @@ export default function ScreeningsPage() {
             </div>
             <p className="text-subtle mt-1 text-xs">Arama ve durum filtreleriyle saha planlarını hızlıca daraltın.</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div aria-label="Tarama görünümü" className="border-border bg-card flex rounded-xl border p-1" role="group">
-              <button
-                aria-label="Kart görünümü"
-                aria-pressed={view === "cards"}
-                className={`flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-colors ${
-                  view === "cards" ? "bg-card text-brand shadow-sm" : "text-muted hover:text-foreground"
-                }`}
-                onClick={() => setView("cards")}
-                type="button"
-              >
-                <LayoutGrid className="size-3.5" />
-                <span className="hidden sm:inline">Kart</span>
-              </button>
-              <button
-                aria-label="Liste görünümü"
-                aria-pressed={view === "list"}
-                className={`flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-colors ${
-                  view === "list" ? "bg-card text-brand shadow-sm" : "text-muted hover:text-foreground"
-                }`}
-                onClick={() => setView("list")}
-                type="button"
-              >
-                <ListIcon className="size-3.5" />
-                <span className="hidden sm:inline">Liste</span>
-              </button>
-            </div>
-          </div>
         </div>
-        <div className="mt-4 flex flex-col gap-3 lg:flex-row">
+        <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center">
           <SearchInput
             aria-label="Tarama ara"
             className="min-w-0 flex-1"
@@ -219,6 +215,7 @@ export default function ScreeningsPage() {
             placeholder="Firma, tarama, konum veya ekip ara..."
             value={query}
           />
+          <ListViewToggle onCards={() => setView("cards")} onList={() => setView("list")} value={view} />
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-subtle px-1 text-[10px] font-bold tracking-[0.12em] uppercase">Durum</span>
             {statusFilters.map((item) => (
@@ -243,7 +240,8 @@ export default function ScreeningsPage() {
             )}
           </div>
         </div>
-      </Card>
+      </Card> */}
+      </VisualFilterSurface>
       {paged.length === 0 ? (
         <EmptyState
           className="mt-6"
@@ -516,7 +514,7 @@ function ScreeningDialog({
   onSave,
 }: {
   item: Screening | null;
-  companies: Array<{ id: number; name: string }>;
+  companies: Company[];
   team: Array<{ id: number; name: string; active: boolean }>;
   equipment: Array<{ id: number; name: string; kind: string; status: string }>;
   open: boolean;
@@ -557,14 +555,7 @@ function ScreeningDialog({
           />
         </Field>
         <Field label="Firma" required>
-          <Select onChange={(event) => setField("companyId", Number(event.target.value))} value={form.companyId}>
-            <option value={0}>Firma seçin</option>
-            {companies.map((company) => (
-              <option key={company.id} value={company.id}>
-                {company.name}
-              </option>
-            ))}
-          </Select>
+          <SearchableCompanySelect companies={companies} onChange={(value) => setField("companyId", Number(value ?? 0))} value={form.companyId} />
         </Field>
         <Field label="Tarama tarihi" required>
           <Input onChange={(event) => setField("date", event.target.value)} type="date" value={form.date} />

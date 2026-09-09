@@ -95,6 +95,8 @@ public/images/        Statik görseller
 
 Uygulama `lib/storage.ts` içindeki `storageKeys` ve `useStoredState` üzerinden tarayıcı storage kullanır. PDF analizleri veya sunucu tarafı dosya depolama bulunmaz; uygulama frontend-only demo olarak çalışır.
 
+Teklif yanıtı bağlantısı da demo kapsamında aynı tarayıcıdaki localStorage verisini kullanır. Farklı cihaz veya kullanıcılar arasında gerçek paylaşım için backend ve merkezi veri saklama gerekir.
+
 ## Tasarım sistemi
 
 Renkler ve arayüz ölçüleri `app/globals.css` içindeki tokenlarla yönetilir. Yeni bileşenlerde hardcoded hex renk kullanılmamalıdır. Ortak sınıflar arasında `bg-card`, `bg-card-muted`, `border-border`, `text-heading`, `text-muted`, `text-brand`, `bg-brand-soft`, `bg-warning-soft` ve `bg-danger-soft` bulunur.

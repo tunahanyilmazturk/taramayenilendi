@@ -29,7 +29,7 @@ import { useTestCategories, useTests } from "@/lib/data";
 import { type TestItem } from "@/lib/demo-data";
 import { money } from "@/lib/format";
 import { useConfirm, useNotice } from "@/lib/hooks";
-import { includesQuery } from "@/lib/utils";
+import { includesQuery, nextNumericId } from "@/lib/utils";
 
 type TestForm = { code: string; name: string; category: string; price: string };
 type FormErrors = Partial<Record<keyof TestForm, string>>;
@@ -132,7 +132,7 @@ export default function TestsSettings() {
     if (editingId === null) {
       setTests((current) => [
         ...current,
-        { ...normalized, code: generateTestCode(normalized.category, current), id: Date.now(), active: true },
+        { ...normalized, code: generateTestCode(normalized.category, current), id: nextNumericId(current), active: true },
       ]);
       showNotice("Yeni test eklendi.");
     } else {
@@ -258,7 +258,7 @@ export default function TestsSettings() {
           byName.set(key, {
             ...item,
             code: generateTestCode(item.category, Array.from(byName.values())),
-            id: Date.now() + added,
+            id: nextNumericId(Array.from(byName.values())),
             active: true,
           });
           added += 1;

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ArrowUpRight, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock3, MapPin } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, IconBadge } from "@/components/ui/card";
@@ -13,6 +14,10 @@ import type { Screening, ScreeningStatus } from "@/lib/demo-data";
 import { cn } from "@/lib/utils";
 
 const weekDays = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
+const monthNames = Array.from({ length: 12 }, (_, month) =>
+  new Intl.DateTimeFormat("tr-TR", { month: "long" }).format(new Date(2024, month, 1)),
+);
+type CalendarView = "month" | "week" | "year";
 const statusTone: Record<ScreeningStatus, "brand" | "warning" | "danger" | "neutral" | "info"> = {
   Planlandı: "info",
   Hazırlanıyor: "warning",
@@ -54,6 +59,15 @@ function monthLabel(date: Date) {
   return new Intl.DateTimeFormat("tr-TR", { month: "long", year: "numeric" }).format(date);
 }
 
+function weekLabel(date: Date) {
+  const start = startOfWeek(date);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  const startLabel = new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "short" }).format(start);
+  const endLabel = new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "short", year: "numeric" }).format(end);
+  return `${startLabel} - ${endLabel}`;
+}
+
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "long", year: "numeric" }).format(date);
 }
@@ -74,6 +88,21 @@ function dayCells(month: Date) {
     const date = new Date(start);
     date.setDate(start.getDate() + index);
     return date;
+  });
+}
+
+function startOfWeek(date: Date) {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  return start;
+}
+
+function weekCells(date: Date) {
+  const start = startOfWeek(date);
+  return Array.from({ length: 7 }, (_, index) => {
+    const cell = new Date(start);
+    cell.setDate(start.getDate() + index);
+    return cell;
   });
 }
 
@@ -120,10 +149,12 @@ function ScreeningRow({ screening }: { screening: Screening }) {
 
 export default function CalendarPage() {
   const [screenings] = useScreenings();
+  const router = useRouter();
   const today = useMemo(() => new Date(), []);
   const todayKey = dateKey(today);
   const [month, setMonth] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedKey, setSelectedKey] = useState(todayKey);
+  const [view, setView] = useState<CalendarView>("month");
   const [statusFilter, setStatusFilter] = useState<"Tümü" | ScreeningStatus>("Tümü");
   const years = useMemo(() => {
     const values = new Set([
@@ -145,6 +176,7 @@ export default function CalendarPage() {
     [screenings, statusFilter],
   );
   const cells = useMemo(() => dayCells(month), [month]);
+  const weekViewCells = useMemo(() => weekCells(new Date(`${selectedKey}T12:00:00`)), [selectedKey]);
   const eventsByDay = useMemo(() => {
     const map = new Map<string, Screening[]>();
     cells.forEach((cell) => {
@@ -175,36 +207,87 @@ export default function CalendarPage() {
     return start && end && start <= monthEnd && end >= monthStart;
   });
 
+  const weekScreenings = visibleScreenings.filter((screening) => {
+    const start = toIso(screening.date);
+    const end = toIso(screening.endDate || screening.date);
+    const weekStart = dateKey(weekViewCells[0]);
+    const weekEnd = dateKey(weekViewCells[weekViewCells.length - 1]);
+    return start && end && start <= weekEnd && end >= weekStart;
+  });
+
+  const yearScreenings = visibleScreenings.filter((screening) => {
+    const start = toIso(screening.date);
+    const end = toIso(screening.endDate || screening.date);
+    const yearStart = `${month.getFullYear()}-01-01`;
+    const yearEnd = `${month.getFullYear()}-12-31`;
+    return start && end && start <= yearEnd && end >= yearStart;
+  });
+
   const moveMonth = (offset: number) => {
     const next = new Date(month.getFullYear(), month.getMonth() + offset, 1);
     setMonth(next);
     setSelectedKey(dateKey(next));
   };
 
+  const setCalendarDate = (year: number, monthIndex: number) => {
+    const next = new Date(year, monthIndex, 1);
+    setMonth(next);
+    setSelectedKey(dateKey(next));
+  };
+
+  const moveView = (offset: number) => {
+    if (view === "week") {
+      const next = new Date(`${selectedKey}T12:00:00`);
+      next.setDate(next.getDate() + offset * 7);
+      setSelectedKey(dateKey(next));
+      setMonth(new Date(next.getFullYear(), next.getMonth(), 1));
+      return;
+    }
+    if (view === "year") {
+      setMonth(new Date(month.getFullYear() + offset, month.getMonth(), 1));
+      setSelectedKey(dateKey(new Date(month.getFullYear() + offset, month.getMonth(), 1)));
+      return;
+    }
+    moveMonth(offset);
+  };
+
+  const viewTitle = view === "week" ? weekLabel(new Date(`${selectedKey}T12:00:00`)) : view === "year" ? `${month.getFullYear()} yılı` : monthLabel(month);
+  const viewDescription = view === "week" ? `${weekScreenings.length} tarama planı · Haftalık saha planınızı görüntüleyin.` : view === "year" ? `${yearScreenings.length} tarama planı · Yıllık operasyon yoğunluğunu inceleyin.` : `${monthScreenings.length} tarama planı · Günlük saha planınızı seçerek detayları görüntüleyin.`;
+
   return (
     <Page className="pt-1 xl:h-[calc(100dvh-118px)] xl:overflow-hidden xl:pb-0">
       <div className="grid gap-4 xl:h-full xl:min-h-0 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <Card className="flex min-h-0 flex-col overflow-hidden border-border/80 bg-card/95 p-4 shadow-card sm:p-5">
-          <div className="border-divider flex flex-wrap items-center justify-between gap-3 border-b pb-4">
+        <Card className="flex min-h-0 flex-col overflow-hidden border-border/80 bg-card p-4 shadow-card sm:p-5">
+          <div className="border-brand-outline/35 bg-brand-soft/30 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3.5">
             <div className="flex items-center gap-3">
-              <IconBadge className="bg-brand-soft text-brand-soft-fg" icon={CalendarDays} size="lg" />
+              <IconBadge className="bg-brand text-brand-fg shadow-sm" icon={CalendarDays} size="lg" />
               <div>
-                <h2 className="text-heading text-base font-bold capitalize">{monthLabel(month)}</h2>
-                <p className="text-muted mt-0.5 text-[11px]">
-                  {monthScreenings.length} tarama planı · Günlük saha planınızı seçerek detayları görüntüleyin.
-                </p>
+                <h2 className="text-heading text-base font-bold capitalize">{viewTitle}</h2>
+                <p className="text-muted mt-0.5 text-[11px]">{viewDescription}</p>
               </div>
             </div>
-            <div className="flex items-center gap-1.5">
-              <div className="relative">
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
+              <div className="border-border bg-card/80 flex items-center gap-1 rounded-lg border p-1">
+                <div className="relative">
+                  <select
+                    aria-label="Takvim ayı"
+                    className="border-border bg-card text-foreground focus:border-brand h-9 w-28 appearance-none rounded-lg border px-3 pr-7 text-xs font-medium capitalize outline-none"
+                    onChange={(event) => setCalendarDate(month.getFullYear(), Number(event.target.value))}
+                    value={month.getMonth()}
+                  >
+                    {monthNames.map((name, index) => (
+                      <option key={name} value={index}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="text-subtle pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2" />
+                </div>
+                <div className="relative">
                 <select
                   aria-label="Takvim yılı"
                   className="border-border bg-card text-foreground focus:border-brand h-9 w-24 appearance-none rounded-lg border px-3 pr-7 text-xs font-medium outline-none"
-                  onChange={(event) => {
-                    const next = new Date(Number(event.target.value), month.getMonth(), 1);
-                    setMonth(next);
-                    setSelectedKey(dateKey(next));
-                  }}
+                  onChange={(event) => setCalendarDate(Number(event.target.value), month.getMonth())}
                   value={month.getFullYear()}
                 >
                   {years.map((year) => (
@@ -214,6 +297,22 @@ export default function CalendarPage() {
                   ))}
                 </select>
                 <ChevronDown className="text-subtle pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2" />
+                </div>
+              </div>
+              <div className="border-border bg-card/80 flex items-center gap-1 rounded-lg border p-1" role="tablist" aria-label="Takvim görünümü">
+                {([ ["month", "Ay"], ["week", "Hafta"], ["year", "Yıl"] ] as Array<[CalendarView, string]>).map(([value, label]) => (
+                  <Button
+                    aria-selected={view === value}
+                    className={cn("h-9 px-3 text-xs", view === value && "bg-brand text-brand-fg hover:bg-brand")}
+                    key={value}
+                    onClick={() => setView(value)}
+                    role="tab"
+                    size="xs"
+                    variant={view === value ? "primary" : "ghost"}
+                  >
+                    {label}
+                  </Button>
+                ))}
               </div>
               <Button
                 onClick={() => {
@@ -225,16 +324,16 @@ export default function CalendarPage() {
               >
                 Bugün
               </Button>
-              <Button aria-label="Önceki ay" onClick={() => moveMonth(-1)} size="icon-sm" variant="outline">
+              <Button aria-label="Önceki dönem" onClick={() => moveView(-1)} size="icon-sm" variant="outline">
                 <ChevronLeft />
               </Button>
-              <Button aria-label="Sonraki ay" onClick={() => moveMonth(1)} size="icon-sm" variant="outline">
+              <Button aria-label="Sonraki dönem" onClick={() => moveView(1)} size="icon-sm" variant="outline">
                 <ChevronRight />
               </Button>
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-2">
+          <div className="border-border bg-card-muted/35 mt-4 flex flex-wrap items-center gap-2 rounded-xl border p-2.5">
             <span className="text-subtle mr-1 text-[10px] font-bold tracking-[0.12em] uppercase">Durum</span>
             {(["Tümü", ...Object.keys(statusTone)] as Array<"Tümü" | ScreeningStatus>).map((item) => (
               <Button
@@ -254,10 +353,10 @@ export default function CalendarPage() {
             <span className="text-muted ml-auto text-[10px]">{visibleScreenings.length} kayıt gösteriliyor</span>
           </div>
 
-          <div className="border-border bg-border mt-4 grid min-h-0 flex-1 grid-cols-7 grid-rows-[auto_repeat(6,minmax(0,1fr))] gap-px overflow-hidden rounded-xl border">
+          {view === "month" && <div className="border-border bg-border mt-4 grid min-h-0 flex-1 grid-cols-7 grid-rows-[auto_repeat(6,minmax(0,1fr))] gap-px overflow-hidden rounded-xl border shadow-inner">
             {weekDays.map((day) => (
               <div
-                className="bg-card-muted text-muted px-2 py-2.5 text-center text-[10px] font-bold uppercase"
+                className="bg-card-muted text-muted px-2 py-2.5 text-center text-[10px] font-bold uppercase tracking-wide"
                 key={day}
               >
                 {day}
@@ -271,7 +370,7 @@ export default function CalendarPage() {
               return (
                 <div
                   className={cn(
-                    "bg-card hover:bg-brand-soft/40 min-h-0 overflow-hidden p-1.5 text-left align-top transition-colors sm:p-2",
+                    "bg-card hover:bg-brand-soft/35 min-h-0 overflow-hidden p-1.5 text-left align-top transition-colors sm:p-2",
                     !inMonth && "bg-card-muted/55 text-subtle",
                     selected && "ring-brand relative z-10 ring-2 ring-inset",
                   )}
@@ -313,10 +412,66 @@ export default function CalendarPage() {
                 </div>
               );
             })}
-          </div>
+          </div>}
+
+          {view === "week" && (
+            <div className="border-border bg-border mt-4 grid min-h-0 flex-1 grid-cols-1 gap-px overflow-hidden rounded-xl border shadow-inner md:grid-cols-7">
+              {weekViewCells.map((date, index) => {
+                const key = dateKey(date);
+                const dayScreenings = screeningsForDay(visibleScreenings, key);
+                const selected = key === selectedKey;
+                return (
+                  <div className={cn("bg-card min-h-36 overflow-y-auto p-3", selected && "ring-brand relative z-10 ring-2 ring-inset")} key={key}>
+                    <button className="flex w-full items-center justify-between gap-2 text-left" onClick={() => setSelectedKey(key)} type="button">
+                      <span className="text-muted text-[10px] font-bold uppercase">{weekDays[index]}</span>
+                      <span className={cn("inline-flex size-7 items-center justify-center rounded-full text-xs font-bold", key === todayKey && "bg-brand text-brand-fg", selected && key !== todayKey && "bg-brand-soft text-brand-soft-fg")}>{date.getDate()}</span>
+                    </button>
+                    <div className="mt-3 space-y-2">
+                      {dayScreenings.length ? dayScreenings.map((screening) => (
+                        <Link className={cn("block truncate rounded-md border px-2 py-2 text-[10px] font-semibold", statusSurface[screening.status])} href={`/taramalar/${screening.id}`} key={screening.id} rel="noreferrer" target="_blank">
+                          {screening.time} · {screening.company}
+                        </Link>
+                      )) : <p className="text-subtle text-[10px]">Plan yok</p>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {view === "year" && (
+            <div className="mt-4 grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {monthNames.map((name, monthIndex) => {
+                const monthDate = new Date(month.getFullYear(), monthIndex, 1);
+                const start = dateKey(monthDate);
+                const end = dateKey(new Date(month.getFullYear(), monthIndex + 1, 0));
+                const count = visibleScreenings.filter((screening) => {
+                  const screeningStart = toIso(screening.date);
+                  const screeningEnd = toIso(screening.endDate || screening.date);
+                  return screeningStart && screeningEnd && screeningStart <= end && screeningEnd >= start;
+                }).length;
+                return (
+                  <button className="border-border bg-card hover:border-brand-outline hover:bg-brand-soft/20 rounded-xl border p-4 text-left transition-colors" key={name} onClick={() => { setCalendarDate(month.getFullYear(), monthIndex); setView("month"); }} type="button">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-heading text-sm font-bold capitalize">{name}</span>
+                      <Badge tone={count ? "info" : "neutral"}>{count} tarama</Badge>
+                    </div>
+                    <div className="mt-4 grid grid-cols-7 gap-1 text-center">
+                      {weekDays.map((day) => <span className="text-subtle text-[8px] font-bold" key={day}>{day.slice(0, 1)}</span>)}
+                      {dayCells(monthDate).map((date) => {
+                        const dayKey = dateKey(date);
+                        const dayCount = screeningsForDay(visibleScreenings, dayKey).length;
+                        return <span className={cn("text-muted rounded px-0.5 py-1 text-[9px]", date.getMonth() !== monthIndex && "opacity-30", dayCount > 0 && "bg-brand-soft text-brand-soft-fg font-bold")} key={dayKey}>{date.getDate()}</span>;
+                      })}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </Card>
 
-        <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
+        <div className="min-h-0 space-y-4 overflow-y-auto pr-1 xl:sticky xl:top-4 xl:self-start">
           <Card className="border-border/80 bg-card/95 p-4 shadow-card sm:p-5">
             <CardHeader
               icon={CalendarDays}
@@ -327,6 +482,14 @@ export default function CalendarPage() {
               <span className="text-muted text-xs">Günün planları</span>
               <Badge tone="info">{selectedScreenings.length} tarama</Badge>
             </div>
+            <Button
+              className="mt-3 w-full"
+              onClick={() => router.push(`/taramalar/yeni?tarih=${selectedKey}`)}
+              size="sm"
+              variant="soft"
+            >
+              <CalendarDays /> Bu güne tarama planla
+            </Button>
             <div className="mt-3 space-y-2">
               {selectedScreenings.length ? (
                 selectedScreenings.map((screening) => <ScreeningRow key={screening.id} screening={screening} />)

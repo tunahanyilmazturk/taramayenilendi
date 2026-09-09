@@ -1,30 +1,33 @@
 "use client";
 
-import { Building2, ClipboardList, LayoutGrid, MapPin, Plus, RotateCcw, Settings2, Trash2 } from "lucide-react";
+import { Building2, ClipboardList, MapPin, Plus, RotateCcw, Settings2, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CompanyCard, CompanyRowActions, type CompanyActions } from "@/components/companies/company-card";
 import { applyCompanyForm, CompanyForm, type CompanyFormValues } from "@/components/companies/company-form";
 import { SectorManager } from "@/components/companies/sector-manager";
-import { Badge, contractTone, CountPill } from "@/components/ui/badge";
+import { Badge, contractTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { FilterSelect, SearchInput } from "@/components/ui/field";
+import { FilterSelect } from "@/components/ui/field";
 import { Alert, ConfirmDialog } from "@/components/ui/modal";
 import { Page, PageHeader } from "@/components/ui/page-header";
+import { VisualFilterSurface } from "@/components/ui/visual-filter-surface";
+import { ListToolbar } from "@/components/ui/list-toolbar";
 import { paginate, Pagination } from "@/components/ui/pagination";
 import { Avatar, DataTable, SortButton, TBody, Td, Th, THead, Tr, type SortDirection } from "@/components/ui/table";
 import { useCompanies, useSectors } from "@/lib/data";
 import { companyLocation, contractStatuses, type Company } from "@/lib/demo-data";
 import { labelToIso } from "@/lib/format";
 import { useConfirm, useNotice, useSort } from "@/lib/hooks";
-import { cn, compareTr, includesQuery, initials } from "@/lib/utils";
+import { compareTr, includesQuery, initials } from "@/lib/utils";
 
 type SortKey = "name" | "employees" | "contract" | "lastScreening";
 type View = "table" | "cards";
 
 const allCities = "Tüm şehirler";
+const allSectors = "Tüm sektörler";
 const allStatuses = "Tümü";
 const statusFilters = [allStatuses, ...contractStatuses];
 
@@ -44,16 +47,22 @@ export default function CompaniesPage() {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState(allStatuses);
   const [city, setCity] = useState(allCities);
+  const [sector, setSector] = useState(allSectors);
   const [view, setView] = useState<View>("table");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Company | null>(null);
   const [sectorOpen, setSectorOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const cities = useMemo(
     () => [allCities, ...new Set(companies.map((company) => company.city).filter(Boolean))],
     [companies],
+  );
+  const sectorOptions = useMemo(
+    () => [allSectors, ...new Set([...sectors, ...companies.map((company) => company.sector)].filter(Boolean))],
+    [companies, sectors],
   );
   const filtered = useMemo(
     () =>
@@ -62,6 +71,7 @@ export default function CompaniesPage() {
           (company) =>
             (status === allStatuses || company.contract === status) &&
             (city === allCities || company.city === city) &&
+            (sector === allSectors || company.sector === sector) &&
             includesQuery(
               `${company.name} ${company.sector} ${companyLocation(company)} ${company.contact}`,
               query,
@@ -71,10 +81,10 @@ export default function CompaniesPage() {
           const comparison = compareTr(sortValue(a, sortKey), sortValue(b, sortKey));
           return direction === "asc" ? comparison : -comparison;
         }),
-    [companies, query, status, city, sortKey, direction],
+    [companies, query, status, city, sector, sortKey, direction],
   );
   const { safePage, items: paged } = paginate(filtered, page, pageSize);
-  const hasFilters = Boolean(query || status !== allStatuses || city !== allCities);
+  const hasFilters = Boolean(query || status !== allStatuses || city !== allCities || sector !== allSectors);
 
   const withReset =
     <T,>(setter: (value: T) => void) =>
@@ -86,6 +96,7 @@ export default function CompaniesPage() {
     setQuery("");
     setStatus(allStatuses);
     setCity(allCities);
+    setSector(allSectors);
     setPage(1);
   };
   const openNew = () => {
@@ -133,8 +144,9 @@ export default function CompaniesPage() {
 
   return (
     <Page>
+      <VisualFilterSurface visual="/headers/companies.png">
       <PageHeader
-        className="border-border bg-card shadow-card rounded-2xl border px-5 py-5 sm:px-6 sm:py-6"
+        className="border-0 bg-transparent p-0 shadow-none before:hidden"
         actions={
           <>
             <Button onClick={() => setSectorOpen(true)} variant="secondary">
@@ -148,7 +160,7 @@ export default function CompaniesPage() {
         description="Hizmet verdiğiniz firmaları, sözleşmeleri ve tarama geçmişini yönetin."
         eyebrow="Müşteri ve sözleşme merkezi"
         title="Firmalar"
-        visual="/headers/companies.png"
+        dark
       />
       {notice && <Alert className="mt-4 w-fit">{notice}</Alert>}
       {selectedIds.length > 0 && (
@@ -158,50 +170,12 @@ export default function CompaniesPage() {
         </Card>
       )}
 
-      <Card aria-label="Firma listesi filtreleri" className="mt-5 p-4 sm:p-5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold text-foreground">Firma listesi</h2>
-              <CountPill>{filtered.length} kayıt</CountPill>
-            </div>
-            <p className="mt-1 text-xs text-subtle">Arama ve filtrelerle kayıtları hızlıca daraltın.</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <FilterSelect label="Şehir" onChange={withReset(setCity)} options={cities} value={city} />
-            <ViewToggle onChange={setView} view={view} />
-          </div>
-        </div>
-        <div className="mt-4 flex flex-col gap-3 lg:flex-row">
-          <SearchInput
-            aria-label="Firma ara"
-            className="min-w-0 flex-1"
-            onChange={(event) => withReset(setQuery)(event.target.value)}
-            placeholder="Firma adı, sektör veya yetkili ara..."
-            value={query}
-          />
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="px-1 text-[10px] font-bold tracking-[0.12em] text-subtle uppercase">Sözleşme</span>
-            {statusFilters.map((item) => (
-              <Button
-                aria-pressed={status === item}
-                className={cn(status === item && "border-brand-outline")}
-                key={item}
-                onClick={() => withReset(setStatus)(item)}
-                size="sm"
-                variant={status === item ? "soft" : "outline"}
-              >
-                {item}
-              </Button>
-            ))}
-            {hasFilters && (
-              <Button onClick={clearFilters} size="sm" variant="danger">
-                <RotateCcw /> Temizle
-              </Button>
-            )}
-          </div>
-        </div>
-      </Card>
+      <ListToolbar advancedOpen={advancedOpen} count={filtered.length} description="Arama ve gelişmiş filtrelerle firma kayıtlarını hızlıca daraltın." onAdvanced={() => setAdvancedOpen((value) => !value)} onCards={() => setView("cards")} onList={() => setView("table")} onQuery={(value) => { setQuery(value); setPage(1); }} placeholder="Firma adı, sektör veya yetkili ara..." query={query} title="Firma listesi" view={view}>
+        <FilterSelect label="Şehir" onChange={withReset(setCity)} options={cities} value={city} />
+        <FilterSelect label="Sektör" onChange={withReset(setSector)} options={sectorOptions} value={sector} />
+        <div className="flex flex-wrap items-center gap-2 sm:col-span-2"><span className="text-[10px] font-bold tracking-[0.12em] text-subtle uppercase">Sözleşme</span>{statusFilters.map((item) => <Button aria-pressed={status === item} key={item} onClick={() => withReset(setStatus)(item)} size="sm" variant={status === item ? "soft" : "outline"}>{item}</Button>)}{hasFilters && <Button onClick={clearFilters} size="sm" variant="danger"><RotateCcw /> Temizle</Button>}</div>
+      </ListToolbar>
+      </VisualFilterSurface>
 
       {view === "table" ? (
         <CompanyTable companies={paged} direction={direction} onSort={withReset(toggle)} selectedIds={selectedIds} onToggle={toggleSelected} onToggleAll={togglePageSelection} sortKey={sortKey} {...actions} />
@@ -234,32 +208,6 @@ export default function CompaniesPage() {
       />
       <ConfirmDialog onClose={closeConfirm} request={confirmRequest} />
     </Page>
-  );
-}
-
-function ViewToggle({ view, onChange }: { view: View; onChange: (view: View) => void }) {
-  const options: Array<[View, string, typeof ClipboardList]> = [
-    ["table", "Tablo görünümü", ClipboardList],
-    ["cards", "Kart görünümü", LayoutGrid],
-  ];
-  return (
-    <div className="flex rounded-xl border border-border bg-card p-1" role="group" aria-label="Görünüm">
-      {options.map(([id, label, Icon]) => (
-        <button
-          aria-label={label}
-          aria-pressed={view === id}
-          className={cn(
-            "rounded-lg p-2 transition-colors",
-            view === id ? "bg-brand-soft text-brand-soft-fg" : "text-muted hover:text-foreground",
-          )}
-          key={id}
-          onClick={() => onChange(id)}
-          type="button"
-        >
-          <Icon className="size-4" />
-        </button>
-      ))}
-    </div>
   );
 }
 

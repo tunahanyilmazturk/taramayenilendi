@@ -1,5 +1,6 @@
 import type { CoverLetterTemplate, ConditionTemplate } from "@/lib/data";
 import type { OfferType, TestItem } from "@/lib/demo-data";
+import { todayIso } from "@/lib/format";
 
 export type SelectedTest = TestItem & { quantity: number; unitPrice?: number };
 export type DiscountType = "percent" | "fixed";
@@ -36,7 +37,7 @@ export const emptyWizard: WizardState = {
   contact: "",
   email: "",
   title: "",
-  validUntil: "",
+  validUntil: todayIso(),
   discount: "0",
   discountType: "percent",
   tax: "20",

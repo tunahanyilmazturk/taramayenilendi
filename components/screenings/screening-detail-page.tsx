@@ -20,19 +20,23 @@ import {
   UsersRound,
   Wrench,
   X,
+  Trash2,
+  XCircle,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, StatTile } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Alert, Modal } from "@/components/ui/modal";
+import { Input } from "@/components/ui/field";
+import { Alert, ConfirmDialog, Modal } from "@/components/ui/modal";
 import { Page } from "@/components/ui/page-header";
 import { useCompanies, useEquipment, useOrganization, useScreenings, useTeam, useTests } from "@/lib/data";
 import { type OfferAttachment, type Screening, type ScreeningStatus } from "@/lib/demo-data";
 import { money } from "@/lib/format";
-import { useNotice } from "@/lib/hooks";
+import { useConfirm, useNotice } from "@/lib/hooks";
 import { downloadScreeningPdf, previewScreeningPdf } from "@/lib/pdf/screening-pdf";
 import { cn, initials } from "@/lib/utils";
 
@@ -50,6 +54,7 @@ const escapeHtml = (value: string) =>
 
 export default function ScreeningDetailPage({ screeningId }: { screeningId: string }) {
   const [screenings, setScreenings] = useScreenings();
+  const router = useRouter();
   const [companies] = useCompanies();
   const [team] = useTeam();
   const [equipment] = useEquipment();
@@ -57,6 +62,7 @@ export default function ScreeningDetailPage({ screeningId }: { screeningId: stri
   const [organization] = useOrganization();
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [notice, showNotice] = useNotice();
+  const { request: confirmRequest, confirm, close: closeConfirm } = useConfirm();
   const [editingNotes, setEditingNotes] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [mailOpen, setMailOpen] = useState(false);
@@ -150,6 +156,13 @@ export default function ScreeningDetailPage({ screeningId }: { screeningId: stri
     );
     showNotice("Ek dosya kaldırıldı.");
   };
+  const updateCompleted = (value: number) => {
+    if (!screening) return;
+    const completed = Math.min(Math.max(0, Math.round(value) || 0), screening.participants);
+    setScreenings((current) => current.map((item) => item.id === screening.id ? { ...item, completed } : item));
+  };
+  const cancelScreening = () => confirm({ title: "Taramayı iptal et", description: `${screening?.title ?? "Bu tarama"} planı iptal edilecek.`, confirmLabel: "Taramayı iptal et", onConfirm: () => { if (!screening) return; setScreenings((current) => current.map((item) => item.id === screening.id ? { ...item, status: "İptal" } : item)); showNotice("Tarama iptal edildi."); } });
+  const removeScreening = () => confirm({ title: "Taramayı sil", description: `${screening?.title ?? "Bu tarama"} kaydı kalıcı olarak silinecek.`, confirmLabel: "Taramayı sil", onConfirm: () => { if (!screening) return; setScreenings((current) => current.filter((item) => item.id !== screening.id)); showNotice("Tarama silindi."); window.setTimeout(() => router.push("/taramalar"), 400); } });
   if (!screening)
     return (
       <Page>
@@ -230,7 +243,7 @@ export default function ScreeningDetailPage({ screeningId }: { screeningId: stri
   const mailBody = [
     `Merhaba ${mailRecipientName},`,
     "",
-    `${screening.company} için planlanan saha taramasına ait bilgileri aşağıda paylaşıyoruz.`,
+    `${screening.company} için planlanan saha taramasının hazırlık ve uygulama bilgilerini aşağıda paylaşıyoruz.`,
     ...(includeMailSummary
       ? [
           "",
@@ -250,7 +263,7 @@ export default function ScreeningDetailPage({ screeningId }: { screeningId: stri
       ? [
           "",
           "📎 PDF EKİ",
-          "Ayrıntılı bilgi ve içerik için e-postaya eklenen PDF dosyasını inceleyebilirsiniz.",
+          "Tarama planını, hizmet kapsamını ve PDF içeriğini incelemek için aşağıdaki bağlantıyı açabilirsiniz.",
           `Tarama detayları ve PDF önizleme: ${shareUrl}`,
         ]
       : []),
@@ -304,7 +317,7 @@ export default function ScreeningDetailPage({ screeningId }: { screeningId: stri
         }
         ${
           includeMailLink
-            ? `<div style="background:#123d56;margin-top:20px;padding:16px;border-radius:12px"><div style="color:#c9ddec;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase">PDF eki</div><div style="color:#ffffff;font-size:13px;font-weight:700;margin-top:7px">Ayrıntılı bilgi ve içerik için PDF dosyasını inceleyebilirsiniz.</div><a href="${escapeHtml(shareUrl)}" style="display:inline-block;color:#ffffff;text-decoration:none;font-size:12px;font-weight:700;margin-top:12px">Tarama detaylarını görüntüle →</a><div style="color:#c9ddec;font-size:11px;margin-top:6px">PDF önizleme ve tarama detayları için bağlantıyı açın.</div></div>`
+            ? `<div style="background:#123d56;margin-top:20px;padding:16px;border-radius:12px"><div style="color:#c9ddec;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase">TARAMA PAYLAŞIMI</div><div style="color:#ffffff;font-size:13px;font-weight:700;margin-top:7px">Tarama planını ve PDF içeriğini incelemek için bağlantıyı açın.</div><a href="${escapeHtml(shareUrl)}" style="display:inline-block;color:#ffffff;text-decoration:none;font-size:12px;font-weight:700;margin-top:12px">Tarama detaylarını görüntüle →</a><div style="color:#c9ddec;font-size:11px;margin-top:6px">Hizmet kapsamı, saha planı ve PDF önizlemesi tek ekranda.</div></div>`
             : ""
         }
         <div style="border-top:1px solid #e9eef2;margin-top:24px;padding-top:20px;font-size:13px;line-height:1.7;color:#66798b">Planlamayla ilgili bir değişiklik olursa bu e-posta üzerinden bizimle iletişime geçebilirsiniz.<br><br><strong style="color:#17324d">Saygılarımızla,<br>${escapeHtml(organization.title)}</strong><br>${escapeHtml(organization.phone)} · ${escapeHtml(organization.email)}</div>
@@ -449,6 +462,8 @@ export default function ScreeningDetailPage({ screeningId }: { screeningId: stri
             >
               <Link href={`/taramalar/yeni?edit=${screening.id}`}>Düzenle</Link>
             </Button>
+            {screening.status !== "İptal" && screening.status !== "Tamamlandı" && <Button onClick={cancelScreening} size="sm" variant="outline"><XCircle /> İptal et</Button>}
+            <Button onClick={removeScreening} size="sm" variant="danger"><Trash2 /> Sil</Button>
           </div>
         </div>
         <div className="relative z-10 mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -467,7 +482,7 @@ export default function ScreeningDetailPage({ screeningId }: { screeningId: stri
         {tab("activity", "Aktivite geçmişi")}
       </div>
       {activeTab === "overview" && (
-        <Overview screening={screening} company={company} lines={lines} total={total} progress={progress} />
+        <Overview screening={screening} company={company} lines={lines} total={total} progress={progress} onUpdateCompleted={updateCompleted} />
       )}
       {activeTab === "services" && <Services lines={lines} total={total} />}
       {activeTab === "field" && <FieldPlan screening={screening} team={team} equipment={equipment} />}
@@ -486,6 +501,7 @@ export default function ScreeningDetailPage({ screeningId }: { screeningId: stri
         />
       )}
       {activeTab === "activity" && <Activity screening={screening} />}
+      <ConfirmDialog onClose={closeConfirm} request={confirmRequest} />
       <Modal
         description="Gönderim ayarlarını düzenleyin, kurumsal e-posta içeriğini kontrol edin ve mail uygulamanızda açın."
         eyebrow="Müşteri iletişimi"
@@ -506,8 +522,8 @@ export default function ScreeningDetailPage({ screeningId }: { screeningId: stri
         size="xl"
         title="Tarama e-postası hazırla"
       >
-        <div className="grid gap-6 lg:grid-cols-[0.78fr_1.22fr]">
-          <div className="space-y-4">
+        <div className="grid gap-4 lg:gap-6 lg:grid-cols-[270px_minmax(0,1fr)]">
+          <div className="space-y-4 rounded-2xl border border-border bg-card-muted/35 p-4 sm:p-5 lg:sticky lg:top-0 lg:self-start">
             <div>
               <p className="text-foreground text-xs font-semibold">Gönderim ayarları</p>
               <p className="text-muted mt-1 text-[11px]">Alıcı ve e-posta bilgilerini gönderimden önce güncelleyin.</p>
@@ -589,7 +605,7 @@ export default function ScreeningDetailPage({ screeningId }: { screeningId: stri
             </div>
           </div>
 
-          <div className="lg:sticky lg:top-0 lg:self-start">
+          <div className="min-w-0 rounded-2xl border border-border bg-card-muted/35 p-3 sm:p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <p className="text-foreground text-xs font-semibold">E-posta önizlemesi</p>
@@ -676,7 +692,7 @@ export default function ScreeningDetailPage({ screeningId }: { screeningId: stri
                     <div className="min-w-0">
                       <p className="text-xs font-semibold">PDF eki ve tarama detayları</p>
                       <p className="text-sidebar-muted mt-0.5 truncate text-[10px]">
-                        Ayrıntılı bilgi ve içerik için PDF dosyasını inceleyebilirsiniz.
+                        Tarama planını ve PDF içeriğini incelemek için bağlantıyı açın.
                       </p>
                     </div>
                   </div>
@@ -851,12 +867,14 @@ function Overview({
   lines,
   total,
   progress,
+  onUpdateCompleted,
 }: {
   screening: Screening;
   company?: { name: string; sector: string; contact: string; phone: string; email: string; employees: number };
   lines: Array<{ testId: number; name: string; category: string; quantity: number; unitPrice: number }>;
   total: number;
   progress: number;
+  onUpdateCompleted: (value: number) => void;
 }) {
   return (
     <div className="mt-6 grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
@@ -873,11 +891,9 @@ function Overview({
             <Info label="Katılımcı" value={`${screening.participants} kişi`} />
           </div>
           <div className="bg-card-muted mt-5 rounded-xl p-4">
-            <div className="flex justify-between text-xs">
-              <span className="text-muted font-semibold">Tamamlanma</span>
-              <strong className="text-foreground">
-                {screening.completed} / {screening.participants} kişi
-              </strong>
+            <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div><span className="text-muted block font-semibold">Tamamlanma</span><span className="text-subtle mt-1 block text-[11px]">Tamamlanan kişi sayısını güncelleyin.</span></div>
+              <label className="flex items-center gap-2"><Input aria-label="Tamamlanan katılımcı sayısı" className="h-9 w-24 text-right" max={screening.participants} min={0} onChange={(event) => onUpdateCompleted(Number(event.target.value))} type="number" value={screening.completed} /><span className="text-muted">/ {screening.participants} kişi</span></label>
             </div>
             <div className="bg-background mt-3 h-3 overflow-hidden rounded-full">
               <div className="bg-brand h-full rounded-full" style={{ width: `${progress}%` }} />

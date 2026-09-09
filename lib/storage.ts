@@ -17,13 +17,12 @@ let storageEventBound = false;
 
 const isBrowser = () => typeof window !== "undefined";
 
-/* One-time cleanup of keys left behind by the removed personnel/results/AI modules. */
+/* One-time cleanup of keys left behind by removed results/AI modules. */
 if (isBrowser()) {
   [
     "hantech-employees",
     "hantech-result-records",
     "hantech-ai-settings",
-    "hantech-personnel",
     "hantech-result-columns",
     "hantech-result-rows",
     "hantech-result-hidden-columns",
@@ -47,7 +46,14 @@ function bindStorageEvent() {
   if (storageEventBound || !isBrowser()) return;
   storageEventBound = true;
   window.addEventListener("storage", (event) => {
-    if (event.key) emit(event.key);
+    if (event.key) {
+      emit(event.key);
+      return;
+    }
+
+    // `localStorage.clear()` emits a storage event with a null key.
+    // Refresh every subscribed store so other tabs do not keep stale data visible.
+    listeners.forEach((_, key) => emit(key));
   });
 }
 

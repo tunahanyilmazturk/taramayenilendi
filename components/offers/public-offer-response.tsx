@@ -57,6 +57,7 @@ export default function PublicOfferResponse({ offerId }: { offerId: string }) {
       <label className="mt-7 block text-sm font-semibold text-foreground">Açıklama <span className="font-normal text-muted">(isteğe bağlı)</span><Textarea className="mt-2 min-h-28" onChange={(event) => setNote(event.target.value)} placeholder="Yanıtınızla ilgili notunuzu yazabilirsiniz..." value={note} /></label>
       <div className="mt-6 grid gap-3 sm:grid-cols-3"><Button onClick={() => respond("Onaylandı")}><CheckCircle2 /> Teklifi onayla</Button><Button onClick={() => respond("Görüşülüyor")} variant="secondary"><FileText /> Değerlendiriyorum</Button><Button onClick={() => respond("Reddedildi")} variant="danger-outline"><XCircle /> Teklifi reddet</Button></div>
       <p className="mt-6 text-center text-xs text-muted">Bu bağlantı teklif yanıtı için hazırlanmıştır. Yanıtınız kayıt altına alınır.</p>
+      <p className="mt-2 text-center text-[11px] text-subtle">Demo sürümünde teklif verileri bu tarayıcıda saklanır; farklı cihazlarda paylaşım için sunucu bağlantısı gerekir.</p>
     </Card>
   </div></main>;
 }

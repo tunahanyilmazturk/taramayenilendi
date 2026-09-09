@@ -26,7 +26,7 @@ export default function ScreeningStepPricing({
   const total = net + tax;
   return (
     <section>
-      <div className="mt-4 grid min-h-[420px] gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+      <div className="mt-4 grid min-h-[280px] gap-6 sm:min-h-[420px] lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="space-y-5">
           <section className="border-border bg-card rounded-2xl border p-5">
             <div className="mb-4 flex items-center gap-2.5">

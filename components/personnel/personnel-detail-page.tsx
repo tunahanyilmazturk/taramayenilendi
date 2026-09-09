@@ -1,22 +1,28 @@
 "use client";
 
-import { ArrowLeft, BriefcaseBusiness, Building2, CalendarDays, Clock3, IdCard, Mail, Phone, ShieldCheck, UsersRound } from "lucide-react";
+import { ArrowLeft, BriefcaseBusiness, Building2, CalendarDays, Check, IdCard, Mail, Pencil, Phone, ShieldCheck, Trash2, UsersRound } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, StatTile } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Alert, ConfirmDialog } from "@/components/ui/modal";
 import { Page, PageHeader } from "@/components/ui/page-header";
 import { Avatar } from "@/components/ui/table";
 import { useCompanies, usePersonnel } from "@/lib/data";
 import { isoToLabel } from "@/lib/format";
+import { useConfirm, useNotice } from "@/lib/hooks";
 import { useHydrated } from "@/lib/storage";
 import { initials } from "@/lib/utils";
 
 export default function PersonnelDetailPage({ personnelId }: { personnelId: string }) {
   const hydrated = useHydrated();
-  const [personnel] = usePersonnel();
+  const router = useRouter();
+  const [personnel, setPersonnel] = usePersonnel();
   const [companies] = useCompanies();
+  const [notice, showNotice] = useNotice();
+  const { request: confirmRequest, confirm, close: closeConfirm } = useConfirm();
   const item = personnel.find((entry) => entry.id === Number(personnelId));
   const company = item ? companies.find((entry) => entry.id === item.companyId) : undefined;
 
@@ -35,10 +41,22 @@ export default function PersonnelDetailPage({ personnelId }: { personnelId: stri
     );
   }
 
+  const remove = () => confirm({
+    title: "Personeli sil",
+    description: `${item.name} personel kaydı kalıcı olarak silinecek.`,
+    confirmLabel: "Personeli sil",
+    onConfirm: () => {
+      setPersonnel((current) => current.filter((entry) => entry.id !== item.id));
+      showNotice("Personel kaydı silindi.");
+      window.setTimeout(() => router.push("/personeller"), 400);
+    },
+  });
+
   return (
     <Page>
+      {notice && <Alert className="mb-4" icon={Check}>{notice}</Alert>}
       <PageHeader
-        actions={<div className="flex flex-wrap gap-2"><Button asChild variant="outline"><Link href="/personeller"><ArrowLeft /> Personeller</Link></Button>{company && <Button asChild variant="secondary"><Link href={`/firmalar/${company.id}`}><Building2 /> Firma detayına git</Link></Button>}</div>}
+        actions={<div className="flex flex-wrap gap-2"><Button asChild variant="outline"><Link href="/personeller"><ArrowLeft /> Personeller</Link></Button>{company && <Button asChild variant="secondary"><Link href={`/firmalar/${company.id}`}><Building2 /> Firma detayına git</Link></Button>}<Button asChild><Link href={`/personeller?duzenle=${item.id}`}><Pencil /> Düzenle</Link></Button><Button onClick={remove} variant="danger"><Trash2 /> Sil</Button></div>}
         className="border-border bg-card shadow-card rounded-2xl border px-5 py-5 sm:px-6 sm:py-6"
         description="Firma çalışanının kimlik, görev, iletişim ve çalışma bilgilerini tek ekranda görüntüleyin."
         eyebrow="Personel detay kaydı"
@@ -51,7 +69,7 @@ export default function PersonnelDetailPage({ personnelId }: { personnelId: stri
           <div className="flex items-center gap-4"><Avatar size="lg" text={initials(item.name)} /><div><p className="text-lg font-semibold text-heading">{item.title || "Görev belirtilmedi"}</p><p className="mt-1 text-sm text-muted">{company?.name || "Firma bulunamadı"}{item.department ? ` · ${item.department}` : ""}</p></div></div>
           <Badge tone={item.status === "Aktif" ? "brand" : item.status === "İzinli" ? "warning" : "danger"}>{item.status}</Badge>
         </div>
-        <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-4 sm:p-6"><StatTile icon={Building2} label="Bağlı firma" value={company?.name || "—"} /><StatTile icon={BriefcaseBusiness} label="Departman" value={item.department || "Belirtilmedi"} /><StatTile icon={CalendarDays} label="İşe giriş" value={isoToLabel(item.startDate) || "Belirtilmedi"} /><StatTile icon={Clock3} label="Vardiya" value={item.shift} /></div>
+        <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-3 sm:p-6"><StatTile icon={Building2} label="Bağlı firma" value={company?.name || "—"} /><StatTile icon={BriefcaseBusiness} label="Departman" value={item.department || "Belirtilmedi"} /><StatTile icon={CalendarDays} label="İşe giriş" value={isoToLabel(item.startDate) || "Belirtilmedi"} /></div>
       </Card>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
@@ -60,6 +78,7 @@ export default function PersonnelDetailPage({ personnelId }: { personnelId: stri
       </div>
 
       <Card className="mt-5 p-5 sm:p-6"><CardHeader description="Kayıt üzerinde tutulmuş operasyonel açıklamalar." title="Notlar" />{item.notes ? <p className="mt-5 rounded-xl border border-border bg-card-muted p-4 text-sm leading-6 text-foreground">{item.notes}</p> : <p className="mt-5 rounded-xl border border-dashed border-border p-4 text-sm text-muted">Bu personel için henüz not eklenmemiş.</p>}</Card>
+      <ConfirmDialog onClose={closeConfirm} request={confirmRequest} />
     </Page>
   );
 }

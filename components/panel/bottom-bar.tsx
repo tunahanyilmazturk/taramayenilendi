@@ -24,7 +24,7 @@ export default function BottomBar({ onMore }: BottomBarProps) {
   return (
     <nav
       aria-label="Mobil navigasyon"
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card/95 backdrop-blur-md lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 min-h-16 border-t border-border bg-card/95 backdrop-blur-md lg:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <ul className="mx-auto flex max-w-md items-stretch justify-around">
@@ -37,7 +37,7 @@ export default function BottomBar({ onMore }: BottomBarProps) {
                 aria-current={active ? "page" : undefined}
                 aria-label={item.label}
                 className={cn(
-                  "flex flex-col items-center gap-1 py-2.5 text-[10px] font-semibold transition-colors",
+                  "flex flex-col items-center gap-1 px-1 py-2 text-[10px] font-semibold transition-colors",
                   active ? "text-brand" : "text-muted hover:text-foreground",
                 )}
                 href={item.href}
@@ -60,7 +60,7 @@ export default function BottomBar({ onMore }: BottomBarProps) {
             aria-current={moreActive ? "page" : undefined}
             aria-label="Tüm menü"
             className={cn(
-              "flex w-full flex-col items-center gap-1 py-2.5 text-[10px] font-semibold transition-colors",
+              "flex w-full flex-col items-center gap-1 px-1 py-2 text-[10px] font-semibold transition-colors",
               moreActive ? "text-brand" : "text-muted hover:text-foreground",
             )}
             onClick={onMore}

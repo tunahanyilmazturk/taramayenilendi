@@ -13,6 +13,7 @@ import { nextOfferNumber, type Company, type Offer, type OfferType, type TestIte
 import { isoToLabel, labelToIso, todayIso } from "@/lib/format";
 import { useNotice } from "@/lib/hooks";
 import { useHydrated } from "@/lib/storage";
+import { nextNumericId } from "@/lib/utils";
 import StepCompany from "./wizard/step-company";
 import StepConditions from "./wizard/step-conditions";
 import StepPricing from "./wizard/step-pricing";
@@ -95,7 +96,7 @@ function OfferWizard({
   existingOffer?: Offer;
 }) {
   const router = useRouter();
-  const [, setOffers] = useOffers();
+  const [offers, setOffers] = useOffers();
   const [notice, showNotice] = useNotice();
   const [step, setStep] = useState<Step>(1);
   const [wizard, setWizard] = useState<WizardState>(() => existingOffer ? wizardFromOffer(existingOffer, tests) : initialWizard(preselected));
@@ -159,7 +160,7 @@ function OfferWizard({
       return;
     }
     setSaving(true);
-    const offerId = existingOffer?.id ?? Date.now();
+    const offerId = existingOffer?.id ?? nextNumericId(offers);
     setOffers((current) => {
       const offer: Offer = {
         id: offerId,

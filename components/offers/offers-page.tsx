@@ -1,15 +1,17 @@
 "use client";
 
-import { CalendarDays, Check, ClipboardList, Edit3, Eye, FileText, LayoutGrid, List, Plus, Trash2 } from "lucide-react";
+import { CalendarDays, Check, ClipboardList, Edit3, Eye, FileText, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Badge, CountPill, offerTone } from "@/components/ui/badge";
+import { Badge, offerTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Field, FilterSelect, Input, SearchInput, Select } from "@/components/ui/field";
+import { Field, FilterSelect, Input, Select } from "@/components/ui/field";
 import { Alert, ConfirmDialog, Modal } from "@/components/ui/modal";
 import { Page, PageHeader } from "@/components/ui/page-header";
+import { VisualFilterSurface } from "@/components/ui/visual-filter-surface";
+import { ListToolbar } from "@/components/ui/list-toolbar";
 import { Pagination, paginate } from "@/components/ui/pagination";
 import { Avatar, DataTable, SortButton, TBody, Td, Th, THead, Tr } from "@/components/ui/table";
 import { useCompanies, useOffers, useOrganization } from "@/lib/data";
@@ -223,12 +225,13 @@ export default function OffersPage() {
 
   return (
     <Page>
+      <VisualFilterSurface visual="/headers/offers.png">
       <PageHeader
-        className="border-border bg-card shadow-card rounded-2xl border px-5 py-5 sm:px-6 sm:py-6"
+        className="border-0 bg-transparent p-0 shadow-none before:hidden"
         eyebrow="Teklif ve fiyatlandırma merkezi"
         title="Teklifler"
         description="Firmalarınıza sunduğunuz OSGB hizmet tekliflerini ve dönüş süreçlerini yönetin."
-        visual="/headers/offers.png"
+        dark
         actions={
           <Button asChild>
             <Link href="/teklifler/yeni">
@@ -252,16 +255,9 @@ export default function OffersPage() {
           </Button>
         </Card>
       )}
-      <Card aria-label="Teklif listesi filtreleri" className="mt-5 p-4 sm:p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-foreground text-sm font-semibold">Teklif listesi</h2>
-              <CountPill>{filtered.length} kayıt</CountPill>
-            </div>
-            <p className="text-subtle mt-1 text-xs">Teklifleri arayın, durumlarına göre filtreleyin ve sıralayın.</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+      <ListToolbar advancedOpen={advancedOpen} count={filtered.length} description="Teklifleri arayın, gelişmiş filtrelerle daraltın ve sıralayın." onAdvanced={() => setAdvancedOpen((value) => !value)} onCards={() => setView("cards")} onList={() => setView("table")} onQuery={(value) => { setQuery(value); setPage(1); }} placeholder="Teklif no, firma, başlık veya yetkili ara..." query={query} title="Teklif listesi" view={view}>
+        {advancedOpen && (
+          <div className="border-divider mt-4 grid gap-3 border-t pt-4 sm:grid-cols-2 lg:grid-cols-4">
             <FilterSelect
               label="Durum"
               onChange={(value) => {
@@ -271,28 +267,6 @@ export default function OffersPage() {
               options={statusFilters}
               value={status}
             />
-            <OfferViewToggle onChange={setView} view={view} />
-            <Button
-              onClick={() => setAdvancedOpen((value) => !value)}
-              size="sm"
-              variant={advancedOpen || hasAdvancedFilters ? "soft" : "outline"}
-            >
-              {advancedOpen ? "Gelişmiş filtreleri gizle" : "Gelişmiş filtreler"}
-            </Button>
-          </div>
-        </div>
-        <SearchInput
-          aria-label="Teklif ara"
-          className="mt-4"
-          onChange={(event) => {
-            setQuery(event.target.value);
-            setPage(1);
-          }}
-          placeholder="Teklif no, firma, başlık veya yetkili ara..."
-          value={query}
-        />
-        {advancedOpen && (
-          <div className="border-divider mt-4 grid gap-3 border-t pt-4 sm:grid-cols-2 lg:grid-cols-4">
             <FilterSelect
               label="Firma"
               onChange={(value) => {
@@ -398,7 +372,8 @@ export default function OffersPage() {
             )}
           </div>
         )}
-      </Card>
+      </ListToolbar>
+      </VisualFilterSurface>
       {paged.length > 0 ? (
         view === "table" ? (
           <OfferTable
@@ -452,32 +427,6 @@ type RowActions = {
   onStatus: (offer: Offer, status: OfferStatus) => void;
   onPreview: (offer: Offer) => void;
 };
-
-function OfferViewToggle({ view, onChange }: { view: View; onChange: (view: View) => void }) {
-  const options: Array<[View, string, typeof List]> = [
-    ["table", "Liste görünümü", List],
-    ["cards", "Kart görünümü", LayoutGrid],
-  ];
-  return (
-    <div aria-label="Görünüm" className="border-border bg-card flex rounded-xl border p-1" role="group">
-      {options.map(([id, label, Icon]) => (
-        <button
-          aria-label={label}
-          aria-pressed={view === id}
-          className={cn(
-            "rounded-lg p-2 transition-colors",
-            view === id ? "bg-brand-soft text-brand-soft-fg" : "text-muted hover:text-foreground",
-          )}
-          key={id}
-          onClick={() => onChange(id)}
-          type="button"
-        >
-          <Icon className="size-4" />
-        </button>
-      ))}
-    </div>
-  );
-}
 
 function OfferGrid({
   offers,

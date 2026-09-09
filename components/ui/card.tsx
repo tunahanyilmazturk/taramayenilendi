@@ -28,7 +28,7 @@ export function CardHeader({
           {description && <p className="text-muted mt-1 text-xs leading-5">{description}</p>}
         </div>
       </div>
-      {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
+      {action && <div className="flex max-w-full shrink-0 items-center gap-2">{action}</div>}
     </div>
   );
 }

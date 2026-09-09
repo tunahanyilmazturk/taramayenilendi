@@ -23,6 +23,11 @@ export function compareTr(a: string | number, b: string | number) {
   return typeof a === "number" && typeof b === "number" ? a - b : String(a).localeCompare(String(b), "tr");
 }
 
+/** Returns the next stable numeric ID for a collection of records. */
+export function nextNumericId(items: Array<{ id: number }>) {
+  return items.reduce((max, item) => Math.max(max, item.id), 0) + 1;
+}
+
 /** Slices a 1-based page window (max `size` items) around the current page. */
 export function pageWindow(page: number, pageCount: number, size = 5) {
   const start = Math.max(1, Math.min(page - Math.floor(size / 2), pageCount - size + 1));

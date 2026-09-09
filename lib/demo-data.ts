@@ -4,6 +4,7 @@
 */
 
 export type ContractStatus = "Aktif" | "Yenileniyor" | "Pasif";
+export type CompanyDocument = { id: string; name: string; size: number; type: string; dataUrl?: string; createdAt: string };
 export type Company = {
   id: number;
   name: string;
@@ -18,6 +19,8 @@ export type Company = {
   contract: ContractStatus;
   contractEnd: string;
   lastScreening: string;
+  notes?: string;
+  contractDocuments?: CompanyDocument[];
 };
 export const contractStatuses: ContractStatus[] = ["Aktif", "Yenileniyor", "Pasif"];
 
@@ -774,6 +777,8 @@ export function normalizeCompany(input: Partial<Company> & { id: number; name: s
     contract: input.contract ?? "Aktif",
     contractEnd: input.contractEnd ?? "",
     lastScreening: input.lastScreening ?? "Henüz yok",
+    notes: input.notes ?? "",
+    contractDocuments: Array.isArray(input.contractDocuments) ? input.contractDocuments : [],
   };
 }
 
@@ -900,6 +905,7 @@ export const demoScreenings: Screening[] = [
     title: "Artemis Otomotiv yıllık sağlık taraması",
     companyId: 1,
     company: "Artemis Otomotiv A.Ş.",
+    testIds: [1, 2, 3, 4],
     date: "05 Eyl 2026",
     time: "09:30",
     location: "Gebze Organize Sanayi",
@@ -915,6 +921,7 @@ export const demoScreenings: Screening[] = [
     title: "Mavi Hat işe giriş taraması",
     companyId: 2,
     company: "Mavi Hat Lojistik",
+    testIds: [1, 2, 4],
     date: "08 Eyl 2026",
     time: "10:00",
     location: "Tuzla Depo Merkezi",
@@ -930,6 +937,7 @@ export const demoScreenings: Screening[] = [
     title: "Nova Gıda periyodik muayene",
     companyId: 3,
     company: "Nova Gıda Üretim",
+    testIds: [1, 3, 4, 8],
     date: "12 Eyl 2026",
     time: "08:30",
     location: "Çerkezköy Fabrika",

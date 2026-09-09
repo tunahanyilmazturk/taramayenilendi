@@ -2,6 +2,7 @@
 
 import {
   ArrowLeft,
+  ArrowUpRight,
   Building2,
   CalendarDays,
   CheckCircle2,
@@ -13,6 +14,8 @@ import {
   FileDown,
   Edit3,
   History,
+  LayoutDashboard,
+  ListChecks,
   FileText,
   Mail,
   Paperclip,
@@ -23,9 +26,11 @@ import {
   Share2,
   Send,
   Tag,
+  MessageSquareText,
   Trash2,
   Truck,
   UsersRound,
+  WalletCards,
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -68,6 +73,14 @@ export default function OfferDetailPage({ offerId }: { offerId: string }) {
     () => offer?.reminder?.date || getAutomaticReminderDate(offer?.validUntil),
   );
   const [reminderNote, setReminderNote] = useState(() => offer?.reminder?.note || "Teklif geçerlilik kontrolü");
+  const [mailOpen, setMailOpen] = useState(false);
+  const [mailTo, setMailTo] = useState("");
+  const [mailCc, setMailCc] = useState("");
+  const [mailBcc, setMailBcc] = useState("");
+  const [mailSubject, setMailSubject] = useState("");
+  const [includeMailSummary, setIncludeMailSummary] = useState(true);
+  const [includeMailCoverLetter, setIncludeMailCoverLetter] = useState(true);
+  const [includeMailLink, setIncludeMailLink] = useState(true);
 
   useEffect(() => {
     if (!hydrated || !offer || offer.reminder || !getAutomaticReminderDate(offer.validUntil)) return;
@@ -145,9 +158,80 @@ export default function OfferDetailPage({ offerId }: { offerId: string }) {
     typeof window !== "undefined"
       ? `${window.location.origin}/teklif-yanit/${offer.id}?paylas=${encodeURIComponent(shareToken)}`
       : `/teklif-yanit/${offer.id}?paylas=${encodeURIComponent(shareToken)}`;
-  const emailHref = company?.email
-    ? `mailto:${company.email}?subject=${encodeURIComponent(offer.title)}&body=${encodeURIComponent(`Merhaba ${offer.contact || ""},\n\n${offer.title} teklifimizi incelemeniz için iletiyoruz.\n\nTeklif bağlantısı: ${shareUrl}\n\nSaygılarımızla,\n${organization.title}`)}`
-    : undefined;
+  const mailRecipientName = offer.contact || company?.contact || "Yetkili";
+  const mailItemRows = offer.lines?.slice(0, 5) ?? [];
+  const mailItemOverflow = Math.max((offer.lines?.length ?? 0) - mailItemRows.length, 0);
+  const mailItems = offer.lines?.length
+    ? offer.lines.map((line) => `${line.name} (${line.quantity} adet)`).join(", ")
+    : `${offer.items} hizmet kalemi`;
+  const mailItemsHtml = mailItemRows.length
+    ? `${mailItemRows.map((line) => `<div style="display:flex;justify-content:space-between;gap:16px;padding:6px 0;border-bottom:1px solid #dfe7ec"><span>${escapeHtml(line.name)}</span><strong style="color:#1d5b91">${line.quantity} adet</strong></div>`).join("")}${mailItemOverflow > 0 ? `<div style="color:#66798b;font-size:11px;margin-top:8px">+${mailItemOverflow} kalem daha · Ayrıntılar PDF dosyasında</div>` : ""}`
+    : `<div style="color:#66798b;font-size:12px">Hizmet kalemi belirtilmedi.</div>`;
+  const mailBody = [
+    `Merhaba ${mailRecipientName},`,
+    "",
+    `${offer.company} için hazırladığımız ${offer.title} teklifini bilgilerinize sunarız.`,
+    ...(includeMailCoverLetter && offer.coverLetterText ? ["", "TEKLİF ÖN YAZISI", offer.coverLetterText] : []),
+    ...(includeMailSummary
+      ? [
+          "",
+          "TEKLİF ÖZETİ",
+          `Hizmetler: ${mailItems}`,
+          `Geçerlilik: ${offer.validUntil}`,
+          "Fiyatlandırma ve diğer teklif detayları için PDF dosyasını inceleyebilirsiniz.",
+        ]
+      : []),
+    ...(includeMailLink
+      ? [
+          "",
+          "TEKLİF PAYLAŞIMI",
+          "Teklifi incelemek, onaylamak veya değişiklik talebi iletmek için aşağıdaki bağlantıyı açabilirsiniz.",
+          shareUrl,
+        ]
+      : []),
+    "",
+    "Sorularınız veya değişiklik talepleriniz için bizimle iletişime geçebilirsiniz.",
+    "",
+    `Saygılarımızla,\n${organization.title}\n${organization.phone} · ${organization.email}`,
+  ].join("\n");
+  const mailHtml = `<div style="font-family:Arial,sans-serif;color:#17324d;line-height:1.7"><div style="background:#123d56;color:#fff;padding:20px;border-radius:12px 12px 0 0"><strong>${escapeHtml(organization.shortName || organization.title)}</strong><div style="color:#c9ddec;font-size:11px;margin-top:5px;letter-spacing:1px">TEKLİF BİLGİLENDİRMESİ</div></div><div style="padding:24px;background:#f7fafc"><p>Merhaba ${escapeHtml(mailRecipientName)},</p><p>${escapeHtml(offer.company)} için hazırladığımız <strong>${escapeHtml(offer.title)}</strong> teklifini bilgilerinize sunarız.</p>${includeMailCoverLetter && offer.coverLetterText ? `<div style="border-left:4px solid #1d6f91;background:#eef5f8;margin-top:20px;padding:16px 18px;border-radius:0 12px 12px 0"><div style="color:#1d5b91;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase">Teklif ön yazısı</div><div style="margin-top:8px;font-size:13px;white-space:pre-line">${escapeHtml(offer.coverLetterText)}</div></div>` : ""}${includeMailSummary ? `<div style="background:#e8f0f8;padding:16px;border-radius:12px;margin-top:20px"><strong>Teklif kapsamı</strong><div style="margin-top:10px">${mailItemsHtml}</div><p style="color:#66798b;font-size:11px;margin:12px 0 0;border-top:1px solid #dfe7ec;padding-top:10px">Fiyatlandırma ve diğer teklif detayları için ekli PDF dosyasını inceleyebilirsiniz.</p></div>` : ""}${includeMailLink ? `<div style="background:#123d56;margin-top:20px;padding:16px;border-radius:12px"><div style="color:#c9ddec;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase">Teklif paylaşımı</div><div style="color:#fff;font-size:13px;font-weight:700;margin-top:7px">Teklifi incelemek ve onaylamak için bağlantıyı açın.</div><a href="${escapeHtml(shareUrl)}" style="display:inline-block;color:#fff;text-decoration:none;font-size:12px;font-weight:700;margin-top:12px">Teklifi incele ve yanıtla →</a></div>` : ""}<p style="border-top:1px solid #e9eef2;margin-top:24px;padding-top:20px">Sorularınız veya değişiklik talepleriniz için bizimle iletişime geçebilirsiniz.<br><br><strong>Saygılarımızla,<br>${escapeHtml(organization.title)}</strong><br>${escapeHtml(organization.phone)} · ${escapeHtml(organization.email)}</p></div></div>`;
+  const openMailComposer = () => {
+    setMailTo(company?.email || "");
+    setMailCc("");
+    setMailBcc("");
+    setMailSubject(`Teklif | ${offer.company} | ${offer.title}`);
+    setMailOpen(true);
+  };
+  const copyMailBody = async () => {
+    try {
+      if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            "text/html": new Blob([mailHtml], { type: "text/html" }),
+            "text/plain": new Blob([mailBody], { type: "text/plain" }),
+          }),
+        ]);
+        showNotice("Biçimli teklif e-postası panoya kopyalandı.");
+      } else {
+        await navigator.clipboard.writeText(mailBody);
+        showNotice("Teklif e-postası düz metin olarak kopyalandı.");
+      }
+    } catch {
+      showNotice("E-posta içeriği kopyalanamadı.");
+    }
+  };
+  const openMailClient = () => {
+    if (!mailTo.trim()) {
+      showNotice("Lütfen en az bir alıcı e-posta adresi girin.");
+      return;
+    }
+    const params = new URLSearchParams({ subject: mailSubject, body: mailBody });
+    if (mailCc.trim()) params.set("cc", mailCc.trim());
+    if (mailBcc.trim()) params.set("bcc", mailBcc.trim());
+    markOfferSent();
+    window.location.assign(`mailto:${mailTo.trim()}?${params.toString()}`);
+    setMailOpen(false);
+  };
   const createRevision = () => {
     const currentRevision = offer.revision ?? 1;
     const createdAt = new Date().toLocaleDateString("tr-TR");
@@ -262,6 +346,14 @@ export default function OfferDetailPage({ offerId }: { offerId: string }) {
     );
     showNotice("Ek dosya kaldırıldı.");
   };
+  const tabItems = [
+    ["overview", "Genel bakış", LayoutDashboard],
+    ["services", "Hizmetler", ListChecks],
+    ["financial", "Finans", WalletCards],
+    ["company", "Firma bilgileri", Building2],
+    ["response", "Yanıt ve belgeler", MessageSquareText],
+    ["activity", "Aktivite geçmişi", History],
+  ] as const;
 
   return (
     <Page>
@@ -324,13 +416,9 @@ export default function OfferDetailPage({ offerId }: { offerId: string }) {
             >
               <Eye /> PDF önizleme
             </Button>
-            {emailHref && (
-              <Button asChild size="sm" variant="outline">
-                <a href={emailHref} onClick={markOfferSent}>
-                  <Mail /> E-posta taslağı
-                </a>
-              </Button>
-            )}
+            <Button onClick={openMailComposer} size="sm" variant="outline">
+              <Mail /> E-posta gönder
+            </Button>
             <Button
               asChild
               className="border-sidebar-border bg-sidebar-hover text-sidebar-fg-strong hover:bg-sidebar-active hover:text-sidebar-fg-strong"
@@ -364,31 +452,27 @@ export default function OfferDetailPage({ offerId }: { offerId: string }) {
         </div>
       </Card>
 
-      <div className="border-divider mt-6 flex gap-2 overflow-x-auto border-b pb-1">
-        {[
-          ["overview", "Genel bakış"],
-          ["services", "Hizmetler"],
-          ["financial", "Finans"],
-          ["company", "Firma bilgileri"],
-          ["response", "Yanıt ve belgeler"],
-          ["activity", "Aktivite geçmişi"],
-        ].map(([value, label]) => (
+      <div className="border-border bg-card/95 sticky top-16 z-10 mt-6 flex gap-1 overflow-x-auto rounded-xl border p-1 shadow-sm backdrop-blur-xl" role="tablist">
+        {tabItems.map(([value, label, Icon]) => (
           <button
             className={cn(
-              "shrink-0 rounded-t-lg px-4 py-2.5 text-xs font-semibold transition-colors",
-              activeTab === value ? "border-brand text-brand border-b-2" : "text-muted hover:text-foreground",
+              "inline-flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2.5 text-xs font-semibold transition-colors sm:px-4",
+              activeTab === value ? "bg-brand-soft text-brand-soft-fg shadow-sm" : "text-muted hover:bg-card-muted hover:text-foreground",
             )}
+            aria-selected={activeTab === value}
             key={value}
             onClick={() => setActiveTab(value as typeof activeTab)}
+            role="tab"
             type="button"
           >
+            <Icon className="size-3.5" />
             {label}
           </button>
         ))}
       </div>
 
       {activeTab === "overview" && (
-        <div className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_0.6fr]">
+        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]">
           {/* Left column — content sections */}
           <div className="space-y-6">
             {/* Service items */}
@@ -842,6 +926,71 @@ export default function OfferDetailPage({ offerId }: { offerId: string }) {
         />
       )}
 
+      <Modal
+        className="sm:max-w-5xl"
+        description="Alıcı ve e-posta içeriğini kontrol edin, ardından varsayılan e-posta uygulamanızda açın."
+        eyebrow="Müşteri iletişimi"
+        footer={
+          <>
+            <Button onClick={() => void copyMailBody()} variant="outline">
+              <Copy /> HTML olarak kopyala
+            </Button>
+            <Button onClick={openMailClient} variant="brand">
+              <Send /> E-posta gönder
+            </Button>
+          </>
+        }
+        icon={Mail}
+        onClose={() => setMailOpen(false)}
+        open={mailOpen}
+        size="xl"
+        title="Teklif e-postası hazırla"
+      >
+        <div className="grid gap-4 lg:gap-6 lg:grid-cols-[270px_minmax(0,1fr)]">
+          <div className="space-y-4 rounded-2xl border border-border bg-card-muted/35 p-4 sm:p-5 lg:sticky lg:top-0 lg:self-start">
+            <div>
+              <p className="text-foreground text-xs font-semibold">Gönderim ayarları</p>
+              <p className="text-muted mt-1 text-[11px]">Teklif müşteriye gönderilmeden önce alıcı ve içeriği düzenleyin.</p>
+            </div>
+            <label className="text-foreground block text-xs font-semibold">
+              Kime <span className="text-danger">*</span>
+              <input aria-label="E-posta alıcısı" className="border-border bg-background text-foreground placeholder:text-subtle focus:border-brand focus:ring-brand/20 mt-2 h-10 w-full rounded-xl border px-3 text-xs outline-none focus:ring-2" onChange={(event) => setMailTo(event.target.value)} placeholder="yetkili@firma.com" type="email" value={mailTo} />
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="text-foreground block text-xs font-semibold">Bilgi (CC)<input aria-label="Bilgi e-posta adresleri" className="border-border bg-background text-foreground placeholder:text-subtle focus:border-brand focus:ring-brand/20 mt-2 h-10 w-full rounded-xl border px-3 text-xs outline-none focus:ring-2" onChange={(event) => setMailCc(event.target.value)} placeholder="ekip@firma.com" type="text" value={mailCc} /></label>
+              <label className="text-foreground block text-xs font-semibold">Gizli (BCC)<input aria-label="Gizli e-posta adresleri" className="border-border bg-background text-foreground placeholder:text-subtle focus:border-brand focus:ring-brand/20 mt-2 h-10 w-full rounded-xl border px-3 text-xs outline-none focus:ring-2" onChange={(event) => setMailBcc(event.target.value)} placeholder="yonetim@hantech.com.tr" type="text" value={mailBcc} /></label>
+            </div>
+            <label className="text-foreground block text-xs font-semibold">Konu<input aria-label="E-posta konusu" className="border-border bg-background text-foreground placeholder:text-subtle focus:border-brand focus:ring-brand/20 mt-2 h-10 w-full rounded-xl border px-3 text-xs outline-none focus:ring-2" onChange={(event) => setMailSubject(event.target.value)} type="text" value={mailSubject} /></label>
+            <div className="border-border bg-card-muted rounded-2xl border p-3">
+              <p className="text-subtle text-[10px] font-bold tracking-wider uppercase">İçerik seçenekleri</p>
+              <div className="mt-3 space-y-2">
+                {[[includeMailSummary, setIncludeMailSummary, "Teklif özetini ekle"], [includeMailLink, setIncludeMailLink, "Teklif paylaşım ve onay bağlantısını ekle"]].map(([checked, setter, label]) => (
+                  <button aria-pressed={checked as boolean} className={cn("flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left text-xs font-semibold transition-colors", checked ? "border-brand bg-brand-soft text-brand-soft-fg" : "border-border bg-background text-muted")} key={label as string} onClick={() => (setter as (value: boolean) => void)(!(checked as boolean))} type="button">
+                    <span>{label as string}</span><CheckCircle2 className={cn("size-4", checked ? "text-brand" : "text-subtle")} />
+                  </button>
+                ))}
+                {offer.coverLetterText && <button aria-pressed={includeMailCoverLetter} className={cn("flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left text-xs font-semibold transition-colors", includeMailCoverLetter ? "border-brand bg-brand-soft text-brand-soft-fg" : "border-border bg-background text-muted")} onClick={() => setIncludeMailCoverLetter((current) => !current)} type="button"><span>Teklif ön yazısını ekle</span><CheckCircle2 className={cn("size-4", includeMailCoverLetter ? "text-brand" : "text-subtle")} /></button>}
+              </div>
+            </div>
+            <div className="bg-brand-soft text-brand-soft-fg rounded-xl px-3 py-2.5 text-[11px] leading-5">Gönder butonu, e-posta uygulamanızı alıcı ve teklif içeriği hazır şekilde açar.</div>
+          </div>
+          <div className="min-w-0 rounded-2xl border border-border bg-card-muted/35 p-3 sm:p-4">
+            <div className="mb-3 flex items-center justify-between gap-3"><div><p className="text-foreground text-xs font-semibold">E-posta önizlemesi</p><p className="text-muted mt-1 text-[11px]">Müşteriye ulaşacak teklif içeriği</p></div><span className="bg-brand-soft text-brand-soft-fg rounded-full px-2.5 py-1 text-[10px] font-bold">Kurumsal taslak</span></div>
+            <div className="border-border overflow-hidden rounded-2xl border shadow-sm">
+              <div className="bg-sidebar text-sidebar-fg-strong px-5 py-4"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-bold">{organization.shortName || organization.title}</p><p className="text-sidebar-accent mt-1 text-[10px] tracking-[0.14em] uppercase">TEKLİF BİLGİLENDİRMESİ</p></div><Mail className="text-sidebar-accent size-5" /></div></div>
+              <div className="bg-background p-5 sm:p-6"><div className="border-border bg-card flex items-center gap-3 rounded-xl border px-3 py-3"><span className="bg-brand-soft text-brand flex size-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold">{(organization.shortName || organization.title).slice(0, 2).toUpperCase()}</span><div className="min-w-0 flex-1"><p className="text-subtle text-[10px] font-bold tracking-wider uppercase">Gönderim bilgileri</p><p className="text-foreground mt-0.5 truncate text-xs font-semibold">{mailTo || "Alıcı belirtilmedi"}</p></div><div className="text-right"><p className="text-subtle text-[10px]">Konu</p><p className="text-muted mt-0.5 max-w-40 truncate text-[10px]">{mailSubject || "Teklif"}</p></div></div>
+                {mailCc && <p className="text-muted mt-2 truncate px-1 text-[10px]">CC: {mailCc}</p>}
+                <div className="border-divider mt-6 border-b pb-5"><p className="text-brand text-[10px] font-bold tracking-[0.16em] uppercase">Teklif bilgilendirmesi</p><h3 className="text-heading mt-2 text-xl leading-tight font-semibold tracking-tight">{offer.title}</h3><p className="text-muted mt-3 text-xs leading-6">Merhaba {mailRecipientName},<br />{offer.company} için hazırladığımız teklifimizi bilgilerinize sunarız.</p></div>
+                {includeMailCoverLetter && offer.coverLetterText && <div className="border-brand bg-card-muted mt-5 rounded-r-xl border-l-4 p-4"><p className="text-brand text-[10px] font-bold tracking-wider uppercase">Teklif ön yazısı</p><p className="text-muted mt-2 text-xs leading-5 whitespace-pre-line">{offer.coverLetterText}</p></div>}
+                {includeMailSummary && <div className="bg-brand-soft mt-5 rounded-xl p-4"><p className="text-brand-soft-fg text-[10px] font-bold tracking-wider uppercase">Teklif kapsamı</p><div className="text-foreground mt-3 space-y-1.5 text-xs">{mailItemRows.length ? mailItemRows.map((line) => <div className="flex items-start justify-between gap-3" key={line.testId}><span className="min-w-0">{line.name}</span><span className="shrink-0 font-semibold">{line.quantity} adet</span></div>) : <p>Hizmet kalemi belirtilmedi.</p>}{mailItemOverflow > 0 && <p className="text-brand-soft-fg pt-1 text-[11px] font-semibold">+{mailItemOverflow} kalem daha · Ayrıntılar PDF dosyasında</p>}</div><p className="text-brand-soft-fg mt-3 border-t border-brand-soft-fg/20 pt-3 text-[11px] leading-5">Fiyatlandırma ve diğer teklif detayları için PDF dosyasını inceleyebilirsiniz.</p></div>}
+                {includeMailLink && <div className="bg-sidebar text-sidebar-fg-strong mt-5 rounded-xl p-4"><div className="flex items-center gap-2"><span className="bg-sidebar-accent text-sidebar flex size-8 shrink-0 items-center justify-center rounded-lg"><ExternalLink className="size-4" /></span><p className="text-sidebar-fg-strong text-[10px] font-bold tracking-wider uppercase">Teklif paylaşımı</p></div><p className="text-sidebar-fg-strong mt-3 text-xs font-semibold">Teklifi inceleyin ve yanıtınızı güvenli bağlantı üzerinden iletin.</p><p className="text-sidebar-muted mt-1 text-[10px] leading-5">Onay, ret veya değişiklik talebi için teklif ekranını açabilirsiniz.</p><span className="text-sidebar-accent mt-3 inline-flex items-center gap-1 text-[11px] font-bold">Teklifi incele ve yanıtla <ArrowUpRight className="size-3" /></span></div>}
+                <div className="border-divider mt-6 border-t pt-5"><p className="text-muted text-xs leading-6">Sorularınız veya değişiklik talepleriniz için bizimle iletişime geçebilirsiniz.</p><p className="text-foreground mt-4 text-xs leading-5 font-semibold">Saygılarımızla,<br />{organization.title}<br /><span className="text-muted font-normal">{organization.phone} · {organization.email}</span></p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
       {/* Delete confirmation */}
       {confirmDelete && (
         <Modal
@@ -1141,4 +1290,8 @@ function InfoField({ label, value }: { label: string; value: string }) {
       <p className="text-foreground mt-1 text-xs font-semibold">{value || "Belirtilmedi"}</p>
     </div>
   );
+}
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[character] ?? character);
 }

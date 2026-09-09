@@ -43,7 +43,7 @@ export const offerTone: Record<OfferStatus, BadgeTone> = {
 /** Count pill used next to list headings, e.g. "12 kayıt". */
 export function CountPill({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <span className={cn("rounded-full bg-brand-soft px-2 py-1 text-[10px] font-bold text-brand-soft-fg", className)}>
+    <span className={cn("list-count-pill rounded-full bg-brand-soft px-2 py-1 text-[10px] font-bold text-brand-soft-fg", className)}>
       {children}
     </span>
   );
