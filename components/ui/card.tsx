@@ -95,7 +95,7 @@ export function StatTile({
 /** Summary metric card used on list pages. */
 export function SummaryCard({ label, value, icon: Icon }: { label: string; value: ReactNode; icon: LucideIcon }) {
   return (
-    <div className="border-border bg-card shadow-card min-w-0 rounded-xl border p-4 sm:p-5">
+    <div data-summary-card="true" className="border-border bg-card shadow-card min-w-0 rounded-xl border p-4 sm:p-5">
       <div className="flex items-center justify-between">
         <p className="text-muted text-xs">{label}</p>
         <span className="bg-brand-soft text-brand-soft-fg flex size-9 shrink-0 items-center justify-center rounded-lg">

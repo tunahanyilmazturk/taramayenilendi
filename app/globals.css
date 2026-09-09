@@ -443,3 +443,22 @@ html[data-motion="off"] *::after {
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
 }
+
+.statistics-page [data-summary-card="true"] {
+  padding: 0.75rem 1rem;
+}
+
+.statistics-page [data-summary-card="true"] > div {
+  min-height: 2rem;
+}
+
+.statistics-page [data-summary-card="true"] > div > span {
+  width: 2rem;
+  height: 2rem;
+}
+
+.statistics-page [data-summary-card="true"] > p {
+  margin-top: 0.5rem;
+  font-size: 1.125rem;
+  line-height: 1.35;
+}
