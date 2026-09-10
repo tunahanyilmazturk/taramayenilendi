@@ -1,12 +1,13 @@
 "use client";
 
-import { Check, LockKeyhole, ShieldCheck } from "lucide-react";
-import { useState } from "react";
+import { Check, Download, FileJson, LockKeyhole, ShieldCheck, Upload } from "lucide-react";
+import { useRef, useState } from "react";
 import SettingsCard, { SectionHeading } from "@/components/settings/settings-card";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
-import { Alert } from "@/components/ui/modal";
-import { useNotice } from "@/lib/hooks";
+import { Alert, ConfirmDialog } from "@/components/ui/modal";
+import { useConfirm, useNotice } from "@/lib/hooks";
+import { removeStorage, storageKeys, writeStorage } from "@/lib/storage";
 
 type PasswordForm = { current: string; next: string; confirm: string };
 type PasswordErrors = Partial<Record<keyof PasswordForm, string>>;
@@ -40,6 +41,10 @@ export default function SecuritySettings() {
   const [form, setForm] = useState<PasswordForm>(emptyForm);
   const [submitted, setSubmitted] = useState(false);
   const [notice, showNotice] = useNotice();
+  const [backupError, setBackupError] = useState("");
+  const [backupPreview, setBackupPreview] = useState<{ data: Record<string, string | null>; storedCount: number } | null>(null);
+  const backupInputRef = useRef<HTMLInputElement>(null);
+  const { request: confirmRequest, confirm, close: closeConfirm } = useConfirm();
   const errors = validate(form);
   const shown = submitted ? errors : {};
   const strength = strengthLabel(form.next);
@@ -51,6 +56,71 @@ export default function SecuritySettings() {
     setForm(emptyForm);
     setSubmitted(false);
     showNotice("Şifreniz güncellendi.");
+  };
+  const downloadBackup = () => {
+    const keys = Object.values(storageKeys).filter((key) => key !== storageKeys.session);
+    const data = Object.fromEntries(keys.map((key) => [key, window.localStorage.getItem(key)]));
+    const blob = new Blob([JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), data }, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `hantech-osgb-yedek-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showNotice("Yerel veri yedeği indirildi.");
+  };
+  const inspectBackup = async (file: File | undefined) => {
+    if (!file) return;
+    setBackupError("");
+    setBackupPreview(null);
+    try {
+      const parsed = JSON.parse(await file.text()) as { version?: unknown; data?: unknown };
+      if (parsed.version !== 1 || !parsed.data || typeof parsed.data !== "object" || Array.isArray(parsed.data)) {
+        throw new Error("Bu dosya geçerli bir HanTech yedeği değil.");
+      }
+      const data = parsed.data as Record<string, unknown>;
+      const keys = Object.values(storageKeys).filter((key) => key !== storageKeys.session) as string[];
+      const invalidKey = Object.keys(data).find((key) => !keys.includes(key));
+      if (invalidKey) throw new Error("Yedek dosyasında tanınmayan veri alanı bulundu.");
+      const invalidValue = keys.find((key) => data[key] !== null && typeof data[key] !== "string");
+      if (invalidValue) throw new Error("Yedek dosyasındaki veri biçimi okunamadı.");
+      const invalidJson = keys.find((key) => {
+        const raw = data[key];
+        if (raw === null || typeof raw !== "string") return false;
+        try {
+          JSON.parse(raw);
+          return false;
+        } catch {
+          return true;
+        }
+      });
+      if (invalidJson) throw new Error("Yedek dosyasındaki kayıtlar bozuk görünüyor.");
+      const normalized = Object.fromEntries(keys.map((key) => [key, (data[key] as string | null | undefined) ?? null]));
+      setBackupPreview({ data: normalized, storedCount: Object.values(normalized).filter((value) => value !== null).length });
+    } catch (error) {
+      setBackupError(error instanceof Error ? error.message : "Yedek dosyası okunamadı.");
+    } finally {
+      if (backupInputRef.current) backupInputRef.current.value = "";
+    }
+  };
+  const requestRestore = () => {
+    if (!backupPreview) return;
+    confirm({
+      title: "Yerel veriyi geri yükle",
+      description: `${backupPreview.storedCount} veri alanı mevcut tarayıcı kayıtlarının üzerine yazılacak. Oturum bilgisi geri yüklenmez.`,
+      confirmLabel: "Yedeği geri yükle",
+      onConfirm: () => {
+        Object.entries(backupPreview.data).forEach(([key, raw]) => {
+          if (raw === null) {
+            removeStorage(key);
+            return;
+          }
+          writeStorage(key, JSON.parse(raw) as unknown);
+        });
+        setBackupPreview(null);
+        showNotice("Yerel veri yedeği geri yüklendi. Sayfa verileri yenilendi.");
+      },
+    });
   };
 
   return (
@@ -122,6 +192,27 @@ export default function SecuritySettings() {
         </section>
 
         <section className="border-t border-divider pt-7">
+          <SectionHeading description="Firma, teklif, tarama, ekipman ve ayarlar bu cihazdaki tarayıcı verilerinden alınır." title="Yerel veri yedeği" />
+          <div className="mt-4 space-y-3 rounded-2xl border border-border bg-card-muted p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs leading-5 text-muted">Cihaz değişmeden veya tarayıcı verisini temizlemeden önce güncel bir JSON yedeği indirin.</p>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <Button onClick={downloadBackup} size="sm" variant="secondary"><Download /> Yedeği indir</Button>
+                <input accept="application/json,.json" className="hidden" onChange={(event) => void inspectBackup(event.target.files?.[0])} ref={backupInputRef} type="file" />
+                <Button onClick={() => backupInputRef.current?.click()} size="sm" variant="outline"><Upload /> Yedek seç</Button>
+              </div>
+            </div>
+            {backupError && <Alert tone="danger" icon={FileJson}>{backupError}</Alert>}
+            {backupPreview && (
+              <div className="flex flex-col gap-3 rounded-xl border border-brand-outline bg-brand-soft/50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-2"><FileJson className="mt-0.5 size-4 shrink-0 text-brand" /><p className="text-xs text-brand-soft-fg"><strong>Yedek hazır.</strong> {backupPreview.storedCount} veri alanı bulundu. Geri yükleme mevcut yerel verilerin üzerine yazılır.</p></div>
+                <Button onClick={requestRestore} size="sm">Geri yükle</Button>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="border-t border-divider pt-7">
           <SectionHeading
             description="Hesabınızla ilgili güvenlik ipuçları ve en iyi uygulamalar."
             title="Güvenlik önerileri"
@@ -142,6 +233,7 @@ export default function SecuritySettings() {
           </ul>
         </section>
       </div>
+      <ConfirmDialog onClose={closeConfirm} request={confirmRequest} />
     </SettingsCard>
   );
 }

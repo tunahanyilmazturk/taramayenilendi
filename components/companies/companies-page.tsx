@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, ClipboardList, MapPin, Plus, RotateCcw, Settings2, Trash2 } from "lucide-react";
+import { Building2, ClipboardList, Download, MapPin, Plus, RotateCcw, Settings2, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CompanyCard, CompanyRowActions, type CompanyActions } from "@/components/companies/company-card";
@@ -17,10 +17,11 @@ import { VisualFilterSurface } from "@/components/ui/visual-filter-surface";
 import { ListToolbar } from "@/components/ui/list-toolbar";
 import { paginate, Pagination } from "@/components/ui/pagination";
 import { Avatar, DataTable, SortButton, TBody, Td, Th, THead, Tr, type SortDirection } from "@/components/ui/table";
-import { useCompanies, useSectors } from "@/lib/data";
+import { useCompanies, useOffers, usePersonnel, useScreenings, useSectors } from "@/lib/data";
 import { companyLocation, contractStatuses, type Company } from "@/lib/demo-data";
-import { labelToIso } from "@/lib/format";
-import { useConfirm, useNotice, useSort } from "@/lib/hooks";
+import { labelToIso, todayIso } from "@/lib/format";
+import { useCan, useConfirm, useNotice, useSort } from "@/lib/hooks";
+import { exportListToExcel } from "@/lib/excel";
 import { compareTr, includesQuery, initials } from "@/lib/utils";
 
 type SortKey = "name" | "employees" | "contract" | "lastScreening";
@@ -38,10 +39,14 @@ const sortValue = (company: Company, key: SortKey) => {
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = useCompanies();
+  const [personnel] = usePersonnel();
+  const [screenings, setScreenings] = useScreenings();
+  const [offers, setOffers] = useOffers();
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [sectors, setSectors] = useSectors();
   const [notice, showNotice] = useNotice();
   const { request: confirmRequest, confirm, close: closeConfirm } = useConfirm();
+  const can = useCan();
   const { sortKey, direction, toggle } = useSort<SortKey>("name");
 
   const [query, setQuery] = useState("");
@@ -100,19 +105,44 @@ export default function CompaniesPage() {
     setPage(1);
   };
   const openNew = () => {
+    if (!can("companies.write")) return showNotice("Firma oluşturma yetkiniz yok.");
     setEditing(null);
     setFormOpen(true);
   };
   const openEdit = (company: Company) => {
+    if (!can("companies.write")) return showNotice("Firma düzenleme yetkiniz yok.");
     setEditing(company);
     setFormOpen(true);
   };
   const saveCompany = (values: CompanyFormValues) => {
     setCompanies(applyCompanyForm(companies, values, editing?.id ?? null));
+    if (editing && editing.name !== values.name.trim()) {
+      setScreenings((current) => current.map((item) => item.companyId === editing.id ? { ...item, company: values.name.trim() } : item));
+      setOffers((current) => current.map((item) => item.companyId === editing.id ? { ...item, company: values.name.trim() } : item));
+    }
     setFormOpen(false);
     showNotice(editing ? "Firma bilgileri güncellendi." : "Yeni firma eklendi.");
   };
+  const relatedCounts = (companyId: number) => ({
+    personnel: personnel.filter((item) => item.companyId === companyId).length,
+    screenings: screenings.filter((item) => item.companyId === companyId).length,
+    offers: offers.filter((item) => item.companyId === companyId).length,
+  });
+  const relationSummary = (companyId: number) => {
+    const counts = relatedCounts(companyId);
+    return [
+      counts.personnel > 0 && `${counts.personnel} personel`,
+      counts.screenings > 0 && `${counts.screenings} tarama`,
+      counts.offers > 0 && `${counts.offers} teklif`,
+    ].filter(Boolean).join(", ");
+  };
   const removeCompany = (company: Company) => {
+    if (!can("companies.delete")) return showNotice("Firma silme yetkiniz yok.");
+    const summary = relationSummary(company.id);
+    if (summary) {
+      showNotice(`${company.name} silinemedi: bağlı ${summary} bulunuyor. Kayıt geçmişini korumak için firmayı düzenleyerek Pasif yapın.`);
+      return;
+    }
     confirm({ title: "Firmayı sil", description: `${company.name} firması kalıcı olarak silinecek.`, onConfirm: () => {
       setCompanies((current) => current.filter((item) => item.id !== company.id));
       setSelectedIds((current) => current.filter((id) => id !== company.id));
@@ -129,6 +159,14 @@ export default function CompaniesPage() {
   };
   const removeSelected = () => {
     if (!selectedIds.length) return;
+    const blocked = companies
+      .filter((company) => selectedIds.includes(company.id))
+      .map((company) => ({ company, summary: relationSummary(company.id) }))
+      .filter((item) => item.summary);
+    if (blocked.length > 0) {
+      showNotice(`Toplu silme durduruldu: ${blocked.map((item) => `${item.company.name} (${item.summary})`).join(", ")}. Bağlı kayıtları olan firmalar silinemez.`);
+      return;
+    }
     const count = selectedIds.length;
     confirm({ title: "Seçilen firmaları sil", description: `${count} firma kalıcı olarak silinecek.`, confirmLabel: "Firmaları sil", onConfirm: () => {
       setCompanies((current) => current.filter((item) => !selectedIds.includes(item.id)));
@@ -140,21 +178,51 @@ export default function CompaniesPage() {
     setSectors(sectors.map((sector) => (sector === from ? to : sector)));
     setCompanies(companies.map((company) => (company.sector === from ? { ...company, sector: to } : company)));
   };
+  const exportCompanies = () => {
+    if (!can("companies.export")) return showNotice("Firma Excel aktarımı için yetkiniz yok.");
+    void exportListToExcel({
+      filename: `firmalar-${todayIso()}.xlsx`,
+      items: filtered,
+      sheetName: "Firmalar",
+      title: "Firma kayıtları",
+      context: [["Arama", query || "Tümü"], ["Sözleşme", status], ["Şehir", city], ["Sektör", sector]],
+      columns: [
+        { header: "ID", width: 10, value: (item: Company) => item.id },
+        { header: "Firma", width: 28, value: (item: Company) => item.name },
+        { header: "Sektör", width: 22, value: (item: Company) => item.sector },
+        { header: "İl", width: 16, value: (item: Company) => item.city },
+        { header: "İlçe", width: 16, value: (item: Company) => item.district },
+        { header: "Yetkili", width: 22, value: (item: Company) => item.contact },
+        { header: "E-posta", width: 28, value: (item: Company) => item.email },
+        { header: "Telefon", width: 18, value: (item: Company) => item.phone },
+        { header: "Çalışan", width: 12, value: (item: Company) => item.employees },
+        { header: "Sözleşme", width: 16, value: (item: Company) => item.contract },
+        { header: "Sözleşme bitiş", width: 18, value: (item: Company) => item.contractEnd || "—" },
+        { header: "Son tarama", width: 18, value: (item: Company) => item.lastScreening || "—" },
+        { header: "Tarama sayısı", width: 14, value: (item: Company) => item.screenings },
+        { header: "Notlar", width: 32, value: (item: Company) => item.notes || "" },
+      ],
+    }).catch(() => showNotice("Firma Excel çıktısı hazırlanamadı."));
+  };
   const actions: CompanyActions = { onEdit: openEdit, onDelete: removeCompany };
 
   return (
     <Page>
       <VisualFilterSurface visual="/headers/companies.png">
       <PageHeader
+        compact
         className="border-0 bg-transparent p-0 shadow-none before:hidden"
         actions={
           <>
-            <Button onClick={() => setSectorOpen(true)} variant="secondary">
+            {can("companies.export") && <Button onClick={exportCompanies} variant="secondary">
+              <Download /> Excel&apos;e aktar
+            </Button>}
+            {can("companies.write") && <Button onClick={() => setSectorOpen(true)} variant="secondary">
               <Settings2 /> Sektör yönetimi
-            </Button>
-            <Button onClick={openNew}>
+            </Button>}
+            {can("companies.write") && <Button onClick={openNew}>
               <Plus /> Yeni firma ekle
-            </Button>
+            </Button>}
           </>
         }
         description="Hizmet verdiğiniz firmaları, sözleşmeleri ve tarama geçmişini yönetin."

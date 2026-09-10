@@ -11,6 +11,7 @@ export const badgeVariants = cva(
         brand: "bg-brand-soft text-brand-soft-fg",
         warning: "bg-warning-soft text-warning",
         danger: "bg-danger-soft text-danger",
+        success: "bg-success-soft text-success",
         info: "bg-info-soft text-info",
         neutral: "bg-neutral-soft text-neutral",
       },
@@ -21,12 +22,16 @@ export const badgeVariants = cva(
 
 export type BadgeTone = NonNullable<VariantProps<typeof badgeVariants>["tone"]>;
 
-export function Badge({ className, tone, ...props }: HTMLAttributes<HTMLSpanElement> & VariantProps<typeof badgeVariants>) {
+export function Badge({
+  className,
+  tone,
+  ...props
+}: HTMLAttributes<HTMLSpanElement> & VariantProps<typeof badgeVariants>) {
   return <span className={cn(badgeVariants({ tone }), className)} {...props} />;
 }
 
 export const contractTone: Record<ContractStatus, BadgeTone> = {
-  Aktif: "brand",
+  Aktif: "success",
   Yenileniyor: "warning",
   Pasif: "danger",
 };
@@ -35,15 +40,25 @@ export const offerTone: Record<OfferStatus, BadgeTone> = {
   Taslak: "neutral",
   Gönderildi: "info",
   Görüşülüyor: "warning",
-  Onaylandı: "brand",
+  Onaylandı: "success",
   Reddedildi: "danger",
   "Süresi doldu": "danger",
 };
 
 /** Count pill used next to list headings, e.g. "12 kayıt". */
-export function CountPill({ children, className }: { children: React.ReactNode; className?: string }) {
+export function CountPill({
+  children,
+  className,
+  tone = "brand",
+}: {
+  children: React.ReactNode;
+  className?: string;
+  tone?: BadgeTone;
+}) {
   return (
-    <span className={cn("list-count-pill rounded-full bg-brand-soft px-2 py-1 text-[10px] font-bold text-brand-soft-fg", className)}>
+    <span
+      className={cn("list-count-pill rounded-full px-2 py-1 text-[10px] font-bold", badgeVariants({ tone }), className)}
+    >
       {children}
     </span>
   );

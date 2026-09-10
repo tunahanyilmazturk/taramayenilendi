@@ -2,7 +2,7 @@
 
 import { AlertTriangle, Trash2, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useEffect, useId, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { IconBadge } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -28,15 +28,45 @@ const sizes = { sm: "max-w-md", md: "max-w-lg", lg: "max-w-2xl", xl: "max-w-3xl"
  */
 export function Modal({ open, onClose, title, eyebrow, description, icon, footer, size = "md", children, className }: ModalProps) {
   const titleId = useId();
+  const descriptionId = useId();
+  const panelRef = useRef<HTMLElement>(null);
   useEffect(() => {
     if (!open) return;
-    const onKey = (event: KeyboardEvent) => event.key === "Escape" && onClose();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab" || !panelRef.current) return;
+      const focusable = Array.from(panelRef.current.querySelectorAll<HTMLElement>(
+        "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])",
+      )).filter((element) => element.getAttribute("aria-hidden") !== "true");
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
     document.addEventListener("keydown", onKey);
+    const previousActive = document.activeElement as HTMLElement | null;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    const focusTimer = window.setTimeout(() => {
+      const firstField = panelRef.current?.querySelector<HTMLElement>(
+        "input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])",
+      );
+      firstField?.focus();
+    }, 0);
     return () => {
       document.removeEventListener("keydown", onKey);
+      window.clearTimeout(focusTimer);
       document.body.style.overflow = previous;
+      if (previousActive?.isConnected) previousActive.focus();
     };
   }, [open, onClose]);
   if (!open) return null;
@@ -47,12 +77,14 @@ export function Modal({ open, onClose, title, eyebrow, description, icon, footer
     >
       <section
         aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
         aria-modal="true"
         className={cn(
           "flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-card shadow-2xl sm:rounded-3xl",
           sizes[size],
           className,
         )}
+        ref={panelRef}
         role="dialog"
       >
         <header className="flex items-start justify-between gap-3 border-b border-divider px-4 py-4 sm:gap-4 sm:px-7 sm:py-5">
@@ -63,7 +95,7 @@ export function Modal({ open, onClose, title, eyebrow, description, icon, footer
               <h2 className="mt-0.5 text-xl font-semibold tracking-[-0.02em] text-heading" id={titleId}>
                 {title}
               </h2>
-              {description && <p className="mt-1 text-xs leading-5 text-muted">{description}</p>}
+              {description && <p className="mt-1 text-xs leading-5 text-muted" id={descriptionId}>{description}</p>}
             </div>
           </div>
           <button

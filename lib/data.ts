@@ -136,6 +136,16 @@ export function useRoles() {
   return [Array.isArray(raw) ? raw : demoRoles, setRoles] as const;
 }
 
+/** Number of uploaded result records per screening, separate from field-work completion. */
+export function useResultCounts() {
+  const [raw, setRaw] = useStoredState<Record<string, number>>(storageKeys.resultCounts, {});
+  const counts = useMemo(
+    () => Object.fromEntries(Object.entries(raw ?? {}).map(([id, value]) => [id, Math.max(0, Number(value) || 0)])),
+    [raw],
+  );
+  return [counts, setRaw] as const;
+}
+
 export type Organization = {
   title: string;
   shortName: string;

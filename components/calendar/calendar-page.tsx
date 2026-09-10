@@ -18,25 +18,25 @@ const monthNames = Array.from({ length: 12 }, (_, month) =>
   new Intl.DateTimeFormat("tr-TR", { month: "long" }).format(new Date(2024, month, 1)),
 );
 type CalendarView = "month" | "week" | "year";
-const statusTone: Record<ScreeningStatus, "brand" | "warning" | "danger" | "neutral" | "info"> = {
+const statusTone: Record<ScreeningStatus, "brand" | "warning" | "danger" | "neutral" | "info" | "success"> = {
   Planlandı: "info",
   Hazırlanıyor: "warning",
   "Devam ediyor": "brand",
-  Tamamlandı: "info",
+  Tamamlandı: "success",
   İptal: "danger",
 };
 const statusDot: Record<ScreeningStatus, string> = {
   Planlandı: "bg-info",
   Hazırlanıyor: "bg-warning",
   "Devam ediyor": "bg-info",
-  Tamamlandı: "bg-info",
+  Tamamlandı: "bg-success",
   İptal: "bg-danger",
 };
 const statusSurface: Record<ScreeningStatus, string> = {
   Planlandı: "border-info/40 bg-info-soft text-info",
   Hazırlanıyor: "border-warning/40 bg-warning-soft text-warning",
   "Devam ediyor": "border-brand/40 bg-brand-soft text-brand-soft-fg",
-  Tamamlandı: "border-info/40 bg-info-soft text-info",
+  Tamamlandı: "border-success-border bg-success-soft text-success",
   İptal: "border-danger/40 bg-danger-soft text-danger",
 };
 
@@ -73,11 +73,17 @@ function formatDate(date: Date) {
 }
 
 function screeningsForDay(screenings: Screening[], key: string) {
-  return screenings.filter((screening) => {
-    const start = toIso(screening.date);
-    const end = toIso(screening.endDate || screening.date);
-    return start && end && key >= start && key <= end;
-  });
+  return screenings
+    .filter((screening) => {
+      const start = toIso(screening.date);
+      const end = toIso(screening.endDate || screening.date);
+      return start && end && key >= start && key <= end;
+    })
+    .sort((first, second) => first.time.localeCompare(second.time, "tr"));
+}
+
+function isUpcomingOperationalScreening(screening: Screening) {
+  return screening.status !== "Tamamlandı" && screening.status !== "İptal";
 }
 
 function dayCells(month: Date) {
@@ -193,7 +199,7 @@ export default function CalendarPage() {
         .map((screening) => ({ screening, date: parseDate(screening.date) }))
         .filter(
           (item): item is { screening: Screening; date: Date } =>
-            Boolean(item.date) && toIso(item.screening.date) >= todayKey,
+            Boolean(item.date) && toIso(item.screening.date) >= todayKey && isUpcomingOperationalScreening(item.screening),
         )
         .sort((a, b) => a.date.getTime() - b.date.getTime())
         .slice(0, 3),
@@ -251,27 +257,37 @@ export default function CalendarPage() {
     moveMonth(offset);
   };
 
-  const viewTitle = view === "week" ? weekLabel(new Date(`${selectedKey}T12:00:00`)) : view === "year" ? `${month.getFullYear()} yılı` : monthLabel(month);
-  const viewDescription = view === "week" ? `${weekScreenings.length} tarama planı · Haftalık saha planınızı görüntüleyin.` : view === "year" ? `${yearScreenings.length} tarama planı · Yıllık operasyon yoğunluğunu inceleyin.` : `${monthScreenings.length} tarama planı · Günlük saha planınızı seçerek detayları görüntüleyin.`;
+  const viewTitle =
+    view === "week"
+      ? weekLabel(new Date(`${selectedKey}T12:00:00`))
+      : view === "year"
+        ? `${month.getFullYear()} yılı`
+        : monthLabel(month);
+  const viewDescription =
+    view === "week"
+      ? `${weekScreenings.length} tarama planı · Haftalık saha planınızı görüntüleyin.`
+      : view === "year"
+        ? `${yearScreenings.length} tarama planı · Yıllık operasyon yoğunluğunu inceleyin.`
+        : `${monthScreenings.length} tarama planı · Günlük saha planınızı seçerek detayları görüntüleyin.`;
 
   return (
     <Page className="pt-1 xl:h-[calc(100dvh-118px)] xl:overflow-hidden xl:pb-0">
       <div className="grid gap-4 xl:h-full xl:min-h-0 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <Card className="flex min-h-0 flex-col overflow-hidden border-border/80 bg-card p-4 shadow-card sm:p-5">
-          <div className="border-brand-outline/35 bg-brand-soft/30 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3.5">
-            <div className="flex items-center gap-3">
-              <IconBadge className="bg-brand text-brand-fg shadow-sm" icon={CalendarDays} size="lg" />
+        <Card className="border-border/80 bg-card shadow-card flex min-h-0 flex-col overflow-hidden p-4 sm:p-5">
+          <div className="border-brand-outline/35 bg-brand-soft/30 flex flex-wrap items-center justify-between gap-2 rounded-xl border p-2.5 sm:p-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <IconBadge className="bg-brand text-brand-fg shadow-sm" icon={CalendarDays} size="md" />
               <div>
-                <h2 className="text-heading text-base font-bold capitalize">{viewTitle}</h2>
-                <p className="text-muted mt-0.5 text-[11px]">{viewDescription}</p>
+                <h2 className="text-heading text-sm font-bold capitalize sm:text-base">{viewTitle}</h2>
+                <p className="text-muted mt-0.5 truncate text-[10px] sm:text-[11px]">{viewDescription}</p>
               </div>
             </div>
-            <div className="flex flex-wrap items-center justify-end gap-1.5">
-              <div className="border-border bg-card/80 flex items-center gap-1 rounded-lg border p-1">
+            <div className="flex flex-wrap items-center justify-end gap-1">
+              <div className="border-border bg-card/80 flex items-center gap-0.5 rounded-lg border p-0.5">
                 <div className="relative">
                   <select
                     aria-label="Takvim ayı"
-                    className="border-border bg-card text-foreground focus:border-brand h-9 w-28 appearance-none rounded-lg border px-3 pr-7 text-xs font-medium capitalize outline-none"
+                    className="border-border bg-card text-foreground focus:border-brand h-8 w-24 appearance-none rounded-lg border px-2 pr-6 text-[11px] font-medium capitalize outline-none"
                     onChange={(event) => setCalendarDate(month.getFullYear(), Number(event.target.value))}
                     value={month.getMonth()}
                   >
@@ -284,26 +300,36 @@ export default function CalendarPage() {
                   <ChevronDown className="text-subtle pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2" />
                 </div>
                 <div className="relative">
-                <select
-                  aria-label="Takvim yılı"
-                  className="border-border bg-card text-foreground focus:border-brand h-9 w-24 appearance-none rounded-lg border px-3 pr-7 text-xs font-medium outline-none"
-                  onChange={(event) => setCalendarDate(Number(event.target.value), month.getMonth())}
-                  value={month.getFullYear()}
-                >
-                  {years.map((year) => (
-                    <option key={year} value={year}>
-                      {year}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="text-subtle pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2" />
+                  <select
+                    aria-label="Takvim yılı"
+                    className="border-border bg-card text-foreground focus:border-brand h-8 w-20 appearance-none rounded-lg border px-2 pr-6 text-[11px] font-medium outline-none"
+                    onChange={(event) => setCalendarDate(Number(event.target.value), month.getMonth())}
+                    value={month.getFullYear()}
+                  >
+                    {years.map((year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="text-subtle pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2" />
                 </div>
               </div>
-              <div className="border-border bg-card/80 flex items-center gap-1 rounded-lg border p-1" role="tablist" aria-label="Takvim görünümü">
-                {([ ["month", "Ay"], ["week", "Hafta"], ["year", "Yıl"] ] as Array<[CalendarView, string]>).map(([value, label]) => (
+              <div
+                className="border-border bg-card/80 flex items-center gap-0.5 rounded-lg border p-0.5"
+                role="tablist"
+                aria-label="Takvim görünümü"
+              >
+                {(
+                  [
+                    ["month", "Ay"],
+                    ["week", "Hafta"],
+                    ["year", "Yıl"],
+                  ] as Array<[CalendarView, string]>
+                ).map(([value, label]) => (
                   <Button
                     aria-selected={view === value}
-                    className={cn("h-9 px-3 text-xs", view === value && "bg-brand text-brand-fg hover:bg-brand")}
+                    className={cn("h-8 px-2.5 text-[11px]", view === value && "bg-brand text-brand-fg hover:bg-brand")}
                     key={value}
                     onClick={() => setView(value)}
                     role="tab"
@@ -353,66 +379,68 @@ export default function CalendarPage() {
             <span className="text-muted ml-auto text-[10px]">{visibleScreenings.length} kayıt gösteriliyor</span>
           </div>
 
-          {view === "month" && <div className="border-border bg-border mt-4 grid min-h-0 flex-1 grid-cols-7 grid-rows-[auto_repeat(6,minmax(0,1fr))] gap-px overflow-hidden rounded-xl border shadow-inner">
-            {weekDays.map((day) => (
-              <div
-                className="bg-card-muted text-muted px-2 py-2.5 text-center text-[10px] font-bold uppercase tracking-wide"
-                key={day}
-              >
-                {day}
-              </div>
-            ))}
-            {cells.map((date) => {
-              const key = dateKey(date);
-              const dayScreenings = eventsByDay.get(key) ?? [];
-              const inMonth = date.getMonth() === month.getMonth();
-              const selected = key === selectedKey;
-              return (
+          {view === "month" && (
+            <div className="border-border bg-border mt-4 grid min-h-0 flex-1 grid-cols-7 grid-rows-[auto_repeat(6,minmax(0,1fr))] gap-px overflow-hidden rounded-xl border shadow-inner">
+              {weekDays.map((day) => (
                 <div
-                  className={cn(
-                    "bg-card hover:bg-brand-soft/35 min-h-0 overflow-hidden p-1.5 text-left align-top transition-colors sm:p-2",
-                    !inMonth && "bg-card-muted/55 text-subtle",
-                    selected && "ring-brand relative z-10 ring-2 ring-inset",
-                  )}
-                  key={key}
+                  className="bg-card-muted text-muted px-2 py-2.5 text-center text-[10px] font-bold tracking-wide uppercase"
+                  key={day}
                 >
-                  <button
-                    className={cn(
-                      "inline-flex size-6 items-center justify-center rounded-full text-xs font-semibold",
-                      key === todayKey && "bg-brand text-brand-fg",
-                      selected && key !== todayKey && "bg-brand-soft text-brand-soft-fg",
-                    )}
-                    onClick={() => setSelectedKey(key)}
-                    type="button"
-                  >
-                    {date.getDate()}
-                  </button>
-                  <span className="mt-2 block space-y-1">
-                    {dayScreenings.slice(0, 2).map((screening) => (
-                      <Link
-                        className={cn(
-                          "flex items-center gap-1.5 truncate rounded-md border px-1.5 py-1 text-[9px] font-semibold",
-                          statusSurface[screening.status],
-                        )}
-                        href={`/taramalar/${screening.id}`}
-                        key={screening.id}
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        <span className={cn("size-1.5 shrink-0 rounded-full", statusDot[screening.status])} />
-                        {screening.time} · {screening.company}
-                      </Link>
-                    ))}
-                    {dayScreenings.length > 2 && (
-                      <span className="text-brand block px-1 text-[9px] font-bold">
-                        +{dayScreenings.length - 2} tarama
-                      </span>
-                    )}
-                  </span>
+                  {day}
                 </div>
-              );
-            })}
-          </div>}
+              ))}
+              {cells.map((date) => {
+                const key = dateKey(date);
+                const dayScreenings = eventsByDay.get(key) ?? [];
+                const inMonth = date.getMonth() === month.getMonth();
+                const selected = key === selectedKey;
+                return (
+                  <div
+                    className={cn(
+                      "bg-card hover:bg-brand-soft/35 min-h-0 overflow-hidden p-1.5 text-left align-top transition-colors sm:p-2",
+                      !inMonth && "bg-card-muted/55 text-subtle",
+                      selected && "ring-brand relative z-10 ring-2 ring-inset",
+                    )}
+                    key={key}
+                  >
+                    <button
+                      className={cn(
+                        "inline-flex size-6 items-center justify-center rounded-full text-xs font-semibold",
+                        key === todayKey && "bg-brand text-brand-fg",
+                        selected && key !== todayKey && "bg-brand-soft text-brand-soft-fg",
+                      )}
+                      onClick={() => setSelectedKey(key)}
+                      type="button"
+                    >
+                      {date.getDate()}
+                    </button>
+                    <span className="mt-2 block space-y-1">
+                      {dayScreenings.slice(0, 2).map((screening) => (
+                        <Link
+                          className={cn(
+                            "flex items-center gap-1.5 truncate rounded-md border px-1.5 py-1 text-[9px] font-semibold",
+                            statusSurface[screening.status],
+                          )}
+                          href={`/taramalar/${screening.id}`}
+                          key={screening.id}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          <span className={cn("size-1.5 shrink-0 rounded-full", statusDot[screening.status])} />
+                          {screening.time} · {screening.company}
+                        </Link>
+                      ))}
+                      {dayScreenings.length > 2 && (
+                        <span className="text-brand block px-1 text-[9px] font-bold">
+                          +{dayScreenings.length - 2} tarama
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {view === "week" && (
             <div className="border-border bg-border mt-4 grid min-h-0 flex-1 grid-cols-1 gap-px overflow-hidden rounded-xl border shadow-inner md:grid-cols-7">
@@ -421,17 +449,48 @@ export default function CalendarPage() {
                 const dayScreenings = screeningsForDay(visibleScreenings, key);
                 const selected = key === selectedKey;
                 return (
-                  <div className={cn("bg-card min-h-36 overflow-y-auto p-3", selected && "ring-brand relative z-10 ring-2 ring-inset")} key={key}>
-                    <button className="flex w-full items-center justify-between gap-2 text-left" onClick={() => setSelectedKey(key)} type="button">
+                  <div
+                    className={cn(
+                      "bg-card min-h-36 overflow-y-auto p-3",
+                      selected && "ring-brand relative z-10 ring-2 ring-inset",
+                    )}
+                    key={key}
+                  >
+                    <button
+                      className="flex w-full items-center justify-between gap-2 text-left"
+                      onClick={() => setSelectedKey(key)}
+                      type="button"
+                    >
                       <span className="text-muted text-[10px] font-bold uppercase">{weekDays[index]}</span>
-                      <span className={cn("inline-flex size-7 items-center justify-center rounded-full text-xs font-bold", key === todayKey && "bg-brand text-brand-fg", selected && key !== todayKey && "bg-brand-soft text-brand-soft-fg")}>{date.getDate()}</span>
+                      <span
+                        className={cn(
+                          "inline-flex size-7 items-center justify-center rounded-full text-xs font-bold",
+                          key === todayKey && "bg-brand text-brand-fg",
+                          selected && key !== todayKey && "bg-brand-soft text-brand-soft-fg",
+                        )}
+                      >
+                        {date.getDate()}
+                      </span>
                     </button>
                     <div className="mt-3 space-y-2">
-                      {dayScreenings.length ? dayScreenings.map((screening) => (
-                        <Link className={cn("block truncate rounded-md border px-2 py-2 text-[10px] font-semibold", statusSurface[screening.status])} href={`/taramalar/${screening.id}`} key={screening.id} rel="noreferrer" target="_blank">
-                          {screening.time} · {screening.company}
-                        </Link>
-                      )) : <p className="text-subtle text-[10px]">Plan yok</p>}
+                      {dayScreenings.length ? (
+                        dayScreenings.map((screening) => (
+                          <Link
+                            className={cn(
+                              "block truncate rounded-md border px-2 py-2 text-[10px] font-semibold",
+                              statusSurface[screening.status],
+                            )}
+                            href={`/taramalar/${screening.id}`}
+                            key={screening.id}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            {screening.time} · {screening.company}
+                          </Link>
+                        ))
+                      ) : (
+                        <p className="text-subtle text-[10px]">Plan yok</p>
+                      )}
                     </div>
                   </div>
                 );
@@ -451,17 +510,40 @@ export default function CalendarPage() {
                   return screeningStart && screeningEnd && screeningStart <= end && screeningEnd >= start;
                 }).length;
                 return (
-                  <button className="border-border bg-card hover:border-brand-outline hover:bg-brand-soft/20 rounded-xl border p-4 text-left transition-colors" key={name} onClick={() => { setCalendarDate(month.getFullYear(), monthIndex); setView("month"); }} type="button">
+                  <button
+                    className="border-border bg-card hover:border-brand-outline hover:bg-brand-soft/20 rounded-xl border p-4 text-left transition-colors"
+                    key={name}
+                    onClick={() => {
+                      setCalendarDate(month.getFullYear(), monthIndex);
+                      setView("month");
+                    }}
+                    type="button"
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-heading text-sm font-bold capitalize">{name}</span>
                       <Badge tone={count ? "info" : "neutral"}>{count} tarama</Badge>
                     </div>
                     <div className="mt-4 grid grid-cols-7 gap-1 text-center">
-                      {weekDays.map((day) => <span className="text-subtle text-[8px] font-bold" key={day}>{day.slice(0, 1)}</span>)}
+                      {weekDays.map((day) => (
+                        <span className="text-subtle text-[8px] font-bold" key={day}>
+                          {day.slice(0, 1)}
+                        </span>
+                      ))}
                       {dayCells(monthDate).map((date) => {
                         const dayKey = dateKey(date);
                         const dayCount = screeningsForDay(visibleScreenings, dayKey).length;
-                        return <span className={cn("text-muted rounded px-0.5 py-1 text-[9px]", date.getMonth() !== monthIndex && "opacity-30", dayCount > 0 && "bg-brand-soft text-brand-soft-fg font-bold")} key={dayKey}>{date.getDate()}</span>;
+                        return (
+                          <span
+                            className={cn(
+                              "text-muted rounded px-0.5 py-1 text-[9px]",
+                              date.getMonth() !== monthIndex && "opacity-30",
+                              dayCount > 0 && "bg-brand-soft text-brand-soft-fg font-bold",
+                            )}
+                            key={dayKey}
+                          >
+                            {date.getDate()}
+                          </span>
+                        );
                       })}
                     </div>
                   </button>
@@ -472,7 +554,7 @@ export default function CalendarPage() {
         </Card>
 
         <div className="min-h-0 space-y-4 overflow-y-auto pr-1 xl:sticky xl:top-4 xl:self-start">
-          <Card className="border-border/80 bg-card/95 p-4 shadow-card sm:p-5">
+          <Card className="border-border/80 bg-card/95 shadow-card p-4 sm:p-5">
             <CardHeader
               icon={CalendarDays}
               title="Seçili gün"
@@ -500,7 +582,7 @@ export default function CalendarPage() {
               )}
             </div>
           </Card>
-          <Card className="border-border/80 bg-card/95 p-4 shadow-card sm:p-5">
+          <Card className="border-border/80 bg-card/95 shadow-card p-4 sm:p-5">
             <CardHeader icon={Clock3} title="Yaklaşan taramalar" description="En yakın saha operasyonları" />
             <div className="mt-3 space-y-2">
               {upcoming.length ? (

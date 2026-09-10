@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field, FilterSelect, Input, SearchInput, Select } from "@/components/ui/field";
 import { Alert, ConfirmDialog, Modal } from "@/components/ui/modal";
-import { useTestCategories, useTests } from "@/lib/data";
+import { useOffers, useScreenings, useTestCategories, useTests } from "@/lib/data";
 import { type TestItem } from "@/lib/demo-data";
 import { money } from "@/lib/format";
 import { useConfirm, useNotice } from "@/lib/hooks";
@@ -72,6 +72,8 @@ function validateForm(form: TestForm): FormErrors {
 
 export default function TestsSettings() {
   const [tests, setTests] = useTests();
+  const [offers] = useOffers();
+  const [screenings] = useScreenings();
   const [categories, setCategories] = useTestCategories();
   const [notice, showNotice] = useNotice();
   const { request: confirmRequest, confirm, close: closeConfirm } = useConfirm();
@@ -143,6 +145,13 @@ export default function TestsSettings() {
     setEditingId(null);
   };
   const remove = (test: TestItem) => {
+    const usedInOffer = offers.some((offer) => offer.lines?.some((line) => line.testId === test.id));
+    const usedInScreening = screenings.some((screening) => screening.testIds?.includes(test.id));
+    if (usedInOffer || usedInScreening) {
+      setTests((current) => current.map((item) => (item.id === test.id ? { ...item, active: false } : item)));
+      showNotice(`${test.name} geçmiş kayıtlarda kullanıldığı için silinmedi; katalogda pasifleştirildi.`);
+      return;
+    }
     confirm({ title: "Testi katalogdan kaldır", description: `${test.name} katalogdan kaldırılacak.`, onConfirm: () => {
       setTests((current) => current.filter((t) => t.id !== test.id));
       showNotice("Test katalogdan kaldırıldı.");
@@ -157,6 +166,8 @@ export default function TestsSettings() {
     const { Workbook } = await import("exceljs/dist/exceljs.min.js");
     const workbook = new Workbook();
     workbook.creator = "HanTech OSGB Yönetim Sistemi";
+    workbook.created = new Date();
+    workbook.modified = new Date();
     const sheet = workbook.addWorksheet("Testler");
     sheet.columns = [
       { header: "Test Adı", key: "name", width: 32 },
@@ -165,7 +176,7 @@ export default function TestsSettings() {
     ];
     tests.filter((t) => t.active).forEach((t) => sheet.addRow({ name: t.name, category: t.category, price: t.price }));
     sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
-    sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF103C3A" } };
+    sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF294E4B" } };
     sheet.getColumn(3).numFmt = "₺#,##0";
     sheet.views = [{ state: "frozen", ySplit: 1 }];
     sheet.autoFilter = { from: "A1", to: `C${Math.max(1, tests.filter((t) => t.active).length + 1)}` };
@@ -181,7 +192,7 @@ export default function TestsSettings() {
       ["Dosya", "Yalnızca .xlsx formatı desteklenir."],
     ]);
     guide.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
-    guide.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF299B7C" } };
+    guide.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF477873" } };
     const buffer = await workbook.xlsx.writeBuffer();
     const url = URL.createObjectURL(
       new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),

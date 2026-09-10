@@ -6,6 +6,8 @@ import {
   CheckCheck,
   ChevronDown,
   FileText,
+  Maximize2,
+  Minimize2,
   LogOut,
   Menu,
   Search,
@@ -16,7 +18,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ThemeToggle from "@/components/shared/theme-toggle";
 import { IconBadge } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,8 +33,8 @@ type SearchResult = { href: string; label: string; description: string; icon: Lu
 
 export default function Topbar({ session, onMenuClick }: { session: Session; onMenuClick: () => void }) {
   return (
-    <header className="border-border bg-card/90 sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b px-5 backdrop-blur-xl sm:px-8">
-      <div className="flex min-w-0 items-center gap-3">
+    <header className="border-border bg-card/92 sticky top-0 z-20 flex h-14 items-center justify-between gap-3 border-b px-4 shadow-sm backdrop-blur-xl sm:px-6 lg:px-8">
+      <div className="flex min-w-0 items-center gap-2.5">
         <Button aria-label="Menüyü aç" className="lg:hidden" onClick={onMenuClick} size="icon-lg" variant="ghost">
           <Menu className="size-5" />
         </Button>
@@ -42,13 +44,46 @@ export default function Topbar({ session, onMenuClick }: { session: Session; onM
           <p className="text-muted text-[10px]">Operasyon merkezi</p>
         </div>
       </div>
-      <div className="flex items-center gap-1.5 sm:gap-3">
+      <div className="flex items-center gap-1 sm:gap-2.5">
         <Notifications />
         <ThemeToggle />
+        <FullscreenToggle />
         <div className="bg-border hidden h-8 w-px sm:block" />
         <ProfileMenu session={session} />
       </div>
     </header>
+  );
+}
+
+function FullscreenToggle() {
+  const [fullscreen, setFullscreen] = useState(false);
+
+  useEffect(() => {
+    const sync = () => setFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", sync);
+    sync();
+    return () => document.removeEventListener("fullscreenchange", sync);
+  }, []);
+
+  const toggle = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+    } catch {
+      // Tarayıcı izni veya platform kısıtlaması varsa görünümü değiştirmeden devam et.
+    }
+  };
+
+  return (
+    <Button
+      aria-label={fullscreen ? "Tam ekrandan çık" : "Tam ekranı aç"}
+      onClick={() => void toggle()}
+      size="icon-lg"
+      title={fullscreen ? "Tam ekrandan çık" : "Tam ekranı aç"}
+      variant="ghost"
+    >
+      {fullscreen ? <Minimize2 /> : <Maximize2 />}
+    </Button>
   );
 }
 
@@ -102,7 +137,7 @@ function QuickSearch() {
       <Search className="text-subtle pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
       <input
         aria-label="Panelde ara"
-        className="border-border bg-card-muted text-foreground placeholder:text-subtle focus:border-brand-outline h-10 w-64 rounded-xl border pr-9 pl-9 text-sm outline-none lg:w-80"
+        className="border-border bg-card-muted/80 text-foreground placeholder:text-subtle focus:border-brand-outline h-10 w-64 rounded-2xl border pr-9 pl-9 text-sm outline-none transition-colors lg:w-80"
         onChange={(event) => {
           setQuery(event.target.value);
           setOpen(true);
@@ -268,7 +303,7 @@ function ProfileMenu({ session }: { session: Session }) {
       <button
         aria-expanded={open}
         aria-label={`${session.name} kullanıcı menüsü`}
-        className="hover:bg-brand-soft flex items-center gap-2 rounded-xl p-1.5 text-left transition-colors"
+        className="border border-transparent hover:border-border hover:bg-brand-soft flex items-center gap-2 rounded-xl p-1.5 text-left transition-colors"
         onClick={() => setOpen((value) => !value)}
         type="button"
       >

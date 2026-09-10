@@ -4,6 +4,7 @@ import {
   BusFront,
   CalendarClock,
   Check,
+  Download,
   Edit3,
   HardHat,
   MapPin,
@@ -26,7 +27,9 @@ import { ListToolbar } from "@/components/ui/list-toolbar";
 import { Pagination, paginate } from "@/components/ui/pagination";
 import { useEquipment, useTeam } from "@/lib/data";
 import { equipmentStatuses, type Equipment, type EquipmentKind, type EquipmentStatus } from "@/lib/demo-data";
-import { useConfirm, useNotice } from "@/lib/hooks";
+import { isoToLabel, labelToIso, todayIso } from "@/lib/format";
+import { useCan, useConfirm, useNotice } from "@/lib/hooks";
+import { exportListToExcel } from "@/lib/excel";
 import { cn, includesQuery, nextNumericId } from "@/lib/utils";
 
 type EquipmentForm = Omit<Equipment, "id">;
@@ -47,6 +50,21 @@ const emptyForm: EquipmentForm = {
   inspectionDate: "",
   insuranceEnd: "",
 };
+
+const dateFields = ["calibrationDate", "nextCalibration", "lastMaintenance", "inspectionDate", "insuranceEnd"] as const;
+
+function newEquipmentForm(): EquipmentForm {
+  const today = todayIso();
+  return { ...emptyForm, calibrationDate: today, nextCalibration: today, lastMaintenance: today, inspectionDate: today, insuranceEnd: today };
+}
+
+function toDateInput(value: string) {
+  return labelToIso(value) || todayIso();
+}
+
+function toStoredDate(value: string) {
+  return value ? isoToLabel(value) : "";
+}
 const statusTone: Record<EquipmentStatus, "brand" | "warning" | "danger" | "neutral"> = {
   Kullanımda: "brand",
   Bakımda: "warning",
@@ -59,6 +77,7 @@ export default function EquipmentPage() {
   const [team] = useTeam();
   const [notice, showNotice] = useNotice();
   const { request: confirmRequest, confirm, close: closeConfirm } = useConfirm();
+  const can = useCan();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("Tümü");
   const [locationFilter, setLocationFilter] = useState("Tümü");
@@ -103,22 +122,38 @@ export default function EquipmentPage() {
     setSelectedIds((current) => allSelected ? current.filter((id) => !pageIds.includes(id)) : Array.from(new Set([...current, ...pageIds])));
   };
   const removeSelected = () => {
+    if (!can("equipment.delete")) return showNotice("Ekipman silme yetkiniz yok.");
     if (!selectedIds.length) return;
     const count = selectedIds.length;
     confirm({ title: "Seçilen kayıtları sil", description: `${count} ${kind.toLocaleLowerCase("tr-TR")} kaydı kalıcı olarak silinecek.`, confirmLabel: "Kayıtları sil", onConfirm: () => { setEquipment((current) => current.filter((item) => !selectedIds.includes(item.id))); setSelectedIds([]); showNotice(`${count} kayıt envanterden kaldırıldı.`); } });
   };
 
-  const openNew = () => setEditor({ open: true, item: null });
-  const openEdit = (item: Equipment) => setEditor({ open: true, item });
+  const openNew = () => {
+    if (!can("equipment.write")) return showNotice("Ekipman oluşturma yetkiniz yok.");
+    setEditor({ open: true, item: null });
+  };
+  const openEdit = (item: Equipment) => {
+    if (!can("equipment.write")) return showNotice("Ekipman düzenleme yetkiniz yok.");
+    setEditor({ open: true, item });
+  };
   const save = (values: EquipmentForm) => {
+    if (!can(editor.item ? "equipment.write" : "equipment.write")) return showNotice("Ekipman düzenleme yetkiniz yok.");
     const normalized = {
       ...values,
       kind,
       type: kind === "Mobil araç" ? values.type.trim() || "Mobil araç" : values.type.trim(),
       name: values.name.trim(),
       serialNumber: values.serialNumber.trim(),
+      calibrationDate: toStoredDate(values.calibrationDate),
+      nextCalibration: toStoredDate(values.nextCalibration),
+      lastMaintenance: toStoredDate(values.lastMaintenance),
+      inspectionDate: toStoredDate(values.inspectionDate ?? ""),
+      insuranceEnd: toStoredDate(values.insuranceEnd ?? ""),
     };
-    if (!normalized.name || !normalized.type) return;
+    if (!normalized.name || !normalized.type) {
+      showNotice(`${kind === "Mobil araç" ? "Araç adı ve araç türü" : "Ekipman adı ve ekipman türü"} zorunludur.`);
+      return;
+    }
     setEquipment((current) =>
       editor.item
         ? current.map((item) => (item.id === editor.item?.id ? { ...normalized, id: item.id } : item))
@@ -129,7 +164,8 @@ export default function EquipmentPage() {
       editor.item ? "Kayıt güncellendi." : `${kind === "Mobil araç" ? "Mobil araç" : "Ekipman"} envantere eklendi.`,
     );
   };
-  const remove = (item: Equipment) =>
+  const remove = (item: Equipment) => {
+    if (!can("equipment.delete")) return showNotice("Ekipman silme yetkiniz yok.");
     confirm({
       title: `${item.kind} kaydını sil`,
       description: `${item.name} envanterden kaldırılacak.`,
@@ -139,16 +175,47 @@ export default function EquipmentPage() {
         showNotice("Kayıt envanterden kaldırıldı.");
       },
     });
+  };
+  const exportEquipment = () => {
+    if (!can("equipment.export")) return showNotice("Ekipman Excel aktarımı için yetkiniz yok.");
+    void exportListToExcel({
+      filename: `${kind === "Mobil araç" ? "mobil-araclar" : "ekipmanlar"}-${todayIso()}.xlsx`,
+      items: filtered,
+      sheetName: kind === "Mobil araç" ? "Mobil araçlar" : "Ekipmanlar",
+      title: kind === "Mobil araç" ? "Mobil araç envanteri" : "Ekipman envanteri",
+      context: [["Varlık türü", kind], ["Arama", query || "Tümü"], ["Durum", status], ["Konum", locationFilter], ["Sorumlu", responsibleFilter]],
+      columns: [
+        { header: "ID", width: 10, value: (item: Equipment) => item.id },
+        { header: "Ad", width: 28, value: (item: Equipment) => item.name },
+        { header: "Tür", width: 22, value: (item: Equipment) => item.type },
+        { header: "Marka / model", width: 24, value: (item: Equipment) => item.brandModel },
+        { header: "Seri no", width: 22, value: (item: Equipment) => item.serialNumber },
+        { header: "Plaka", width: 14, value: (item: Equipment) => item.plateNumber || "" },
+        { header: "Durum", width: 20, value: (item: Equipment) => item.status },
+        { header: "Konum", width: 22, value: (item: Equipment) => item.location },
+        { header: "Sorumlu", width: 22, value: (item: Equipment) => item.responsible },
+        { header: "Son bakım", width: 18, value: (item: Equipment) => item.lastMaintenance || "" },
+        { header: "Kalibrasyon", width: 18, value: (item: Equipment) => item.nextCalibration || "" },
+        { header: "Muayene", width: 18, value: (item: Equipment) => item.inspectionDate || "" },
+        { header: "Sigorta bitiş", width: 18, value: (item: Equipment) => item.insuranceEnd || "" },
+        { header: "Notlar", width: 32, value: (item: Equipment) => item.notes || "" },
+      ],
+    }).catch(() => showNotice("Envanter Excel çıktısı hazırlanamadı."));
+  };
 
   return (
     <Page>
       <VisualFilterSurface visual="/headers/equipment.png">
       <PageHeader
+        compact
         className="border-0 bg-transparent p-0 shadow-none before:hidden"
         actions={
-          <Button onClick={openNew}>
-            <Plus /> {kind === "Mobil araç" ? "Mobil araç ekle" : "Ekipman ekle"}
-          </Button>
+          <>
+            {can("equipment.export") && <Button onClick={exportEquipment} variant="secondary"><Download /> Excel&apos;e aktar</Button>}
+            {can("equipment.write") && <Button onClick={openNew}>
+              <Plus /> {kind === "Mobil araç" ? "Mobil araç ekle" : "Ekipman ekle"}
+            </Button>}
+          </>
         }
         description="Tarama ve muayene süreçlerinde kullandığınız araç ve cihazları tek merkezden yönetin."
         eyebrow="Operasyon kaynakları"
@@ -458,9 +525,12 @@ function EquipmentDialog({
   team: Array<{ id: number; name: string; active: boolean }>;
 }) {
   const [form, setForm] = useState<EquipmentForm>(() => {
-    if (!equipment) return emptyForm;
+    if (!equipment) return newEquipmentForm();
     const { id: _id, ...values } = equipment;
-    return values;
+    return {
+      ...values,
+      ...Object.fromEntries(dateFields.map((field) => [field, toDateInput(values[field] ?? "")])),
+    };
   });
   const setField = (key: keyof EquipmentForm, value: string) => setForm((current) => ({ ...current, [key]: value }));
   const vehicle = kind === "Mobil araç";
@@ -544,14 +614,14 @@ function EquipmentDialog({
             <Field label="Muayene geçerlilik tarihi">
               <Input
                 onChange={(event) => setField("inspectionDate", event.target.value)}
-                placeholder="gg.aa.yyyy"
+                type="date"
                 value={form.inspectionDate}
               />
             </Field>
             <Field label="Sigorta bitiş tarihi">
               <Input
                 onChange={(event) => setField("insuranceEnd", event.target.value)}
-                placeholder="gg.aa.yyyy"
+                type="date"
                 value={form.insuranceEnd}
               />
             </Field>
@@ -598,21 +668,21 @@ function EquipmentDialog({
             <Field label="Son bakım tarihi">
               <Input
                 onChange={(event) => setField("lastMaintenance", event.target.value)}
-                placeholder="gg.aa.yyyy"
+                type="date"
                 value={form.lastMaintenance}
               />
             </Field>
             <Field label="Son kalibrasyon tarihi">
               <Input
                 onChange={(event) => setField("calibrationDate", event.target.value)}
-                placeholder="gg.aa.yyyy"
+                type="date"
                 value={form.calibrationDate}
               />
             </Field>
             <Field label="Bir sonraki kalibrasyon">
               <Input
                 onChange={(event) => setField("nextCalibration", event.target.value)}
-                placeholder="gg.aa.yyyy"
+                type="date"
                 value={form.nextCalibration}
               />
             </Field>

@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Check, ClipboardList, Edit3, Eye, FileText, Plus, Trash2 } from "lucide-react";
+import { CalendarDays, Check, ClipboardList, Download, Edit3, Eye, FileText, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Badge, offerTone } from "@/components/ui/badge";
@@ -11,13 +11,15 @@ import { Field, FilterSelect, Input, Select } from "@/components/ui/field";
 import { Alert, ConfirmDialog, Modal } from "@/components/ui/modal";
 import { Page, PageHeader } from "@/components/ui/page-header";
 import { VisualFilterSurface } from "@/components/ui/visual-filter-surface";
+import { SearchableCompanySelect } from "@/components/ui/searchable-company-select";
 import { ListToolbar } from "@/components/ui/list-toolbar";
 import { Pagination, paginate } from "@/components/ui/pagination";
 import { Avatar, DataTable, SortButton, TBody, Td, Th, THead, Tr } from "@/components/ui/table";
 import { useCompanies, useOffers, useOrganization } from "@/lib/data";
 import { offerStatuses, offerTypes, type Company, type Offer, type OfferStatus } from "@/lib/demo-data";
 import { isoToLabel, labelToIso, money, todayIso } from "@/lib/format";
-import { useConfirm, useNotice, useSort } from "@/lib/hooks";
+import { useCan, useConfirm, useNotice, useSort } from "@/lib/hooks";
+import { exportListToExcel } from "@/lib/excel";
 import { cn, compareTr, includesQuery, initials } from "@/lib/utils";
 import { previewOfferPdf } from "@/lib/pdf/offer-pdf";
 
@@ -59,6 +61,7 @@ export default function OffersPage() {
   const [organization] = useOrganization();
   const [notice, showNotice] = useNotice();
   const { request: confirmRequest, confirm, close: closeConfirm } = useConfirm();
+  const can = useCan();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<(typeof statusFilters)[number]>("Tümü");
   const [companyFilter, setCompanyFilter] = useState("Tüm firmalar");
@@ -142,6 +145,7 @@ export default function OffersPage() {
   );
   const hasAnyFilters = Boolean(query || status !== "Tümü" || hasAdvancedFilters);
   const saveEdit = (offer: Offer) => {
+    if (!can("offers.write")) return showNotice("Teklif düzenleme yetkiniz yok.");
     const editedAt = new Date().toLocaleString("tr-TR");
     setOffers((current) =>
       current.map((item) => {
@@ -176,6 +180,7 @@ export default function OffersPage() {
     showNotice("Teklif bilgileri kaydedildi.");
   };
   const removeOffer = (offer: Offer) => {
+    if (!can("offers.delete")) return showNotice("Teklif silme yetkiniz yok.");
     confirm({
       title: "Teklifi sil",
       description: `${offer.number} numaralı teklif silinecek.`,
@@ -218,161 +223,212 @@ export default function OffersPage() {
     );
   };
   const updateStatus = (offer: Offer, nextStatus: OfferStatus) => {
+    if (!can("offers.write")) return showNotice("Teklif durumunu değiştirme yetkiniz yok.");
     setOffers((current) => current.map((item) => (item.id === offer.id ? { ...item, status: nextStatus } : item)));
     showNotice("Teklif durumu güncellendi.");
   };
-  const actions = { onEdit: setEditingId, onDelete: removeOffer, onStatus: updateStatus, onPreview: previewOffer };
+  const exportOffers = () => {
+    if (!can("offers.export")) return showNotice("Teklif Excel aktarımı için yetkiniz yok.");
+    void exportListToExcel({
+      filename: `teklifler-${todayIso()}.xlsx`,
+      items: filtered,
+      sheetName: "Teklifler",
+      title: "Teklif kayıtları",
+      context: [["Arama", query || "Tümü"], ["Durum", status], ["Firma", companyFilter], ["Teklif türü", typeFilter], ["Geçerlilik başlangıcı", validFrom || "Tümü"], ["Geçerlilik bitişi", validTo || "Tümü"], ["Toplam aralığı", `${minTotal || "—"} - ${maxTotal || "—"}`]],
+      columns: [
+        { header: "Teklif no", width: 16, value: (item: Offer) => item.number },
+        { header: "Başlık", width: 32, value: (item: Offer) => item.title },
+        { header: "Firma", width: 26, value: (item: Offer) => item.company },
+        { header: "Yetkili", width: 22, value: (item: Offer) => item.contact },
+        { header: "Teklif türü", width: 24, value: (item: Offer) => item.offerType || "" },
+        { header: "Durum", width: 18, value: (item: Offer) => item.status },
+        { header: "Toplam", width: 16, value: (item: Offer) => item.total },
+        { header: "Hizmet kalemi", width: 16, value: (item: Offer) => item.items },
+        { header: "Oluşturulma", width: 18, value: (item: Offer) => item.createdAt },
+        { header: "Geçerlilik tarihi", width: 18, value: (item: Offer) => item.validUntil },
+        { header: "İndirim", width: 14, value: (item: Offer) => item.discount ?? 0 },
+        { header: "Vergi", width: 14, value: (item: Offer) => item.tax ?? 0 },
+        { header: "Ödeme şartları", width: 24, value: (item: Offer) => item.paymentTerms || "" },
+        { header: "Teslim günü", width: 14, value: (item: Offer) => item.deliveryDays ?? "" },
+        { header: "Revizyon", width: 12, value: (item: Offer) => item.revision ?? 1 },
+        { header: "Müşteri yanıtı", width: 18, value: (item: Offer) => item.customerResponse?.status || "Yanıt yok" },
+        { header: "Notlar", width: 32, value: (item: Offer) => item.notes || "" },
+      ],
+    }).catch(() => showNotice("Teklif Excel çıktısı hazırlanamadı."));
+  };
+  const actions = { onEdit: can("offers.write") ? setEditingId : () => showNotice("Teklif düzenleme yetkiniz yok."), onDelete: removeOffer, onStatus: updateStatus, onPreview: previewOffer };
 
   return (
     <Page>
       <VisualFilterSurface visual="/headers/offers.png">
-      <PageHeader
-        className="border-0 bg-transparent p-0 shadow-none before:hidden"
-        eyebrow="Teklif ve fiyatlandırma merkezi"
-        title="Teklifler"
-        description="Firmalarınıza sunduğunuz OSGB hizmet tekliflerini ve dönüş süreçlerini yönetin."
-        dark
-        actions={
-          <Button asChild>
-            <Link href="/teklifler/yeni">
-              <Plus /> Yeni teklif oluştur
-            </Link>
-          </Button>
-        }
-      />
-      {notice && (
-        <Alert className="mt-4 w-fit" icon={Check}>
-          {notice}
-        </Alert>
-      )}
-      {selectedIds.length > 0 && (
-        <Card className="border-brand/30 bg-brand-soft/40 mt-4 flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-foreground text-sm font-medium">
-            <strong>{selectedIds.length}</strong> teklif seçildi.
-          </p>
-          <Button onClick={removeSelected} size="sm" variant="danger">
-            <Trash2 /> Seçilenleri sil
-          </Button>
-        </Card>
-      )}
-      <ListToolbar advancedOpen={advancedOpen} count={filtered.length} description="Teklifleri arayın, gelişmiş filtrelerle daraltın ve sıralayın." onAdvanced={() => setAdvancedOpen((value) => !value)} onCards={() => setView("cards")} onList={() => setView("table")} onQuery={(value) => { setQuery(value); setPage(1); }} placeholder="Teklif no, firma, başlık veya yetkili ara..." query={query} title="Teklif listesi" view={view}>
-        {advancedOpen && (
-          <div className="border-divider mt-4 grid gap-3 border-t pt-4 sm:grid-cols-2 lg:grid-cols-4">
-            <FilterSelect
-              label="Durum"
+        <PageHeader
+          compact
+          className="border-0 bg-transparent p-0 shadow-none before:hidden"
+          eyebrow="Teklif ve fiyatlandırma merkezi"
+          title="Teklifler"
+          description="Firmalarınıza sunduğunuz OSGB hizmet tekliflerini ve dönüş süreçlerini yönetin."
+          dark
+          actions={
+            <>
+              {can("offers.export") && <Button onClick={exportOffers} variant="secondary">
+                <Download /> Excel&apos;e aktar
+              </Button>}
+              {can("offers.create") && <Button asChild>
+                <Link href="/teklifler/yeni">
+                  <Plus /> Yeni teklif oluştur
+                </Link>
+              </Button>}
+            </>
+          }
+        />
+        {notice && (
+          <Alert className="mt-4 w-fit" icon={Check}>
+            {notice}
+          </Alert>
+        )}
+        {selectedIds.length > 0 && (
+          <Card className="border-brand/30 bg-brand-soft/40 mt-4 flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-foreground text-sm font-medium">
+              <strong>{selectedIds.length}</strong> teklif seçildi.
+            </p>
+            <Button onClick={removeSelected} size="sm" variant="danger">
+              <Trash2 /> Seçilenleri sil
+            </Button>
+          </Card>
+        )}
+        <ListToolbar
+          advancedOpen={advancedOpen}
+          count={filtered.length}
+          description="Teklifleri arayın, gelişmiş filtrelerle daraltın ve sıralayın."
+          onAdvanced={() => setAdvancedOpen((value) => !value)}
+          onCards={() => setView("cards")}
+          onList={() => setView("table")}
+          onQuery={(value) => {
+            setQuery(value);
+            setPage(1);
+          }}
+          placeholder="Teklif no, firma, başlık veya yetkili ara..."
+          query={query}
+          title="Teklif listesi"
+          view={view}
+        >
+          <FilterSelect
+            label="Durum"
+            onChange={(value) => {
+              setStatus(value as (typeof statusFilters)[number]);
+              setPage(1);
+            }}
+            options={statusFilters}
+            value={status}
+          />
+          <Field label="Firma">
+            <SearchableCompanySelect
+              allLabel="Tüm firmalar"
+              allValue="Tüm firmalar"
+              companies={companies}
+              includeAll
               onChange={(value) => {
-                setStatus(value as (typeof statusFilters)[number]);
+                setCompanyFilter(String(value ?? "Tüm firmalar"));
                 setPage(1);
               }}
-              options={statusFilters}
-              value={status}
-            />
-            <FilterSelect
-              label="Firma"
-              onChange={(value) => {
-                setCompanyFilter(value);
-                setPage(1);
-              }}
-              options={["Tüm firmalar", ...Array.from(new Set(companies.map((company) => company.name)))]}
               value={companyFilter}
             />
-            <FilterSelect
-              label="Teklif türü"
-              onChange={(value) => {
-                setTypeFilter(value);
+          </Field>
+          <FilterSelect
+            label="Teklif türü"
+            onChange={(value) => {
+              setTypeFilter(value);
+              setPage(1);
+            }}
+            options={[allOfferTypes, ...offerTypes]}
+            value={typeFilter}
+          />
+          <Field label="Geçerlilik başlangıcı">
+            <Input
+              aria-label="Geçerlilik başlangıcı"
+              className="h-10"
+              onChange={(event) => {
+                setValidFrom(event.target.value);
                 setPage(1);
               }}
-              options={[allOfferTypes, ...offerTypes]}
-              value={typeFilter}
+              type="date"
+              value={validFrom}
             />
-            <Field label="Geçerlilik başlangıcı">
-              <Input
-                aria-label="Geçerlilik başlangıcı"
-                className="h-10"
-                onChange={(event) => {
-                  setValidFrom(event.target.value);
-                  setPage(1);
-                }}
-                type="date"
-                value={validFrom}
-              />
-            </Field>
-            <Field label="Geçerlilik bitişi">
-              <Input
-                aria-label="Geçerlilik bitişi"
-                className="h-10"
-                onChange={(event) => {
-                  setValidTo(event.target.value);
-                  setPage(1);
-                }}
-                type="date"
-                value={validTo}
-              />
-            </Field>
-            <Field label="Minimum tutar">
-              <Input
-                aria-label="Minimum tutar"
-                className="h-10"
-                min={0}
-                onChange={(event) => {
-                  setMinTotal(event.target.value);
-                  setPage(1);
-                }}
-                placeholder="₺ 0"
-                type="number"
-                value={minTotal}
-              />
-            </Field>
-            <Field label="Maksimum tutar">
-              <Input
-                aria-label="Maksimum tutar"
-                className="h-10"
-                min={0}
-                onChange={(event) => {
-                  setMaxTotal(event.target.value);
-                  setPage(1);
-                }}
-                placeholder="₺ 0"
-                type="number"
-                value={maxTotal}
-              />
-            </Field>
-            <Field label="Minimum hizmet adedi">
-              <Input
-                aria-label="Minimum hizmet adedi"
-                className="h-10"
-                min={0}
-                onChange={(event) => {
-                  setMinItems(event.target.value);
-                  setPage(1);
-                }}
-                placeholder="0"
-                type="number"
-                value={minItems}
-              />
-            </Field>
-            <Field label="Maksimum hizmet adedi">
-              <Input
-                aria-label="Maksimum hizmet adedi"
-                className="h-10"
-                min={0}
-                onChange={(event) => {
-                  setMaxItems(event.target.value);
-                  setPage(1);
-                }}
-                placeholder="0"
-                type="number"
-                value={maxItems}
-              />
-            </Field>
-            {hasAnyFilters && (
-              <Button className="w-fit" onClick={resetFilters} size="sm" variant="danger">
-                Filtreleri temizle
-              </Button>
-            )}
-          </div>
-        )}
-      </ListToolbar>
+          </Field>
+          <Field label="Geçerlilik bitişi">
+            <Input
+              aria-label="Geçerlilik bitişi"
+              className="h-10"
+              onChange={(event) => {
+                setValidTo(event.target.value);
+                setPage(1);
+              }}
+              type="date"
+              value={validTo}
+            />
+          </Field>
+          <Field label="Minimum tutar">
+            <Input
+              aria-label="Minimum tutar"
+              className="h-10"
+              min={0}
+              onChange={(event) => {
+                setMinTotal(event.target.value);
+                setPage(1);
+              }}
+              placeholder="₺ 0"
+              type="number"
+              value={minTotal}
+            />
+          </Field>
+          <Field label="Maksimum tutar">
+            <Input
+              aria-label="Maksimum tutar"
+              className="h-10"
+              min={0}
+              onChange={(event) => {
+                setMaxTotal(event.target.value);
+                setPage(1);
+              }}
+              placeholder="₺ 0"
+              type="number"
+              value={maxTotal}
+            />
+          </Field>
+          <Field label="Minimum hizmet adedi">
+            <Input
+              aria-label="Minimum hizmet adedi"
+              className="h-10"
+              min={0}
+              onChange={(event) => {
+                setMinItems(event.target.value);
+                setPage(1);
+              }}
+              placeholder="0"
+              type="number"
+              value={minItems}
+            />
+          </Field>
+          <Field label="Maksimum hizmet adedi">
+            <Input
+              aria-label="Maksimum hizmet adedi"
+              className="h-10"
+              min={0}
+              onChange={(event) => {
+                setMaxItems(event.target.value);
+                setPage(1);
+              }}
+              placeholder="0"
+              type="number"
+              value={maxItems}
+            />
+          </Field>
+          {hasAnyFilters && (
+            <Button className="w-fit" onClick={resetFilters} size="sm" variant="danger">
+              Filtreleri temizle
+            </Button>
+          )}
+        </ListToolbar>
       </VisualFilterSurface>
       {paged.length > 0 ? (
         view === "table" ? (
@@ -752,19 +808,13 @@ function OfferEditModal({
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <Field className="sm:col-span-2" error={errors.companyId} label="Firma" required>
-          <Select
+          <SearchableCompanySelect
+            companies={companies}
+            fallback={!knownCompany && offer.company ? { label: offer.company, value: "current" } : undefined}
             invalid={Boolean(errors.companyId)}
-            onChange={(event) => chooseCompany(event.target.value)}
+            onChange={(value) => chooseCompany(String(value ?? ""))}
             value={form.companyId}
-          >
-            <option value="">Firma seçin</option>
-            {!knownCompany && offer.company && <option value="current">{offer.company}</option>}
-            {companies.map((company) => (
-              <option key={company.id} value={company.id}>
-                {company.name}
-              </option>
-            ))}
-          </Select>
+          />
         </Field>
         <Field className="sm:col-span-2" error={errors.title} label="Teklif başlığı" required>
           <Input

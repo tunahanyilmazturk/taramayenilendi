@@ -26,12 +26,14 @@ import { Card } from "@/components/ui/card";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { Alert } from "@/components/ui/modal";
 import { Page } from "@/components/ui/page-header";
-import { useCompanies, useEquipment, useScreenings, useTeam, useTests } from "@/lib/data";
-import { companyLocation, screeningStatuses, type Company, type Screening, type ScreeningStatus, type TestItem } from "@/lib/demo-data";
+import { useCompanies, useEquipment, useOffers, useScreenings, useTeam, useTests } from "@/lib/data";
+import { companyLocation, screeningStatuses, type Company, type Offer, type Screening, type ScreeningStatus, type TestItem } from "@/lib/demo-data";
 import { useNotice } from "@/lib/hooks";
 import { isoToLabel, labelToIso, money, todayIso } from "@/lib/format";
+import { isValidDateRange } from "@/lib/validation";
 import { nextNumericId } from "@/lib/utils";
 import { ScreeningTestPicker } from "./screening-test-picker";
+import { SearchableCompanySelect } from "@/components/ui/searchable-company-select";
 import ScreeningStepCompany from "./screening-step-company";
 import ScreeningStepPricing from "./screening-step-pricing";
 import ScreeningConditions from "./screening-conditions";
@@ -118,6 +120,7 @@ export default function NewScreeningPage() {
 
 function NewScreeningInner() {
   const [screenings, setScreenings] = useScreenings();
+  const [offers, setOffers] = useOffers();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [companies] = useCompanies();
@@ -126,25 +129,38 @@ function NewScreeningInner() {
   const [tests] = useTests();
   const editScreening = screenings.find((item) => item.id === Number(searchParams.get("edit")));
   const repeatedScreening = screenings.find((item) => item.id === Number(searchParams.get("tekrarla")));
+  const sourceOffer = offers.find((item) => item.id === Number(searchParams.get("teklif")));
   const requestedDate = searchParams.get("tarih");
+  const requestedCompanyId = Number(searchParams.get("firma"));
+  const initialCompanyId = companies.some((item) => item.id === requestedCompanyId) ? requestedCompanyId : 0;
   const [step, setStep] = useState<Step>(1);
   const [draft, setDraft] = useState<Draft>(() => {
     if (editScreening) return screeningToDraft(editScreening, false);
     if (repeatedScreening) return screeningToDraft(repeatedScreening);
-    if (requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) {
-      return { ...emptyDraft, date: requestedDate, endDate: requestedDate };
-    }
-    return emptyDraft;
+    if (sourceOffer) return offerToDraft(sourceOffer, companies.find((item) => item.id === sourceOffer.companyId), tests);
+    return {
+      ...emptyDraft,
+      companyId: initialCompanyId,
+      ...(requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? { date: requestedDate, endDate: requestedDate } : {}),
+    };
   });
   const [notice, showNotice] = useNotice();
+  const [titleEdited, setTitleEdited] = useState(Boolean(editScreening || repeatedScreening || sourceOffer));
   const update = <K extends keyof Draft>(key: K, value: Draft[K]) =>
-    setDraft((current) => ({ ...current, [key]: value }));
+    setDraft((current) => {
+      const next = { ...current, [key]: value };
+      if (key === "title" || titleEdited) return next;
+      const selectedCompany = companies.find((item) => item.id === next.companyId);
+      return selectedCompany
+        ? { ...next, title: `${selectedCompany.name} - ${next.screeningType}` }
+        : next;
+    });
   const company = companies.find((item) => item.id === draft.companyId);
   const valid = (target: Step) =>
     target === 1
       ? Boolean(draft.companyId && draft.title.trim())
       : target === 2
-        ? Boolean(draft.date && draft.endDate && draft.location.trim())
+        ? Boolean(draft.date && draft.endDate && isValidDateRange(draft.date, draft.endDate) && draft.location.trim())
         : target === 3
           ? draft.testIds.length > 0
           : target === 5
@@ -152,7 +168,7 @@ function NewScreeningInner() {
             : true;
   const next = () => {
     if (!valid(step)) {
-      showNotice("Lütfen bu adımdaki zorunlu alanları doldurun.");
+      showNotice(step === 2 && draft.date && draft.endDate && !isValidDateRange(draft.date, draft.endDate) ? "Bitiş tarihi başlangıç tarihinden önce olamaz." : "Lütfen bu adımdaki zorunlu alanları doldurun.");
       return;
     }
     setStep((current) => Math.min(8, current + 1) as Step);
@@ -180,7 +196,28 @@ function NewScreeningInner() {
       id: editScreening?.id ?? nextNumericId(screenings),
     };
     setScreenings(editScreening ? screenings.map((item) => item.id === editScreening.id ? record : item) : [...screenings, record]);
-    showNotice(editScreening ? "Tarama güncellendi." : repeatedScreening ? "Tarama tekrarı oluşturuldu." : "Tarama planı oluşturuldu.");
+    if (sourceOffer && !editScreening && !repeatedScreening) {
+      setOffers((current) =>
+        current.map((offer) =>
+          offer.id === sourceOffer.id
+            ? {
+                ...offer,
+                activities: [
+                  ...(offer.activities ?? []),
+                  {
+                    id: `${Date.now()}`,
+                    type: "created",
+                    title: "Saha planı oluşturuldu",
+                    description: `${record.title} için saha planı tekliften başlatıldı.`,
+                    createdAt: new Date().toLocaleString("tr-TR"),
+                  },
+                ],
+              }
+            : offer,
+        ),
+      );
+    }
+    showNotice(editScreening ? "Tarama güncellendi." : repeatedScreening ? "Tarama tekrarı oluşturuldu." : sourceOffer ? "Tekliften saha planı oluşturuldu." : "Tarama planı oluşturuldu.");
     window.setTimeout(() => router.push(`/taramalar/${record.id}`), 500);
   };
   return (
@@ -195,8 +232,8 @@ function NewScreeningInner() {
                 </Link>
               </Button>
               <p className="text-muted mt-4 text-xs font-medium">Saha operasyonları merkezi</p>
-               <h1 className="text-heading mt-1 text-2xl font-semibold tracking-[-0.04em]">{editScreening ? "Tarama düzenle" : repeatedScreening ? "Tarama tekrarı oluştur" : "Yeni tarama oluştur"}</h1>
-               <p className="text-muted mt-2 text-xs leading-5">{editScreening ? "Tarama bilgilerini güncelleyin ve değişiklikleri kaydedin." : repeatedScreening ? "Önceki tarama bilgileri dolduruldu. Tarih ve saha detaylarını kontrol ederek kaydedin." : "Firma, kapsam ve saha planını adım adım tamamlayın."}</p>
+               <h1 className="text-heading mt-1 text-2xl font-semibold tracking-[-0.04em]">{editScreening ? "Tarama düzenle" : repeatedScreening ? "Tarama tekrarı oluştur" : sourceOffer ? "Tekliften saha planı" : "Yeni tarama oluştur"}</h1>
+               <p className="text-muted mt-2 text-xs leading-5">{editScreening ? "Tarama bilgilerini güncelleyin ve değişiklikleri kaydedin." : repeatedScreening ? "Önceki tarama bilgileri dolduruldu. Tarih ve saha detaylarını kontrol ederek kaydedin." : sourceOffer ? `${sourceOffer.number} numaralı teklifin firma ve hizmet kalemleri dolduruldu. Tarih, ekip ve ekipmanı kontrol edin.` : "Firma, kapsam ve saha planını adım adım tamamlayın."}</p>
             </div>
           </div>
           {steps.map((item, index) => {
@@ -233,6 +270,7 @@ function NewScreeningInner() {
               <ScreeningStepCompany
                 companies={companies}
                 draft={draft}
+                onTitleEdited={() => setTitleEdited(true)}
                 update={(key, value) => update(key as keyof Draft, value as never)}
               />
             </>
@@ -286,6 +324,27 @@ function NewScreeningInner() {
   );
 }
 
+function offerToDraft(offer: Offer, company: Company | undefined, tests: TestItem[]): Draft {
+  const lines = offer.lines ?? [];
+  return {
+    ...emptyDraft,
+    title: `${offer.company} saha planı`,
+    companyId: offer.companyId ?? 0,
+    screeningType: offer.offerType === "İşe giriş muayenesi" ? "İşe giriş muayenesi" : "Periyodik sağlık taraması",
+    testIds: lines.map((line) => line.testId),
+    testLines: lines.map((line) => ({ ...line, category: tests.find((test) => test.id === line.testId)?.category ?? "" })),
+    participants: Math.max(0, company?.employees ?? lines[0]?.quantity ?? 0),
+    contact: offer.contact ?? company?.contact ?? "",
+    email: company?.email ?? "",
+    discount: String(offer.discount ?? 0),
+    tax: String(offer.tax ?? 20),
+    paymentTerms: offer.paymentTerms ?? "net30",
+    deliveryDays: String(offer.deliveryDays ?? 7),
+    coverLetter: offer.coverLetterText ?? "",
+    conditions: offer.conditionsText ?? "",
+  };
+}
+
 function screeningToDraft(screening: Screening, resetDate = true): Draft {
   const start = labelToIso(screening.date);
   const end = labelToIso(screening.endDate || screening.date);
@@ -329,7 +388,7 @@ function StepOne({
   draft,
   update,
 }: {
-  companies: Array<{ id: number; name: string; sector: string; city: string; district: string; employees: number }>;
+  companies: Company[];
   draft: Draft;
   update: <K extends keyof Draft>(key: K, value: Draft[K]) => void;
 }) {
@@ -353,14 +412,11 @@ function StepOne({
       />
       <div className="mt-4 grid min-h-[280px] gap-4 sm:min-h-[420px] sm:grid-cols-2">
         <Field label="Firma" required>
-          <Select onChange={(event) => selectCompany(Number(event.target.value))} value={draft.companyId}>
-            <option value={0}>Firma seçin</option>
-            {companies.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </Select>
+          <SearchableCompanySelect
+            companies={companies}
+            onChange={(value) => selectCompany(Number(value ?? 0))}
+            value={draft.companyId}
+          />
           {selected && (
             <p className="text-subtle mt-2 text-[11px]">
               {selected.sector} · {selected.employees} çalışan · {selected.city}, {selected.district}
@@ -499,6 +555,7 @@ function StepFour({
 }) {
   const activeTeam = team.filter((member) => member.active);
   const usableAssets = assets.filter((asset) => asset.status === "Kullanımda");
+  const unavailableAssets = assets.filter((asset) => asset.status !== "Kullanımda");
   const toggleMember = (name: string) =>
     update(
       "teamMembers",
@@ -513,6 +570,11 @@ function StepFour({
     );
   return (
     <section>
+      {unavailableAssets.length > 0 && (
+        <Alert className="mt-4" tone="warning">
+          {unavailableAssets.length} kaynak saha planına kapalı: {unavailableAssets.map((asset) => `${asset.name} (${asset.status})`).join(", ")}.
+        </Alert>
+      )}
       <div className="mt-4 grid min-h-[280px] gap-5 sm:min-h-[420px] sm:grid-cols-2">
         <div className="border-border bg-card h-full rounded-2xl border p-4">
           <div className="flex items-center justify-between">

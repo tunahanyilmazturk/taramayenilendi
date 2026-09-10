@@ -3,26 +3,28 @@ import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <section className={cn("border-border bg-card shadow-card rounded-xl border", className)} {...props} />;
+  return <section className={cn("border-border bg-card shadow-card rounded-2xl border", className)} {...props} />;
 }
 
 export function CardHeader({
   title,
   description,
   icon: Icon,
+  iconTone = "brand",
   action,
   className,
 }: {
   title: ReactNode;
   description?: ReactNode;
   icon?: LucideIcon;
+  iconTone?: "brand" | "warning" | "danger" | "success" | "info" | "neutral";
   action?: ReactNode;
   className?: string;
 }) {
   return (
     <div className={cn("flex flex-wrap items-start justify-between gap-3", className)}>
       <div className="flex min-w-0 items-start gap-3">
-        {Icon && <IconBadge icon={Icon} size="lg" />}
+        {Icon && <IconBadge icon={Icon} size="lg" tone={iconTone} />}
         <div className="min-w-0">
           <h2 className="text-heading text-base font-semibold">{title}</h2>
           {description && <p className="text-muted mt-1 text-xs leading-5">{description}</p>}
@@ -41,7 +43,7 @@ export function IconBadge({
 }: {
   icon: LucideIcon;
   size?: "sm" | "md" | "lg" | "xl";
-  tone?: "brand" | "warning" | "danger" | "info" | "neutral";
+  tone?: "brand" | "warning" | "danger" | "success" | "info" | "neutral";
   className?: string;
 }) {
   const sizes = {
@@ -54,6 +56,7 @@ export function IconBadge({
     brand: "bg-brand-soft text-brand-soft-fg",
     warning: "bg-warning-soft text-warning",
     danger: "bg-danger-soft text-danger",
+    success: "bg-success-soft text-success",
     info: "bg-info-soft text-info",
     neutral: "bg-neutral-soft text-neutral",
   };
@@ -95,7 +98,7 @@ export function StatTile({
 /** Summary metric card used on list pages. */
 export function SummaryCard({ label, value, icon: Icon }: { label: string; value: ReactNode; icon: LucideIcon }) {
   return (
-    <div data-summary-card="true" className="border-border bg-card shadow-card min-w-0 rounded-xl border p-4 sm:p-5">
+    <div data-summary-card="true" className="border-border bg-card shadow-card min-w-0 rounded-2xl border p-4 sm:p-5">
       <div className="flex items-center justify-between">
         <p className="text-muted text-xs">{label}</p>
         <span className="bg-brand-soft text-brand-soft-fg flex size-9 shrink-0 items-center justify-center rounded-lg">

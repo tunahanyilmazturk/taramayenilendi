@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   ClipboardList,
   Clock3,
+  FileCheck2,
   FilePlus2,
   FileText,
   Sparkles,
@@ -47,12 +48,17 @@ export default function DashboardPage() {
   const hello = greeting(now);
   const today = todayIso();
   const agenda = useMemo(
-    () => screenings
-      .filter((item) => !["Tamamlandı", "İptal"].includes(item.status) && labelToIso(item.endDate || item.date) >= today)
-      .sort((a, b) => `${labelToIso(a.date)} ${a.time}`.localeCompare(`${labelToIso(b.date)} ${b.time}`)),
+    () =>
+      screenings
+        .filter(
+          (item) => !["Tamamlandı", "İptal"].includes(item.status) && labelToIso(item.endDate || item.date) >= today,
+        )
+        .sort((a, b) => `${labelToIso(a.date)} ${a.time}`.localeCompare(`${labelToIso(b.date)} ${b.time}`)),
     [screenings, today],
   );
-  const todayScreenings = agenda.filter((item) => labelToIso(item.date) <= today && labelToIso(item.endDate || item.date) >= today);
+  const todayScreenings = agenda.filter(
+    (item) => labelToIso(item.date) <= today && labelToIso(item.endDate || item.date) >= today,
+  );
   const activeCompanies = companies.filter((c) => c.contract === "Aktif").length;
   const renewingCompanies = companies.filter((c) => c.contract === "Yenileniyor").length;
   const recentScreeningCompanies = useMemo(() => {
@@ -82,10 +88,11 @@ export default function DashboardPage() {
   );
 
   const pendingOffers = useMemo(
-    () => offers
-      .filter((offer) => ["Gönderildi", "Görüşülüyor"].includes(offer.status) && !offer.customerResponse)
-      .sort((a, b) => labelToIso(a.validUntil).localeCompare(labelToIso(b.validUntil)))
-      .slice(0, 4),
+    () =>
+      offers
+        .filter((offer) => ["Gönderildi", "Görüşülüyor"].includes(offer.status) && !offer.customerResponse)
+        .sort((a, b) => labelToIso(a.validUntil).localeCompare(labelToIso(b.validUntil)))
+        .slice(0, 4),
     [offers],
   );
 
@@ -93,39 +100,59 @@ export default function DashboardPage() {
     () => equipment.filter((item) => ["Bakımda", "Kalibrasyon bekliyor"].includes(item.status)).slice(0, 4),
     [equipment],
   );
+  const assignmentAttention = agenda.filter((item) => !item.team || !item.vehicle);
+  const documentAttention = agenda.filter((item) => !item.attachments?.length);
+  const criticalContracts = expiringContracts.filter((item) => item.days !== null && item.days <= 15);
+  const completedToday = screenings.filter(
+    (item) => item.status === "Tamamlandı" && labelToIso(item.endDate || item.date) === today,
+  ).length;
+  const operationsAttentionCount =
+    todayScreenings.length +
+    assignmentAttention.length +
+    documentAttention.length +
+    expiringContracts.length +
+    pendingOffers.length;
 
   if (!hydrated) return <DashboardSkeleton />;
 
   return (
     <Page>
-      <section className="relative isolate overflow-hidden rounded-2xl border border-sidebar-border bg-sidebar bg-[url('/headers/dashboard-osgb.png')] bg-cover bg-center px-5 py-6 text-sidebar-fg-strong shadow-primary sm:px-7 sm:py-8 lg:px-9 lg:py-9">
-      <div className="pointer-events-none absolute inset-0 -z-10 bg-sidebar/30" />
-        <div className="pointer-events-none absolute -right-24 -top-32 -z-10 size-80 rounded-full border border-sidebar-accent/20 bg-sidebar-active/35 blur-[1px]" />
-        <div className="pointer-events-none absolute -bottom-48 left-1/3 -z-10 size-96 rounded-full border border-brand/20 bg-brand/10 blur-2xl" />
+      <section className="border-sidebar-border bg-sidebar text-sidebar-fg-strong shadow-primary relative isolate overflow-hidden rounded-2xl border bg-[url('/headers/dashboard-osgb.png')] bg-cover bg-center px-5 py-6 sm:px-7 sm:py-8 lg:px-9 lg:py-9">
+        <div className="bg-sidebar/30 pointer-events-none absolute inset-0 -z-10" />
+        <div className="border-sidebar-accent/20 bg-sidebar-active/35 pointer-events-none absolute -top-32 -right-24 -z-10 size-80 rounded-full border blur-[1px]" />
+        <div className="border-brand/20 bg-brand/10 pointer-events-none absolute -bottom-48 left-1/3 -z-10 size-96 rounded-full border blur-2xl" />
         <div className="relative z-10 flex min-h-[270px] flex-col justify-end">
           <div className="max-w-2xl">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-sidebar-accent/25 bg-sidebar-hover/60 px-3 py-1.5 text-[11px] font-semibold text-sidebar-accent">
+            <div className="border-sidebar-accent/25 bg-sidebar-hover/60 text-sidebar-accent mb-4 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold">
               <Sparkles className="size-3.5" />
-              <span>OSGB operasyon merkezi · {dateLabel}</span>
+              <span>Bugün · {dateLabel}</span>
             </div>
-            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-              {hello}, {session?.name.split(" ")[0] || "kullanıcı"}
-            </h1>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-sidebar-fg/80 sm:text-base">
-              Firmalarınızı, saha taramalarınızı ve teklif süreçlerinizi tek merkezden yönetin. Bugünün planını gözden geçirin, ekibinizi hazırlayın ve bir sonraki adımı hemen başlatın.
+            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Bugünün operasyon planı</h1>
+            <p className="text-sidebar-fg/80 mt-3 max-w-xl text-sm leading-6 sm:text-base">
+              {hello}, {session?.name.split(" ")[0] || "kullanıcı"}. Saha planını, ekip ve araç atamalarını, dosya
+              kontrollerini ve müşteri yanıtlarını tek bir akışta yönetin.
             </p>
-            <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs font-medium text-sidebar-fg/75">
-              <span>Saha operasyonları</span>
-              <span>Firma takibi</span>
-              <span>Teklif yönetimi</span>
+            <div className="text-sidebar-fg/75 mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs font-medium">
+              <span>{todayScreenings.length} saha planı</span>
+              <span>{assignmentAttention.length} atama kontrolü</span>
+              <span>{documentAttention.length} dosya kontrolü</span>
+              {completedToday > 0 && <span className="text-success">{completedToday} tamamlanan iş</span>}
             </div>
             <div className="mt-6 flex flex-wrap gap-2.5">
-              <Button asChild size="sm" className="bg-brand text-brand-fg shadow-none hover:bg-brand-strong hover:text-brand-fg">
+              <Button
+                asChild
+                size="sm"
+                className="bg-brand text-brand-fg hover:bg-brand-strong hover:text-brand-fg shadow-none"
+              >
                 <Link href="/taramalar/yeni">
                   <CalendarDays /> Tarama oluştur
                 </Link>
               </Button>
-              <Button asChild size="sm" className="border border-sidebar-border bg-sidebar-hover/70 text-sidebar-fg-strong shadow-none hover:bg-sidebar-active hover:text-sidebar-fg-strong">
+              <Button
+                asChild
+                size="sm"
+                className="border-sidebar-border bg-sidebar-hover/70 text-sidebar-fg-strong hover:bg-sidebar-active hover:text-sidebar-fg-strong border shadow-none"
+              >
                 <Link href="/teklifler/yeni">
                   <FilePlus2 /> Teklif oluştur
                 </Link>
@@ -137,39 +164,56 @@ export default function DashboardPage() {
 
       <Card className="mt-6 p-5 sm:p-6">
         <CardHeader
-          action={<CountPill>{agenda.filter((item) => item.status === "Hazırlanıyor").length + pendingOffers.length + expiringContracts.length + equipmentAttention.length} açık konu</CountPill>}
-          description="Günün planını ilerletmek için dikkat bekleyen işler."
+          action={<CountPill tone="warning">{operationsAttentionCount} takip kalemi</CountPill>}
+          description="Saha planı, atama, dosya kontrolü, sözleşme ve müşteri yanıtlarında bugün ilerletilecek işler."
           icon={AlertTriangle}
-          title="Aksiyon bekleyenler"
+          iconTone="warning"
+          title="Bugünün operasyon akışı"
         />
-        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <AttentionCard
-            count={agenda.filter((item) => item.status === "Hazırlanıyor").length}
-            description="Saha hazırlığı tamamlanması gereken planlar"
+            count={todayScreenings.length}
+            description="Bugün sahada yürütülecek veya süren planlar"
             href="/taramalar"
-            label="Tarama hazırlıkları"
+            icon={CalendarDays}
+            label="Saha planı"
+            tone="info"
+          />
+          <AttentionCard
+            count={assignmentAttention.length}
+            description="Ekip veya araç bilgisi eksik saha planları"
+            href="/taramalar"
+            icon={UsersRound}
+            label="Ekip ve araç ataması"
             tone="warning"
+          />
+          <AttentionCard
+            count={documentAttention.length}
+            description="Tarama dosyası kontrolü bekleyen planlar"
+            href="/taramalar"
+            icon={FileCheck2}
+            label="Dosya kontrolü"
+            tone="warning"
+          />
+          <AttentionCard
+            count={expiringContracts.length}
+            description={
+              criticalContracts.length
+                ? `${criticalContracts.length} sözleşme kritik eşiğe ulaştı`
+                : "60 gün içinde yenilenecek sözleşmeler"
+            }
+            href="/firmalar"
+            icon={CalendarDays}
+            label="Sözleşme yenileme"
+            tone={criticalContracts.length ? "danger" : "warning"}
           />
           <AttentionCard
             count={pendingOffers.length}
             description="Müşteri yanıtı bekleyen teklifler"
             href="/teklifler"
-            label="Teklif yanıtları"
-            tone="brand"
-          />
-          <AttentionCard
-            count={expiringContracts.length}
-            description="60 gün içinde yenilenmesi gereken sözleşmeler"
-            href="/firmalar"
-            label="Sözleşme yenilemeleri"
-            tone="danger"
-          />
-          <AttentionCard
-            count={equipmentAttention.length}
-            description="Bakım veya kalibrasyon sürecindeki cihazlar"
-            href="/ekipmanlar"
-            label="Ekipman durumu"
-            tone="neutral"
+            icon={Send}
+            label="Müşteri yanıtı"
+            tone="info"
           />
         </div>
       </Card>
@@ -178,8 +222,9 @@ export default function DashboardPage() {
         <Card className="flex h-full flex-col p-5 sm:p-6">
           <CardHeader
             icon={CalendarDays}
-            title="Saha gündemi"
-            description="Bugün devam eden ve sıradaki planlı taramalar."
+            iconTone="info"
+            title="Bugünün saha planı"
+            description="Bugün devam eden işler ve sıradaki saha hazırlıkları."
             action={
               <Button asChild size="xs" variant="soft">
                 <Link href="/takvim">
@@ -189,8 +234,10 @@ export default function DashboardPage() {
             }
           />
           <div className="mt-4 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-xs text-muted">
-              <span className="rounded-full bg-brand-soft px-2 py-1 font-semibold text-brand-soft-fg">{todayScreenings.length} bugün</span>
+            <div className="text-muted flex items-center gap-2 text-xs">
+              <span className="bg-brand-soft text-brand-soft-fg rounded-full px-2 py-1 font-semibold">
+                {todayScreenings.length} bugün
+              </span>
               <span>{agenda.length} planlı tarama</span>
             </div>
             <span className="text-subtle text-[11px]">Bu hafta</span>
@@ -217,8 +264,12 @@ export default function DashboardPage() {
                       {item.date} · {item.time || "Saat belirtilmedi"}
                     </p>
                     <p className="text-muted mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-                      <span className="inline-flex items-center gap-1"><UsersRound className="size-3" /> {item.team || "Ekip atanmadı"}</span>
-                      <span className="inline-flex items-center gap-1"><BusFront className="size-3" /> {item.vehicle || "Araç atanmadı"}</span>
+                      <span className="inline-flex items-center gap-1">
+                        <UsersRound className="size-3" /> {item.team || "Ekip atanmadı"}
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <BusFront className="size-3" /> {item.vehicle || "Araç atanmadı"}
+                      </span>
                     </p>
                   </div>
                   <Badge tone={item.status === "Hazırlanıyor" ? "warning" : "info"}>{item.status}</Badge>
@@ -230,24 +281,36 @@ export default function DashboardPage() {
         <Card className="flex h-full flex-col p-5 sm:p-6">
           <CardHeader
             icon={Send}
-            title="Teklif takibi"
-            description="Tekliflerinizi haftalık akışta ve durumlarıyla takip edin."
-            action={<CountPill>{recentOffers.length} teklif</CountPill>}
+            iconTone="info"
+            title="Yanıt bekleyen teklifler"
+            description="Müşteri yanıtı ve geçerlilik tarihi için takipteki teklifler."
+            action={<CountPill tone="info">{recentOffers.length} teklif</CountPill>}
           />
-          <MiniWeekCalendar items={pendingOffers.map((item) => ({ date: item.validUntil, label: item.title }))} tone="warning" />
+          <MiniWeekCalendar
+            items={pendingOffers.map((item) => ({ date: item.validUntil, label: item.title }))}
+            tone="warning"
+          />
           <div className="mt-3 space-y-2">
             {(pendingOffers.length > 0 ? pendingOffers : recentOffers).slice(0, 3).map((offer) => (
-              <Link key={offer.id} href={`/teklifler/${offer.id}`} className="border-border bg-card-muted hover:border-brand-outline flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5">
+              <Link
+                key={offer.id}
+                href={`/teklifler/${offer.id}`}
+                className="border-border bg-card-muted hover:border-brand-outline flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5"
+              >
                 <span className="min-w-0">
-                  <span className="block truncate text-xs font-semibold text-heading">{offer.title}</span>
+                  <span className="text-heading block truncate text-xs font-semibold">{offer.title}</span>
                   <span className="text-muted mt-1 block text-[10px]">Geçerlilik: {offer.validUntil || "—"}</span>
                 </span>
-                <Badge tone={offerTone[offer.status]}>{pendingOffers.length > 0 ? "Yanıt bekliyor" : offer.status}</Badge>
+                <Badge tone={offerTone[offer.status]}>
+                  {pendingOffers.length > 0 ? "Yanıt bekliyor" : offer.status}
+                </Badge>
               </Link>
             ))}
           </div>
           <Button asChild variant="outline" size="sm" className="mt-3">
-            <Link href="/teklifler">Teklifleri yönet <ArrowUpRight /></Link>
+            <Link href="/teklifler">
+              Teklifleri yönet <ArrowUpRight />
+            </Link>
           </Button>
         </Card>
       </div>
@@ -264,7 +327,8 @@ export default function DashboardPage() {
             }
             description="Son taraması yapılan firmalar ve güncel sözleşme durumları."
             icon={ClipboardList}
-            title="Son tarama akışı"
+            iconTone="info"
+            title="Son saha kayıtları"
           />
           <div className="divide-divider mt-5 flex-1 divide-y">
             {recentScreeningCompanies.length === 0 ? (
@@ -277,10 +341,15 @@ export default function DashboardPage() {
 
         <Card className="flex h-full flex-col p-5 sm:p-6">
           <CardHeader
-            action={<CountPill>{expiringContracts.length} yaklaşan</CountPill>}
-            description="60 gün içinde yenilenmesi gereken sözleşmeler."
+            action={
+              <CountPill tone={criticalContracts.length ? "danger" : "warning"}>
+                {expiringContracts.length} yaklaşan
+              </CountPill>
+            }
+            description="60 gün içindeki yenileme süreci ve kritik eşikler."
             icon={CalendarDays}
-            title="Sözleşme yenileme"
+            iconTone={criticalContracts.length ? "danger" : "warning"}
+            title="Sözleşme yenileme kuyruğu"
           />
           <div className="divide-divider mt-5 flex-1 divide-y">
             {expiringContracts.length === 0 ? (
@@ -295,9 +364,7 @@ export default function DashboardPage() {
                       <span className="text-subtle mt-1 block text-[11px]">Bitiş: {company.contractEnd || "—"}</span>
                     </span>
                   </Link>
-                  <Badge tone={contractRiskTone(days)}>
-                    {contractRiskLabel(days)}
-                  </Badge>
+                  <Badge tone={contractRiskTone(days)}>{contractRiskLabel(days)}</Badge>
                 </div>
               ))
             )}
@@ -315,9 +382,10 @@ export default function DashboardPage() {
                 </Link>
               </Button>
             }
-            description="Son oluşturulan ve durum güncellemesi bekleyen teklifler."
+            description="Son oluşturulan teklifler ve bekleyen müşteri yanıtları."
             icon={Send}
-            title="Son teklifler"
+            iconTone="info"
+            title="Teklif kayıtları"
           />
           <div className="divide-divider mt-5 flex-1 divide-y">
             {recentOffers.length === 0 ? (
@@ -337,9 +405,10 @@ export default function DashboardPage() {
                 </Link>
               </Button>
             }
-            description="Yenileme bekleyen ve pasif firma durumları."
+            description="Aktif, yenilenen ve pasif sözleşme görünümü."
             icon={UsersRound}
-            title="Firma sözleşme özeti"
+            iconTone="neutral"
+            title="Firma portföyü"
           />
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <StatTile icon={CheckCircle2} label="Aktif" value={activeCompanies} />
@@ -367,20 +436,31 @@ export default function DashboardPage() {
 
         <Card className="flex h-full flex-col p-5 sm:p-6">
           <CardHeader
-            action={<CountPill>{equipmentAttention.length} dikkat</CountPill>}
-            description="Bakım ve kalibrasyon bekleyen cihazlar."
+            action={
+              <CountPill tone={equipmentAttention.some((item) => item.status === "Bakımda") ? "danger" : "warning"}>
+                {equipmentAttention.length} dikkat
+              </CountPill>
+            }
+            description="Saha kullanımını etkileyebilecek ekipman durumları."
             icon={Wrench}
-            title="Ekipman durumu"
+            iconTone={equipmentAttention.some((item) => item.status === "Bakımda") ? "danger" : "warning"}
+            title="Kalibrasyon ve bakım takibi"
           />
           <div className="divide-divider mt-5 flex-1 divide-y">
             {equipmentAttention.length === 0 ? (
               <p className="text-muted py-8 text-center text-sm">Bakım veya kalibrasyon bekleyen ekipman yok.</p>
             ) : (
               equipmentAttention.map((item) => (
-                <Link className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0" href="/ekipmanlar" key={item.id}>
+                <Link
+                  className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+                  href="/ekipmanlar"
+                  key={item.id}
+                >
                   <span className="min-w-0">
                     <span className="text-foreground block truncate text-sm font-semibold">{item.name}</span>
-                    <span className="text-muted mt-1 block truncate text-[11px]">{item.responsible || "Sorumlu atanmadı"} · {item.location || "Konum yok"}</span>
+                    <span className="text-muted mt-1 block truncate text-[11px]">
+                      {item.responsible || "Sorumlu atanmadı"} · {item.location || "Konum yok"}
+                    </span>
                   </span>
                   <Badge tone={item.status === "Kalibrasyon bekliyor" ? "warning" : "danger"}>{item.status}</Badge>
                 </Link>
@@ -388,7 +468,9 @@ export default function DashboardPage() {
             )}
           </div>
           <Button asChild variant="outline" size="sm" className="mt-3">
-            <Link href="/ekipmanlar">Ekipmanları yönet <ArrowUpRight /></Link>
+            <Link href="/ekipmanlar">
+              Ekipmanları yönet <ArrowUpRight />
+            </Link>
           </Button>
         </Card>
       </div>
@@ -423,10 +505,14 @@ function MiniWeekCalendar({
           key={day.iso}
           className={`relative min-w-0 rounded-lg px-1 py-2 text-center ${index === 0 ? "bg-brand text-brand-fg" : "bg-card"}`}
         >
-          <p className={`text-[9px] font-semibold uppercase ${index === 0 ? "text-brand-fg/75" : "text-subtle"}`}>{day.day}</p>
+          <p className={`text-[9px] font-semibold uppercase ${index === 0 ? "text-brand-fg/75" : "text-subtle"}`}>
+            {day.day}
+          </p>
           <p className={`mt-1 text-sm font-semibold ${index === 0 ? "text-brand-fg" : "text-heading"}`}>{day.number}</p>
           {day.count > 0 && (
-            <span className={`mx-auto mt-1 block size-1.5 rounded-full ${tone === "warning" ? "bg-warning" : "bg-brand"}`} />
+            <span
+              className={`mx-auto mt-1 block size-1.5 rounded-full ${tone === "warning" ? "bg-warning" : "bg-brand"}`}
+            />
           )}
         </div>
       ))}
@@ -481,11 +567,36 @@ function OfferRow({ offer }: { offer: Offer }) {
   );
 }
 
-function AttentionCard({ count, description, href, label, tone }: { count: number; description: string; href: string; label: string; tone: "brand" | "danger" | "neutral" | "warning" }) {
+function AttentionCard({
+  count,
+  description,
+  href,
+  icon: Icon,
+  label,
+  tone,
+}: {
+  count: number;
+  description: string;
+  href: string;
+  icon: typeof CalendarDays;
+  label: string;
+  tone: "danger" | "info" | "warning";
+}) {
+  const toneClasses = {
+    danger: "border-danger-border bg-danger-soft/35 hover:border-danger",
+    info: "border-info/25 bg-info-soft/35 hover:border-info",
+    warning: "border-warning/25 bg-warning-soft/35 hover:border-warning",
+  };
   return (
-    <Link className="border-border bg-card-muted hover:border-brand-outline flex items-start justify-between gap-3 rounded-xl border p-4 transition-colors" href={href}>
+    <Link
+      className={`flex items-start justify-between gap-3 rounded-xl border p-4 transition-colors ${toneClasses[tone]}`}
+      href={href}
+    >
       <span className="min-w-0">
-        <span className="text-foreground block text-sm font-semibold">{label}</span>
+        <span className="text-foreground flex items-center gap-2 text-sm font-semibold">
+          <Icon className="size-4" />
+          {label}
+        </span>
         <span className="text-muted mt-1 block text-[11px] leading-4">{description}</span>
       </span>
       <Badge tone={tone}>{count}</Badge>

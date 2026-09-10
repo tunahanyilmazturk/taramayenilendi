@@ -4,6 +4,7 @@ import {
   CalendarDays,
   Check,
   ClipboardList,
+  Download,
   Edit3,
   Eye,
   MapPin,
@@ -29,7 +30,8 @@ import { Pagination, paginate } from "@/components/ui/pagination";
 import { SearchableCompanySelect } from "@/components/ui/searchable-company-select";
 import { useCompanies, useEquipment, useScreenings, useTeam } from "@/lib/data";
 import { screeningStatuses, type Company, type Screening, type ScreeningStatus } from "@/lib/demo-data";
-import { useConfirm, useNotice } from "@/lib/hooks";
+import { useCan, useConfirm, useNotice } from "@/lib/hooks";
+import { exportListToExcel } from "@/lib/excel";
 import { storageKeys, useStoredState } from "@/lib/storage";
 import { includesQuery, nextNumericId } from "@/lib/utils";
 import { labelToIso, todayIso } from "@/lib/format";
@@ -48,11 +50,11 @@ const emptyForm: ScreeningForm = {
   status: "Planlandı",
   notes: "",
 };
-const tone: Record<ScreeningStatus, "brand" | "warning" | "danger" | "neutral" | "info"> = {
+const tone: Record<ScreeningStatus, "brand" | "warning" | "danger" | "neutral" | "info" | "success"> = {
   Planlandı: "info",
   Hazırlanıyor: "warning",
   "Devam ediyor": "brand",
-  Tamamlandı: "neutral",
+  Tamamlandı: "success",
   İptal: "danger",
 };
 const statusFilters = ["Tümü", ...screeningStatuses] as const;
@@ -65,6 +67,7 @@ export default function ScreeningsPage() {
   const [assets] = useEquipment();
   const [notice, showNotice] = useNotice();
   const { request: confirmRequest, confirm, close: closeConfirm } = useConfirm();
+  const can = useCan();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("Tümü");
   const [companyFilter, setCompanyFilter] = useState<number | string>("Tümü");
@@ -77,7 +80,10 @@ export default function ScreeningsPage() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [editor, setEditor] = useState<{ open: boolean; item: Screening | null }>({ open: false, item: null });
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const teamOptions = useMemo(() => ["Tümü", ...Array.from(new Set(screenings.map((item) => item.team).filter(Boolean)))], [screenings]);
+  const teamOptions = useMemo(
+    () => ["Tümü", ...Array.from(new Set(screenings.map((item) => item.team).filter(Boolean)))],
+    [screenings],
+  );
   const filtered = useMemo(
     () =>
       screenings.filter(
@@ -92,10 +98,22 @@ export default function ScreeningsPage() {
     [companyFilter, dateFrom, dateTo, query, screenings, status, teamFilter],
   );
   const { safePage, items: paged } = paginate(filtered, page, pageSize);
-  const hasFilters = Boolean(query || status !== "Tümü" || companyFilter !== "Tümü" || teamFilter !== "Tümü" || dateFrom || dateTo);
-  const openNew = () => router.push("/taramalar/yeni");
-  const openEdit = (item: Screening) => setEditor({ open: true, item });
+  const hasFilters = Boolean(
+    query || status !== "Tümü" || companyFilter !== "Tümü" || teamFilter !== "Tümü" || dateFrom || dateTo,
+  );
+  const openNew = () => {
+    if (!can("screenings.create")) return showNotice("Yeni tarama oluşturma yetkiniz yok.");
+    router.push("/taramalar/yeni");
+  };
+  const openEdit = (item: Screening) => {
+    if (!can("screenings.write")) return showNotice("Tarama düzenleme yetkiniz yok.");
+    setEditor({ open: true, item });
+  };
   const save = (values: ScreeningForm) => {
+    if (!can(editor.item ? "screenings.write" : "screenings.create")) {
+      showNotice("Bu işlem için yetkiniz yok.");
+      return;
+    }
     const company = companies.find((item) => item.id === Number(values.companyId));
     if (!company || !values.title.trim() || !values.date) return;
     const record = {
@@ -114,7 +132,8 @@ export default function ScreeningsPage() {
     setEditor({ open: false, item: null });
     showNotice(editor.item ? "Tarama güncellendi." : "Yeni tarama planlandı.");
   };
-  const remove = (item: Screening) =>
+  const remove = (item: Screening) => {
+    if (!can("screenings.delete")) return showNotice("Tarama silme yetkiniz yok.");
     confirm({
       title: "Taramayı sil",
       description: `${item.title} planı silinecek.`,
@@ -124,6 +143,7 @@ export default function ScreeningsPage() {
         showNotice("Tarama silindi.");
       },
     });
+  };
   const toggleSelected = (id: number) => {
     setSelectedIds((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
   };
@@ -148,6 +168,34 @@ export default function ScreeningsPage() {
       },
     });
   };
+  const exportScreenings = () => {
+    if (!can("screenings.export")) return showNotice("Tarama Excel aktarımı için yetkiniz yok.");
+    void exportListToExcel({
+      filename: `taramalar-${todayIso()}.xlsx`,
+      items: filtered,
+      sheetName: "Taramalar",
+      title: "Tarama planları",
+      context: [["Arama", query || "Tümü"], ["Durum", status], ["Firma", String(companyFilter)], ["Ekip", teamFilter], ["Başlangıç", dateFrom || "Tümü"], ["Bitiş", dateTo || "Tümü"]],
+      columns: [
+        { header: "ID", width: 10, value: (item: Screening) => item.id },
+        { header: "Tarama başlığı", width: 32, value: (item: Screening) => item.title },
+        { header: "Firma", width: 26, value: (item: Screening) => item.company },
+        { header: "Tarama türü", width: 24, value: (item: Screening) => item.screeningType || "" },
+        { header: "Tarih", width: 15, value: (item: Screening) => item.date },
+        { header: "Bitiş tarihi", width: 15, value: (item: Screening) => item.endDate || "" },
+        { header: "Saat", width: 14, value: (item: Screening) => [item.time, item.endTime].filter(Boolean).join(" - ") },
+        { header: "Konum", width: 28, value: (item: Screening) => item.location },
+        { header: "Saha ekibi", width: 22, value: (item: Screening) => item.team || "" },
+        { header: "Mobil araç", width: 22, value: (item: Screening) => item.vehicle || "" },
+        { header: "Test sayısı", width: 12, value: (item: Screening) => item.testLines?.length ?? item.testIds?.length ?? 0 },
+        { header: "Katılımcı", width: 12, value: (item: Screening) => item.participants },
+        { header: "Tamamlanan", width: 14, value: (item: Screening) => item.completed },
+        { header: "Durum", width: 18, value: (item: Screening) => item.status },
+        { header: "Yetkili", width: 22, value: (item: Screening) => item.contact || "" },
+        { header: "Notlar", width: 32, value: (item: Screening) => item.notes || "" },
+      ],
+    }).catch(() => showNotice("Tarama Excel çıktısı hazırlanamadı."));
+  };
   const clearFilters = () => {
     setQuery("");
     setStatus("Tümü");
@@ -160,41 +208,118 @@ export default function ScreeningsPage() {
   return (
     <Page>
       <VisualFilterSurface visual="/headers/screenings.png">
-      <PageHeader
-        className="border-0 bg-transparent p-0 shadow-none before:hidden"
-        actions={
-          <Button onClick={openNew}>
-            <Plus /> Yeni tarama planla
-          </Button>
-        }
-        description="Mobil sağlık taramalarınızı, katılımcıları ve saha operasyonlarının sonuçlarını tek merkezden yönetin."
-        eyebrow="Saha operasyonları"
-        title="Taramalar"
-        dark
-      />
-      {notice && (
-        <Alert className="mt-4" icon={Check}>
-          {notice}
-        </Alert>
-      )}
-      {selectedIds.length > 0 && (
-        <Card className="border-brand/30 bg-brand-soft/40 mt-4 flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-foreground text-sm font-medium">
-            <strong>{selectedIds.length}</strong> tarama seçildi.
-          </p>
-          <Button onClick={removeSelected} size="sm" variant="danger">
-            <Trash2 /> Seçilenleri sil
-          </Button>
-        </Card>
-      )}
-      <ListToolbar advancedOpen={advancedOpen} count={filtered.length} description="Arama ve gelişmiş filtrelerle saha planlarını hızlıca daraltın." onAdvanced={() => setAdvancedOpen((value) => !value)} onCards={() => setView("cards")} onList={() => setView("list")} onQuery={(value) => { setQuery(value); setPage(1); }} placeholder="Firma, tarama, konum veya ekip ara..." query={query} title="Tarama listesi" view={view}>
-        <SearchableCompanySelect companies={companies} includeAll onChange={(value) => { setCompanyFilter(value ?? "Tümü"); setPage(1); }} value={companyFilter} />
-        <Select aria-label="Tarama ekibi filtresi" onChange={(event) => { setTeamFilter(event.target.value); setPage(1); }} value={teamFilter}>{teamOptions.map((item) => <option key={item}>{item}</option>)}</Select>
-        <Field label="Başlangıç tarihi"><Input aria-label="Tarama başlangıç tarihi" onChange={(event) => { setDateFrom(event.target.value); setPage(1); }} type="date" value={dateFrom} /></Field>
-        <Field label="Bitiş tarihi"><Input aria-label="Tarama bitiş tarihi" onChange={(event) => { setDateTo(event.target.value); setPage(1); }} type="date" value={dateTo} /></Field>
-        <div className="flex flex-wrap items-center gap-2 sm:col-span-2 lg:col-span-4"><span className="text-[10px] font-bold tracking-[0.12em] text-subtle uppercase">Durum</span>{statusFilters.map((item) => <Button aria-pressed={status === item} key={item} onClick={() => { setStatus(item); setPage(1); }} size="sm" variant={status === item ? "soft" : "outline"}>{item}</Button>)}{hasFilters && <Button onClick={clearFilters} size="sm" variant="danger"><RotateCcw /> Temizle</Button>}</div>
-      </ListToolbar>
-      {/*
+        <PageHeader
+          compact
+          className="border-0 bg-transparent p-0 shadow-none before:hidden"
+          actions={
+            <>
+              {can("screenings.export") && <Button onClick={exportScreenings} variant="secondary"><Download /> Excel&apos;e aktar</Button>}
+              {can("screenings.create") && <Button onClick={openNew}><Plus /> Yeni tarama planla</Button>}
+            </>
+          }
+          description="Mobil sağlık taramalarınızı, katılımcıları ve saha operasyonlarının sonuçlarını tek merkezden yönetin."
+          eyebrow="Saha operasyonları"
+          title="Taramalar"
+          dark
+        />
+        {notice && (
+          <Alert className="mt-4" icon={Check}>
+            {notice}
+          </Alert>
+        )}
+        {selectedIds.length > 0 && (
+          <Card className="border-brand/30 bg-brand-soft/40 mt-4 flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-foreground text-sm font-medium">
+              <strong>{selectedIds.length}</strong> tarama seçildi.
+            </p>
+            <Button onClick={removeSelected} size="sm" variant="danger">
+              <Trash2 /> Seçilenleri sil
+            </Button>
+          </Card>
+        )}
+        <ListToolbar
+          advancedOpen={advancedOpen}
+          count={filtered.length}
+          description="Arama ve gelişmiş filtrelerle saha planlarını hızlıca daraltın."
+          onAdvanced={() => setAdvancedOpen((value) => !value)}
+          onCards={() => setView("cards")}
+          onList={() => setView("list")}
+          onQuery={(value) => {
+            setQuery(value);
+            setPage(1);
+          }}
+          placeholder="Firma, tarama, konum veya ekip ara..."
+          query={query}
+          title="Tarama listesi"
+          view={view}
+        >
+          <SearchableCompanySelect
+            companies={companies}
+            includeAll
+            onChange={(value) => {
+              setCompanyFilter(value ?? "Tümü");
+              setPage(1);
+            }}
+            value={companyFilter}
+          />
+          <Select
+            aria-label="Tarama ekibi filtresi"
+            onChange={(event) => {
+              setTeamFilter(event.target.value);
+              setPage(1);
+            }}
+            value={teamFilter}
+          >
+            {teamOptions.map((item) => (
+              <option key={item}>{item}</option>
+            ))}
+          </Select>
+          <Field label="Başlangıç tarihi">
+            <Input
+              aria-label="Tarama başlangıç tarihi"
+              onChange={(event) => {
+                setDateFrom(event.target.value);
+                setPage(1);
+              }}
+              type="date"
+              value={dateFrom}
+            />
+          </Field>
+          <Field label="Bitiş tarihi">
+            <Input
+              aria-label="Tarama bitiş tarihi"
+              onChange={(event) => {
+                setDateTo(event.target.value);
+                setPage(1);
+              }}
+              type="date"
+              value={dateTo}
+            />
+          </Field>
+          <div className="flex flex-wrap items-center gap-2 sm:col-span-2 lg:col-span-4">
+            <span className="text-subtle text-[10px] font-bold tracking-[0.12em] uppercase">Durum</span>
+            {statusFilters.map((item) => (
+              <Button
+                aria-pressed={status === item}
+                key={item}
+                onClick={() => {
+                  setStatus(item);
+                  setPage(1);
+                }}
+                size="sm"
+                variant={status === item ? "soft" : "outline"}
+              >
+                {item}
+              </Button>
+            ))}
+            {hasFilters && (
+              <Button onClick={clearFilters} size="sm" variant="danger">
+                <RotateCcw /> Temizle
+              </Button>
+            )}
+          </div>
+        </ListToolbar>
+        {/*
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="flex items-center gap-2">
@@ -555,7 +680,11 @@ function ScreeningDialog({
           />
         </Field>
         <Field label="Firma" required>
-          <SearchableCompanySelect companies={companies} onChange={(value) => setField("companyId", Number(value ?? 0))} value={form.companyId} />
+          <SearchableCompanySelect
+            companies={companies}
+            onChange={(value) => setField("companyId", Number(value ?? 0))}
+            value={form.companyId}
+          />
         </Field>
         <Field label="Tarama tarihi" required>
           <Input onChange={(event) => setField("date", event.target.value)} type="date" value={form.date} />

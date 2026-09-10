@@ -4,39 +4,31 @@ import { Check, LayoutPanelTop, Monitor, Moon, Palette, Sun, Zap } from "lucide-
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import SettingsCard from "./settings-card";
+import { storageKeys, useStoredState } from "@/lib/storage";
 
 type Density = "comfortable" | "compact";
 
 export default function AppearanceSettings() {
   const { resolvedTheme, setTheme } = useTheme();
-  const [density, setDensity] = useState<Density>("comfortable");
-  const [animations, setAnimations] = useState(true);
-  const [expandedSidebar, setExpandedSidebar] = useState(true);
+  const [density, setDensity] = useStoredState<Density>(storageKeys.density, "comfortable");
+  const [animations, setAnimations] = useStoredState<boolean>(storageKeys.motion, true);
+  const [expandedSidebar, setExpandedSidebar] = useStoredState<boolean>(storageKeys.sidebar, true);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     // Theme and saved appearance preferences resolve in the browser after hydration.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
-    const storedDensity = window.localStorage.getItem("hantech-density");
-    const storedAnimations = window.localStorage.getItem("hantech-animations");
-    const storedSidebar = window.localStorage.getItem("hantech-sidebar");
-    if (storedDensity === "compact") setDensity("compact");
-    if (storedAnimations === "false") setAnimations(false);
-    if (storedSidebar === "false") setExpandedSidebar(false);
   }, []);
 
   const chooseDensity = (value: Density) => {
     setDensity(value);
-    window.localStorage.setItem("hantech-density", value);
   };
   const chooseAnimations = (value: boolean) => {
     setAnimations(value);
-    window.localStorage.setItem("hantech-animations", String(value));
   };
   const chooseSidebar = (value: boolean) => {
     setExpandedSidebar(value);
-    window.localStorage.setItem("hantech-sidebar", String(value));
   };
 
   return (

@@ -9,6 +9,7 @@ export function PageHeader({
   actions,
   visual,
   dark = false,
+  compact = false,
   className,
 }: {
   eyebrow?: ReactNode;
@@ -17,13 +18,17 @@ export function PageHeader({
   actions?: ReactNode;
   visual?: string;
   dark?: boolean;
+  compact?: boolean;
   className?: string;
 }) {
   const darkSurface = Boolean(visual || dark);
   return (
     <div
       className={cn(
-        "relative isolate flex min-h-[132px] flex-col justify-between gap-4 overflow-hidden pl-1 sm:h-[104px] sm:min-h-[104px] sm:flex-row sm:items-center sm:gap-6",
+        "relative isolate flex flex-col justify-between overflow-hidden pl-1",
+        compact
+          ? "min-h-[94px] gap-3 py-1 sm:h-[82px] sm:min-h-[82px] sm:flex-row sm:items-center sm:gap-5"
+          : "min-h-[132px] gap-4 sm:h-[104px] sm:min-h-[104px] sm:flex-row sm:items-center sm:gap-6",
         "before:bg-brand before:absolute before:inset-y-1 before:left-0 before:w-1 before:rounded-full before:content-['']",
         darkSurface && "page-header-visual text-sidebar-fg-strong",
         className,
@@ -44,10 +49,10 @@ export function PageHeader({
             <p className={cn("text-[10px] font-bold tracking-[0.16em] uppercase", darkSurface ? "text-sidebar-accent" : "text-brand")}>{eyebrow}</p>
           </div>
         )}
-        <h1 className={cn("mt-2 text-2xl leading-[1.1] font-semibold tracking-tight sm:text-[2rem]", darkSurface ? "text-sidebar-fg-strong" : "text-heading")}>
+        <h1 className={cn(compact ? "mt-1 text-xl leading-tight font-semibold tracking-tight sm:text-2xl" : "mt-2 text-2xl leading-[1.1] font-semibold tracking-tight sm:text-[2rem]", darkSurface ? "text-sidebar-fg-strong" : "text-heading")}>
           {title}
         </h1>
-        {description && <p className={cn("mt-2 max-w-3xl text-sm leading-6", darkSurface ? "text-sidebar-fg" : "text-muted")}>{description}</p>}
+        {description && <p className={cn(compact ? "mt-1 max-w-3xl text-xs leading-5" : "mt-2 max-w-3xl text-sm leading-6", darkSurface ? "text-sidebar-fg" : "text-muted")}>{description}</p>}
       </div>
       {actions && <div className={cn("relative z-10 flex w-full max-w-full shrink-0 flex-wrap items-center justify-start gap-2 sm:w-auto sm:justify-end", darkSurface && "page-header-visual-actions")}>{actions}</div>}
     </div>

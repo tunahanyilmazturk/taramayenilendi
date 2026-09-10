@@ -13,6 +13,7 @@ type Listener = () => void;
 
 const listeners = new Map<string, Set<Listener>>();
 const snapshots = new Map<string, { raw: string | null; value: unknown }>();
+const memoryFallbacks = new Map<string, unknown>();
 let storageEventBound = false;
 
 const isBrowser = () => typeof window !== "undefined";
@@ -47,6 +48,7 @@ function bindStorageEvent() {
   storageEventBound = true;
   window.addEventListener("storage", (event) => {
     if (event.key) {
+      memoryFallbacks.delete(event.key);
       emit(event.key);
       return;
     }
@@ -69,6 +71,7 @@ function subscribe(key: string, listener: Listener) {
 
 export function readStorage<T>(key: string, fallback: T): T {
   if (!isBrowser()) return fallback;
+  if (memoryFallbacks.has(key)) return memoryFallbacks.get(key) as T;
   let raw: string | null = null;
   try {
     raw = window.localStorage.getItem(key);
@@ -93,8 +96,10 @@ export function writeStorage<T>(key: string, value: T) {
   if (!isBrowser()) return;
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
+    memoryFallbacks.delete(key);
   } catch {
-    /* Storage quota or privacy mode: keep the in-memory snapshot so the UI still updates. */
+    /* Storage quota or privacy mode: keep a visible in-memory value until persistence recovers. */
+    memoryFallbacks.set(key, value);
     snapshots.set(key, { raw: null, value });
   }
   emit(key);
@@ -102,6 +107,7 @@ export function writeStorage<T>(key: string, value: T) {
 
 export function removeStorage(key: string) {
   if (!isBrowser()) return;
+  memoryFallbacks.delete(key);
   try {
     window.localStorage.removeItem(key);
   } catch {
@@ -161,4 +167,5 @@ export const storageKeys = {
   coverLetterTemplates: "hantech-cover-letter-templates",
   conditionTemplates: "hantech-condition-templates",
   screeningView: "hantech-screening-view",
+  resultCounts: "hantech-result-counts",
 } as const;

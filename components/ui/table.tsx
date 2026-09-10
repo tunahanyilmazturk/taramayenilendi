@@ -17,7 +17,7 @@ export function DataTable({
   className?: string;
 }) {
   return (
-    <div className={cn("border-border bg-card shadow-card overflow-hidden rounded-xl border", className)}>
+    <div className={cn("border-border bg-card shadow-card overflow-hidden rounded-2xl border", className)}>
       <div className={cn("overflow-x-auto", mobile && "hidden md:block")}>
         <table className="w-full text-left">{children}</table>
       </div>
@@ -36,7 +36,7 @@ export function TBody({ className, ...props }: HTMLAttributes<HTMLTableSectionEl
 }
 
 export function Tr({ className, ...props }: HTMLAttributes<HTMLTableRowElement>) {
-  return <tr className={cn("hover:bg-card-muted transition-colors", className)} {...props} />;
+  return <tr className={cn("hover:bg-card-muted/75 transition-colors", className)} {...props} />;
 }
 
 export function Th({ className, ...props }: ThHTMLAttributes<HTMLTableCellElement>) {

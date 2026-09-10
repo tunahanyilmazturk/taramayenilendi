@@ -10,6 +10,7 @@ import { Alert, Modal } from "@/components/ui/modal";
 import { contractStatuses, type Company, type ContractStatus } from "@/lib/demo-data";
 import { isoToLabel, labelToIso, todayIso } from "@/lib/format";
 import { nextNumericId } from "@/lib/utils";
+import { isValidEmail, isValidIsoDate, isValidPhone } from "@/lib/validation";
 
 export type CompanyFormValues = {
   name: string;
@@ -38,8 +39,6 @@ export const emptyCompanyForm: CompanyFormValues = {
   contractEnd: todayIso(),
 };
 
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 export function companyToForm(company: Company): CompanyFormValues {
   return {
     name: company.name,
@@ -62,8 +61,10 @@ export function validateCompanyForm(form: CompanyFormValues): FormErrors {
   if (!form.city.trim()) errors.city = "İl bilgisi zorunludur.";
   if (!form.contact.trim()) errors.contact = "Firma yetkilisi zorunludur.";
   if (!(Number(form.employees) > 0)) errors.employees = "Çalışan sayısı 0'dan büyük olmalıdır.";
-  if (form.email.trim() && !emailPattern.test(form.email.trim())) errors.email = "Geçerli bir e-posta adresi girin.";
+  if (form.email.trim() && !isValidEmail(form.email)) errors.email = "Geçerli bir e-posta adresi girin.";
+  if (form.phone.trim() && !isValidPhone(form.phone)) errors.phone = "Telefon en az 10 rakam içermelidir.";
   if (form.contract !== "Pasif" && !form.contractEnd) errors.contractEnd = "Aktif veya yenilenen sözleşmelerde bitiş tarihi zorunludur.";
+  else if (form.contractEnd && !isValidIsoDate(form.contractEnd)) errors.contractEnd = "Geçerli bir sözleşme tarihi seçin.";
   return errors;
 }
 
@@ -221,8 +222,9 @@ function CompanyFormDialog({ company, sectors, onClose, onSave }: Omit<CompanyFo
                   value={form.email}
                 />
               </Field>
-              <Field label="Telefon">
+              <Field error={shown.phone} label="Telefon">
                 <Input
+                  invalid={Boolean(shown.phone)}
                   onChange={(event) => setField("phone", event.target.value)}
                   placeholder="+90 5xx xxx xx xx"
                   type="tel"

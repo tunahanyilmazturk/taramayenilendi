@@ -39,13 +39,13 @@ import { Pagination, paginate } from "@/components/ui/pagination";
 import { useCompanies, useOffers, usePersonnel, useScreenings, useSectors } from "@/lib/data";
 import { companyLocation, type Company, type CompanyDocument, type Offer, type Screening } from "@/lib/demo-data";
 import { isoToLabel, labelToIso, money } from "@/lib/format";
-import { useConfirm, useNotice } from "@/lib/hooks";
+import { useCan, useConfirm, useNotice } from "@/lib/hooks";
 import type { Personnel } from "@/lib/personnel";
 import { useHydrated } from "@/lib/storage";
 import { cn, initials } from "@/lib/utils";
 
 const tabs = [
-  ["genel", "Genel bakış"],
+  ["genel", "Firma özeti"],
   ["personeller", "Personeller"],
   ["taramalar", "Taramalar"],
   ["teklifler", "Teklifler"],
@@ -53,12 +53,6 @@ const tabs = [
   ["notlar", "Notlar"],
 ] as const;
 type TabId = (typeof tabs)[number][0];
-
-const recentActivity = [
-  ["02 Eyl 2026", "Mobil sağlık taraması başladı", "Ekip 04 · 84 çalışan"],
-  ["28 Ağu 2026", "Tarama sonuçları tamamlandı", "246 sonuç · Rapor hazır"],
-  ["15 Ağu 2026", "Sözleşme belgesi güncellendi", "Yönetici tarafından"],
-];
 
 export default function CompanyDetailPage({ companyId }: { companyId: string }) {
   const hydrated = useHydrated();
@@ -69,6 +63,7 @@ export default function CompanyDetailPage({ companyId }: { companyId: string }) 
   const [sectors] = useSectors();
   const [notice, showNotice] = useNotice();
   const { request: confirmRequest, confirm, close: closeConfirm } = useConfirm();
+  const can = useCan();
   const [activeTab, setActiveTab] = useState<TabId>("genel");
   const [editing, setEditing] = useState(false);
   const company = companies.find((item) => item.id === Number(companyId));
@@ -76,6 +71,7 @@ export default function CompanyDetailPage({ companyId }: { companyId: string }) 
   const companyScreenings = screenings
     .filter((item) => item.companyId === Number(companyId))
     .sort((a, b) => labelToIso(b.date).localeCompare(labelToIso(a.date)));
+  const companyOffers = offers.filter((offer) => offer.companyId === Number(companyId) || offer.company === company?.name);
 
   if (!hydrated) return <DetailSkeleton />;
   if (!company) {
@@ -100,19 +96,27 @@ export default function CompanyDetailPage({ companyId }: { companyId: string }) 
   }
 
   const saveCompany = (values: CompanyFormValues) => {
+    if (!can("companies.write")) return showNotice("Firma düzenleme yetkiniz yok.");
     setCompanies(applyCompanyForm(companies, values, company.id));
+    if (company.name !== values.name.trim()) {
+      setScreenings((current) => current.map((item) => item.companyId === company.id ? { ...item, company: values.name.trim() } : item));
+      setOffers((current) => current.map((item) => item.companyId === company.id ? { ...item, company: values.name.trim() } : item));
+    }
     setEditing(false);
     showNotice("Firma bilgileri güncellendi.");
   };
   const saveNotes = (notes: string) => {
+    if (!can("companies.write")) return showNotice("Firma notlarını düzenleme yetkiniz yok.");
     setCompanies((current) => current.map((item) => item.id === company.id ? { ...item, notes } : item));
     showNotice("Firma notları kaydedildi.");
   };
   const addDocument = (document: CompanyDocument) => {
+    if (!can("companies.write")) return showNotice("Belge ekleme yetkiniz yok.");
     setCompanies((current) => current.map((item) => item.id === company.id ? { ...item, contractDocuments: [...(item.contractDocuments ?? []), document] } : item));
     showNotice("Sözleşme belgesi eklendi.");
   };
   const removeDocument = (document: CompanyDocument) => {
+    if (!can("companies.delete")) return showNotice("Belge silme yetkiniz yok.");
     confirm({
       title: "Belgeyi sil",
       description: `${document.name} belgesi kalıcı olarak silinecek.`,
@@ -123,10 +127,22 @@ export default function CompanyDetailPage({ companyId }: { companyId: string }) 
       },
     });
   };
-  const removePersonnel = (item: Personnel) => confirm({ title: "Personeli sil", description: `${item.name} personel kaydı kalıcı olarak silinecek.`, confirmLabel: "Personeli sil", onConfirm: () => { setPersonnel((current) => current.filter((entry) => entry.id !== item.id)); showNotice("Personel kaydı silindi."); } });
-  const cancelScreening = (item: Screening) => confirm({ title: "Taramayı iptal et", description: `${item.title} planı iptal edilecek.`, confirmLabel: "Taramayı iptal et", onConfirm: () => { setScreenings((current) => current.map((entry) => entry.id === item.id ? { ...entry, status: "İptal" } : entry)); showNotice("Tarama iptal edildi."); } });
-  const removeScreening = (item: Screening) => confirm({ title: "Taramayı sil", description: `${item.title} kaydı kalıcı olarak silinecek.`, confirmLabel: "Taramayı sil", onConfirm: () => { setScreenings((current) => current.filter((entry) => entry.id !== item.id)); showNotice("Tarama silindi."); } });
-  const removeOffer = (item: Offer) => confirm({ title: "Teklifi sil", description: `${item.title || item.number || "Teklif"} kaydı kalıcı olarak silinecek.`, confirmLabel: "Teklifi sil", onConfirm: () => { setOffers((current) => current.filter((entry) => entry.id !== item.id)); showNotice("Teklif silindi."); } });
+  const removePersonnel = (item: Personnel) => {
+    if (!can("personnel.delete")) return showNotice("Personel silme yetkiniz yok.");
+    confirm({ title: "Personeli sil", description: `${item.name} personel kaydı kalıcı olarak silinecek.`, confirmLabel: "Personeli sil", onConfirm: () => { setPersonnel((current) => current.filter((entry) => entry.id !== item.id)); showNotice("Personel kaydı silindi."); } });
+  };
+  const cancelScreening = (item: Screening) => {
+    if (!can("screenings.write")) return showNotice("Tarama iptal etme yetkiniz yok.");
+    confirm({ title: "Taramayı iptal et", description: `${item.title} planı iptal edilecek.`, confirmLabel: "Taramayı iptal et", onConfirm: () => { setScreenings((current) => current.map((entry) => entry.id === item.id ? { ...entry, status: "İptal" } : entry)); showNotice("Tarama iptal edildi."); } });
+  };
+  const removeScreening = (item: Screening) => {
+    if (!can("screenings.delete")) return showNotice("Tarama silme yetkiniz yok.");
+    confirm({ title: "Taramayı sil", description: `${item.title} kaydı kalıcı olarak silinecek.`, confirmLabel: "Taramayı sil", onConfirm: () => { setScreenings((current) => current.filter((entry) => entry.id !== item.id)); showNotice("Tarama silindi."); } });
+  };
+  const removeOffer = (item: Offer) => {
+    if (!can("offers.delete")) return showNotice("Teklif silme yetkiniz yok.");
+    confirm({ title: "Teklifi sil", description: `${item.title || item.number || "Teklif"} kaydı kalıcı olarak silinecek.`, confirmLabel: "Teklifi sil", onConfirm: () => { setOffers((current) => current.filter((entry) => entry.id !== item.id)); showNotice("Teklif silindi."); } });
+  };
 
   return (
     <Page>
@@ -158,7 +174,7 @@ export default function CompanyDetailPage({ companyId }: { companyId: string }) 
               </Link>
             </Button>
             <Button asChild size="sm">
-              <Link href="/taramalar/yeni">
+              <Link href={`/taramalar/yeni?firma=${company.id}`}>
                 <CalendarDays /> Yeni tarama
               </Link>
             </Button>
@@ -191,10 +207,10 @@ export default function CompanyDetailPage({ companyId }: { companyId: string }) 
       </nav>
 
       <div className="mt-6">
-        {activeTab === "genel" && <Overview company={company} />}
+        {activeTab === "genel" && <Overview company={company} offers={companyOffers} screenings={companyScreenings} />}
         {activeTab === "personeller" && <CompanyPersonnel company={company} personnel={companyPersonnel} onRemove={removePersonnel} />}
         {activeTab === "taramalar" && <CompanyScreenings company={company} screenings={companyScreenings} onCancel={cancelScreening} onRemove={removeScreening} />}
-        {activeTab === "teklifler" && <CompanyOffers company={company} offers={offers.filter((offer) => offer.companyId === company.id || offer.company === company.name)} onRemove={removeOffer} />}
+        {activeTab === "teklifler" && <CompanyOffers company={company} offers={companyOffers} onRemove={removeOffer} />}
         {activeTab === "sozlesme" && <ContractPanel company={company} onAddDocument={addDocument} onEdit={() => setEditing(true)} onRemoveDocument={removeDocument} />}
         {activeTab === "notlar" && (
           <CompanyNotes company={company} onSave={saveNotes} />
@@ -245,14 +261,37 @@ function DetailSkeleton() {
   );
 }
 
-function Overview({ company }: { company: Company }) {
+function Overview({ company, offers, screenings }: { company: Company; offers: Offer[]; screenings: Screening[] }) {
+  const activities = [
+    ...screenings.map((screening) => ({
+      date: screening.endDate || screening.date,
+      detail: `${screening.title} · ${screening.completed} / ${screening.participants} katılımcı`,
+      title: screening.status === "Tamamlandı" ? "Tarama tamamlandı" : `Tarama planı · ${screening.status}`,
+    })),
+    ...offers.map((offer) => ({
+      date: offer.createdAt,
+      detail: `${offer.number} · ${money(offer.total)}`,
+      title: `Teklif · ${offer.status}`,
+    })),
+    ...(company.contractDocuments ?? []).map((document) => ({
+      date: document.createdAt,
+      detail: document.name,
+      title: "Sözleşme belgesi eklendi",
+    })),
+  ]
+    .filter((activity) => labelToIso(activity.date))
+    .sort((a, b) => labelToIso(b.date).localeCompare(labelToIso(a.date)))
+    .slice(0, 5);
+
   return (
     <div className="grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
       <Card className="p-5 sm:p-6">
-        <CardHeader description="Firma ile ilgili son hareketler" title="Son operasyonlar" />
+        <CardHeader description="Tarama, teklif ve sözleşme kayıtlarından oluşan güncel hareketler." title="Firma operasyon akışı" />
         <div className="mt-5 divide-y divide-divider">
-          {recentActivity.map(([date, title, detail]) => (
-            <div className="flex items-start gap-3 py-4 first:pt-0 last:pb-0" key={title}>
+          {activities.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted">Bu firmaya ait operasyon kaydı henüz oluşmadı.</p>
+          ) : activities.map(({ date, title, detail }) => (
+            <div className="flex items-start gap-3 py-4 first:pt-0 last:pb-0" key={`${title}-${date}-${detail}`}>
               <span className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand-soft-fg">
                 <CheckCircle2 className="size-4" />
               </span>

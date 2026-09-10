@@ -160,6 +160,8 @@ export type TeamMember = {
   role: string;
   account: boolean;
   active: boolean;
+  /** Optional per-user override. When absent, the assigned role permissions apply. */
+  permissions?: string[];
 };
 export type Role = { name: string; description: string; permissions: string[]; system?: boolean };
 
@@ -686,10 +688,13 @@ export const professions = [
 export const panelPermissions = [
   "Genel Bakış",
   "Firmalar",
+  "Personeller",
   "Taramalar",
   "Teklifler",
   "İstatistikler",
+  "Sonuçlar",
   "Takvim",
+  "Ekipmanlar",
 ];
 export const settingsPermissions = [
   "Kurum Bilgileri",

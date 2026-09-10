@@ -1,10 +1,10 @@
 "use client";
 
-import { AlertTriangle, Check, Download, FileSpreadsheet, FileText, Pencil, Plus, RotateCcw, Search, Trash2, Upload, UsersRound } from "lucide-react";
+import { AlertTriangle, Check, Download, FileSpreadsheet, FileText, Pencil, Plus, RotateCcw, Trash2, Upload, UsersRound } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Badge, CountPill } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -12,7 +12,6 @@ import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { Alert, ConfirmDialog, Modal } from "@/components/ui/modal";
 import { Page, PageHeader } from "@/components/ui/page-header";
 import { VisualFilterSurface } from "@/components/ui/visual-filter-surface";
-import { ListViewToggle } from "@/components/ui/list-view-toggle";
 import { Pagination, paginate } from "@/components/ui/pagination";
 import { SearchableCompanySelect } from "@/components/ui/searchable-company-select";
 import { ListToolbar } from "@/components/ui/list-toolbar";
@@ -20,8 +19,10 @@ import { Avatar, DataTable, TBody, Td, Th, THead, Tr } from "@/components/ui/tab
 import { useCompanies, usePersonnel } from "@/lib/data";
 import { personnelStatuses, nextPersonnelId, type Personnel, type PersonnelStatus } from "@/lib/personnel";
 import { isoToLabel, labelToIso, todayIso } from "@/lib/format";
-import { useConfirm, useNotice } from "@/lib/hooks";
+import { useCan, useConfirm, useNotice } from "@/lib/hooks";
+import { exportListToExcel } from "@/lib/excel";
 import { cn, compareTr, includesQuery, initials } from "@/lib/utils";
+import { isValidEmail, isValidIsoDate, isValidPhone } from "@/lib/validation";
 
 type PersonnelForm = Omit<Personnel, "id" | "createdAt">;
 type ImportRow = { rowNumber: number; data: PersonnelForm; errors: string[] };
@@ -42,7 +43,7 @@ const emptyForm = (companyId: number): PersonnelForm => ({
   notes: "",
 });
 
-const statusTone: Record<PersonnelStatus, "brand" | "warning" | "danger"> = { Aktif: "brand", İzinli: "warning", Pasif: "danger" };
+const statusTone: Record<PersonnelStatus, "success" | "warning" | "danger"> = { Aktif: "success", İzinli: "warning", Pasif: "danger" };
 
 export default function PersonnelPage() {
   return <Suspense fallback={null}><PersonnelPageInner /></Suspense>;
@@ -74,6 +75,7 @@ function PersonnelPageInner() {
   const pdfFileRef = useRef<HTMLInputElement>(null);
   const [notice, showNotice] = useNotice(3500);
   const { request: confirmRequest, confirm, close: closeConfirm } = useConfirm();
+  const can = useCan();
 
   useEffect(() => {
     const editId = Number(searchParams.get("duzenle"));
@@ -111,13 +113,21 @@ function PersonnelPageInner() {
     setSelectedIds((current) => allSelected ? current.filter((id) => !pageIds.includes(id)) : Array.from(new Set([...current, ...pageIds])));
   };
   const removeSelected = () => {
+    if (!can("personnel.delete")) return showNotice("Personel silme yetkiniz yok.");
     if (!selectedIds.length) return;
     const count = selectedIds.length;
     confirm({ title: "Seçilen personelleri sil", description: `${count} personel kaydı kalıcı olarak silinecek.`, confirmLabel: "Personelleri sil", onConfirm: () => { setPersonnel((current) => current.filter((item) => !selectedIds.includes(item.id))); setSelectedIds([]); showNotice(`${count} personel silindi.`); } });
   };
-  const openNew = () => { setEditor({ open: true, item: null }); };
-  const openEdit = (item: Personnel) => setEditor({ open: true, item });
+  const openNew = () => {
+    if (!can("personnel.write")) return showNotice("Personel oluşturma yetkiniz yok.");
+    setEditor({ open: true, item: null });
+  };
+  const openEdit = (item: Personnel) => {
+    if (!can("personnel.write")) return showNotice("Personel düzenleme yetkiniz yok.");
+    setEditor({ open: true, item });
+  };
   const save = (form: PersonnelForm) => {
+    if (!can(editor.item ? "personnel.write" : "personnel.create")) return showNotice("Bu işlem için yetkiniz yok.");
     const values = { ...form, name: form.name.trim(), employeeNo: form.employeeNo.trim(), email: form.email.trim(), phone: form.phone.trim() };
     if (values.employeeNo && personnel.some((item) => item.id !== editor.item?.id && item.companyId === values.companyId && item.employeeNo === values.employeeNo)) {
       showNotice("Bu firmada aynı personel numarası zaten kayıtlı.");
@@ -127,9 +137,13 @@ function PersonnelPageInner() {
     setEditor({ open: false, item: null });
     showNotice(editor.item ? "Personel bilgileri güncellendi." : "Personel firmaya eklendi.");
   };
-  const remove = (item: Personnel) => confirm({ title: "Personeli sil", description: `${item.name} personel kaydı kalıcı olarak silinecek.`, confirmLabel: "Personeli sil", onConfirm: () => { setPersonnel((current) => current.filter((entry) => entry.id !== item.id)); setSelectedIds((current) => current.filter((id) => id !== item.id)); showNotice("Personel kaydı silindi."); } });
+  const remove = (item: Personnel) => {
+    if (!can("personnel.delete")) return showNotice("Personel silme yetkiniz yok.");
+    confirm({ title: "Personeli sil", description: `${item.name} personel kaydı kalıcı olarak silinecek.`, confirmLabel: "Personeli sil", onConfirm: () => { setPersonnel((current) => current.filter((entry) => entry.id !== item.id)); setSelectedIds((current) => current.filter((id) => id !== item.id)); showNotice("Personel kaydı silindi."); } });
+  };
 
   const openImport = () => {
+    if (!can("personnel.write")) return showNotice("Toplu personel ekleme yetkiniz yok.");
     setImportCompanyId(companies[0]?.id ?? 0);
     setImportDate(todayIso());
     setImportFiles([]);
@@ -137,6 +151,10 @@ function PersonnelPageInner() {
     setImportRows([]);
     setImportError("");
     setImportOpen(true);
+  };
+  const exportPersonnel = (template: boolean) => {
+    if (!can("personnel.export")) return showNotice("Personel Excel aktarımı için yetkiniz yok.");
+    void exportPersonnelExcel(template ? [] : filtered, companies, template);
   };
   const handleFiles = async (files: File[], companyId = importCompanyId, startDate = importDate) => {
     if (!files.length) return;
@@ -190,8 +208,9 @@ function PersonnelPageInner() {
   return <Page>
     <VisualFilterSurface visual="/headers/personnel.png">
     <PageHeader
+      compact
       className="border-0 bg-transparent p-0 shadow-none before:hidden"
-      actions={<div className="flex max-w-full flex-nowrap gap-2 overflow-x-auto pb-1"><input accept=".xlsx,.csv" className="hidden" onChange={(event) => void handleFiles(Array.from(event.target.files ?? []))} ref={excelFileRef} type="file" /><input accept=".pdf" className="hidden" multiple onChange={(event) => void handleFiles(Array.from(event.target.files ?? []))} ref={pdfFileRef} type="file" /><Button onClick={openImport} size="sm" variant="outline"><Upload /> Toplu personel ekle</Button><Button onClick={() => void exportPersonnelExcel(filtered, companies, false)} size="sm" variant="outline"><Download /> Excel&apos;e aktar</Button><Button onClick={() => void exportPersonnelExcel([], companies, true)} size="sm" variant="secondary"><FileSpreadsheet /> Şablon indir</Button><Button onClick={openNew} size="sm"><Plus /> Personel ekle</Button></div>}
+      actions={<div className="flex max-w-full flex-nowrap gap-2 overflow-x-auto pb-1"><input accept=".xlsx,.csv" className="hidden" onChange={(event) => void handleFiles(Array.from(event.target.files ?? []))} ref={excelFileRef} type="file" /><input accept=".pdf" className="hidden" multiple onChange={(event) => void handleFiles(Array.from(event.target.files ?? []))} ref={pdfFileRef} type="file" /><Button onClick={openImport} size="sm" variant="outline"><Upload /> Toplu personel ekle</Button>{can("personnel.export") && <Button onClick={() => exportPersonnel(false)} size="sm" variant="outline"><Download /> Excel&apos;e aktar</Button>}{can("personnel.export") && <Button onClick={() => exportPersonnel(true)} size="sm" variant="secondary"><FileSpreadsheet /> Şablon indir</Button>}{can("personnel.write") && <Button onClick={openNew} size="sm"><Plus /> Personel ekle</Button>}</div>}
       description="Firmalara bağlı çalışan kayıtlarını, toplu Excel aktarımını ve veri kalitesini tek merkezden yönetin."
       eyebrow="Firma çalışanları"
       title="Personeller"
@@ -199,7 +218,6 @@ function PersonnelPageInner() {
     />
     {notice && <Alert className="mt-4" icon={Check}>{notice}</Alert>}
     {selectedIds.length > 0 && <Card className="border-brand/30 bg-brand-soft/40 mt-4 flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-foreground text-sm font-medium"><strong>{selectedIds.length}</strong> personel seçildi.</p><Button onClick={removeSelected} size="sm" variant="danger"><Trash2 /> Seçilenleri sil</Button></Card>}
-    <Card aria-label="Personel listesi filtreleri" className="mt-5 border-0 bg-transparent p-0 shadow-none"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><div className="flex items-center gap-2"><h2 className="text-foreground text-sm font-semibold">Personel listesi</h2><CountPill>{filtered.length} kayıt</CountPill></div><p className="text-subtle mt-1 text-xs">Arama ve filtrelerle firma çalışanlarını hızlıca daraltın.</p></div><div className="flex flex-wrap items-center gap-2"><Field label="Firma"><Select aria-label="Firma filtresi" className="h-10 min-w-52" onChange={(event) => { setCompanyFilter(event.target.value); resetPage(); }} value={companyFilter}><option value="Tümü">Tüm firmalar</option>{companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}</Select></Field><Field label="Durum"><Select aria-label="Durum filtresi" className="h-10 min-w-36" onChange={(event) => { setStatusFilter(event.target.value); resetPage(); }} value={statusFilter}><option>Tümü</option>{personnelStatuses.map((status) => <option key={status}>{status}</option>)}</Select></Field><Field label="Departman"><Select aria-label="Departman filtresi" className="h-10 min-w-44" onChange={(event) => { setDepartmentFilter(event.target.value); resetPage(); }} value={departmentFilter}>{departments.map((department) => <option key={department}>{department}</option>)}</Select></Field>{hasFilters && <Button onClick={clearFilters} size="sm" variant="danger"><RotateCcw /> Temizle</Button>}</div></div><div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center"><Field className="min-w-0 flex-1" label="Personel ara"><span className="relative block"><Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-subtle" /><Input aria-label="Personel ara" className="h-10 pl-9" onChange={(event) => { setQuery(event.target.value); resetPage(); }} placeholder="Ad, personel no, görev veya firma ara..." value={query} /></span></Field><ListViewToggle onCards={() => setView("cards")} onList={() => setView("table")} value={view} /></div></Card>
     <ListToolbar advancedOpen={advancedOpen} count={filtered.length} description="Arama ve gelişmiş filtrelerle personel kayıtlarını hızlıca daraltın." onAdvanced={() => setAdvancedOpen((value) => !value)} onCards={() => setView("cards")} onList={() => setView("table")} onQuery={(value) => { setQuery(value); resetPage(); }} placeholder="Ad, personel no, görev veya firma ara..." query={query} title="Personel listesi" view={view}>
       <SearchableCompanySelect companies={companies} includeAll onChange={(value) => { setCompanyFilter(String(value ?? "Tümü")); resetPage(); }} value={companyFilter} />
       <Select aria-label="Durum filtresi" onChange={(event) => { setStatusFilter(event.target.value); resetPage(); }} value={statusFilter}><option>Tümü</option>{personnelStatuses.map((status) => <option key={status}>{status}</option>)}</Select>
@@ -220,21 +238,22 @@ function MobilePersonnel({ company, item, onDelete, onEdit, onToggle, selected }
 function PersonnelModal({ companies, item, onClose, onSave, open }: { companies: ReturnType<typeof useCompanies>[0]; item: Personnel | null; onClose: () => void; onSave: (form: PersonnelForm) => void; open: boolean }) {
   const [form, setForm] = useState<PersonnelForm>(() => item ? { companyId: item.companyId, employeeNo: item.employeeNo, nationalId: item.nationalId, name: item.name, birthDate: item.birthDate, title: item.title, department: item.department, email: item.email, phone: item.phone, startDate: item.startDate, status: item.status, notes: item.notes } : emptyForm(companies[0]?.id ?? 0));
   const [submitted, setSubmitted] = useState(false);
-  const errors = { companyId: form.companyId ? "" : "Firma seçin.", name: form.name.trim() ? "" : "Ad soyad zorunludur." };
+  const errors = { companyId: form.companyId ? "" : "Firma seçin.", name: form.name.trim() ? "" : "Ad soyad zorunludur.", email: form.email.trim() && !isValidEmail(form.email) ? "Geçerli bir e-posta adresi girin." : "", phone: form.phone.trim() && !isValidPhone(form.phone) ? "Telefon en az 10 rakam içermelidir." : "", startDate: form.startDate && !isValidIsoDate(form.startDate) ? "Geçerli bir işe giriş tarihi seçin." : "" };
   const setField = <K extends keyof PersonnelForm>(key: K, value: PersonnelForm[K]) => setForm((current) => ({ ...current, [key]: value }));
-  const submit = () => { setSubmitted(true); if (errors.companyId || errors.name) return; onSave(form); };
+  const submit = () => { setSubmitted(true); if (Object.values(errors).some(Boolean)) return; onSave(form); };
   return <Modal description="Personeli firmaya bağlayın; temel kimlik, görev ve iletişim bilgilerini tek adımda kaydedin." footer={<><Button onClick={onClose} variant="outline">Vazgeç</Button><Button onClick={submit}><Check /> {item ? "Değişiklikleri kaydet" : "Personeli ekle"}</Button></>} icon={item ? Pencil : Plus} onClose={onClose} open={open} size="lg" title={item ? "Personeli düzenle" : "Firmaya personel ekle"}>
     <div className="space-y-6">
       <section><div className="mb-3 flex items-center gap-2"><span className="flex size-7 items-center justify-center rounded-lg bg-brand-soft text-xs font-bold text-brand-soft-fg">1</span><div><h3 className="text-sm font-semibold text-heading">Firma ve kimlik</h3><p className="text-[11px] text-muted">Personelin bağlı olduğu firma ve ayırt edici bilgileri.</p></div></div><div className="grid gap-4 sm:grid-cols-2"><Field error={submitted ? errors.companyId : ""} hint="Personelin kayıtlı olduğu firmayı seçin." label="Firma" required><SearchableCompanySelect companies={companies} invalid={submitted && Boolean(errors.companyId)} onChange={(value) => setField("companyId", Number(value ?? 0))} value={form.companyId} /></Field><Field hint="Firmanın kendi sicil numarasını kullanabilirsiniz." label="Sicil / personel no"><Input onChange={(event) => setField("employeeNo", event.target.value)} placeholder="Örn. ART-0024" value={form.employeeNo} /></Field><Field className="sm:col-span-2" error={submitted ? errors.name : ""} label="Ad soyad" required><Input autoFocus invalid={submitted && Boolean(errors.name)} onChange={(event) => setField("name", event.target.value)} placeholder="Örn. Ayşe Demir" value={form.name} /></Field><Field hint="Opsiyoneldir; yabancı kimlik veya pasaport numarası da yazılabilir." label="TC / yabancı kimlik no"><Input onChange={(event) => setField("nationalId", event.target.value)} placeholder="Kimlik numarası" value={form.nationalId} /></Field><Field label="Doğum tarihi"><Input onChange={(event) => setField("birthDate", event.target.value)} type="date" value={form.birthDate} /></Field></div></section>
       <section className="border-t border-divider pt-5"><div className="mb-3 flex items-center gap-2"><span className="flex size-7 items-center justify-center rounded-lg bg-brand-soft text-xs font-bold text-brand-soft-fg">2</span><div><h3 className="text-sm font-semibold text-heading">Görev ve iletişim</h3><p className="text-[11px] text-muted">Saha ekibinin ihtiyaç duyacağı çalışma bilgileri.</p></div></div><div className="grid gap-4 sm:grid-cols-2"><Field label="Görev / unvan"><Input onChange={(event) => setField("title", event.target.value)} placeholder="Örn. Üretim operatörü" value={form.title} /></Field><Field label="Departman"><Input onChange={(event) => setField("department", event.target.value)} placeholder="Örn. Üretim" value={form.department} /></Field><Field label="E-posta"><Input onChange={(event) => setField("email", event.target.value)} placeholder="ornek@firma.com" type="email" value={form.email} /></Field><Field label="Telefon"><Input onChange={(event) => setField("phone", event.target.value)} placeholder="05xx xxx xx xx" type="tel" value={form.phone} /></Field><Field label="İşe giriş tarihi"><Input onChange={(event) => setField("startDate", event.target.value)} type="date" value={form.startDate} /></Field><Field hint="Personelin güncel çalışma durumunu seçin." label="Durum"><Select onChange={(event) => setField("status", event.target.value as PersonnelStatus)} value={form.status}>{personnelStatuses.map((status) => <option key={status}>{status}</option>)}</Select></Field></div></section>
       <section className="border-t border-divider pt-5"><Field hint="Sonradan personel detayında da güncelleyebilirsiniz." label="Operasyon notu"><Textarea onChange={(event) => setField("notes", event.target.value)} placeholder="Örn. yıllık tarama katılımcısı, özel takip notu..." value={form.notes} /></Field></section>
+      {submitted && Object.values(errors).some(Boolean) && <Alert icon={AlertTriangle} tone="danger">Lütfen e-posta, telefon ve tarih alanlarını kontrol edin.</Alert>}
     </div>
   </Modal>;
 }
 
 function ImportModal({ companies, companyId, date, error, fileName, isReading, onClose, onConfirm, onDateChange, onPickExcel, onPickPdf, onCompanyChange, open, rows }: { companies: ReturnType<typeof useCompanies>[0]; companyId: number; date: string; error: string; fileName: string; isReading: boolean; onClose: () => void; onConfirm: () => void; onDateChange: (date: string) => void; onPickExcel: () => void; onPickPdf: () => void; onCompanyChange: (companyId: number) => void; open: boolean; rows: ImportRow[] }) {
   const valid = rows.filter((row) => row.errors.length === 0); const invalid = rows.length - valid.length;
-  return <Modal className="max-w-6xl" description="Sol panelden aktarım ayarlarını yapın, sağ panelden dosya sonuçlarını kontrol edin." footer={<><Button onClick={onClose} variant="outline">Vazgeç</Button><Button disabled={!valid.length || isReading || !companyId} onClick={onConfirm}><Check /> {valid.length} geçerli satırı aktar</Button></>} icon={FileSpreadsheet} onClose={onClose} open={open} size="xl" title="Toplu personel ekle"><div className="grid gap-5 lg:grid-cols-[250px_minmax(0,1fr)]"><aside className="h-fit space-y-4 rounded-2xl border border-border bg-card-muted p-4"><div><p className="text-brand text-[10px] font-bold tracking-[0.14em] uppercase">Aktarım ayarları</p><p className="text-muted mt-1 text-xs leading-5">Firma ve tarih bilgisi seçilen tüm dosyalara uygulanır.</p></div><Field label="Firma" required><Select aria-label="Toplu aktarım firması" onChange={(event) => onCompanyChange(Number(event.target.value))} value={String(companyId)}><option value="0">Firma seçin</option>{companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}</Select></Field><Field label="Varsayılan işe giriş tarihi"><Input aria-label="Varsayılan işe giriş tarihi" onChange={(event) => onDateChange(event.target.value)} type="date" value={date} /></Field><div className="space-y-2 border-t border-divider pt-4"><Button className="w-full justify-start" disabled={!companyId || isReading} onClick={onPickExcel} variant="secondary"><FileSpreadsheet /> Excel / CSV seç</Button><Button className="w-full justify-start" disabled={!companyId || isReading} onClick={onPickPdf} variant="secondary"><FileText /> Ek-2 PDF seç</Button>{isReading && <p className="text-xs text-muted">Dosyalar okunuyor…</p>}</div><p className="rounded-xl border border-border bg-card p-3 text-[11px] leading-5 text-muted">Excel / CSV tek dosya, PDF ise çoklu seçilebilir. Her PDF ayrı personel kaydı olarak okunur.</p></aside><section className="min-w-0 space-y-4">{error && <Alert icon={AlertTriangle} tone="danger">{error}</Alert>}<div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card-muted px-3 py-2.5"><Badge tone="brand">{valid.length} geçerli</Badge><Badge tone={invalid ? "danger" : "neutral"}>{invalid} hatalı</Badge><span className="min-w-0 truncate text-xs text-muted">{fileName || "Henüz dosya seçilmedi"}</span></div>{invalid > 0 && <Alert icon={AlertTriangle} tone="warning">Hatalı satırlar aktarılmaz. Ad Soyad zorunludur; TC numarasının boş olması hata değildir.</Alert>}{rows.length > 0 ? <div className="max-h-[50dvh] overflow-auto rounded-xl border border-border"><table className="w-full min-w-[900px] text-left text-xs"><thead className="sticky top-0 border-b border-divider bg-card-muted"><tr><th className="px-3 py-2">Satır</th><th className="px-3 py-2">Personel</th><th className="px-3 py-2">TC / kimlik</th><th className="px-3 py-2">Sicil no</th><th className="px-3 py-2">Doğum tarihi</th><th className="px-3 py-2">Görev</th><th className="px-3 py-2">Durum</th><th className="px-3 py-2">Kontrol</th></tr></thead><tbody className="divide-y divide-divider">{rows.slice(0, 100).map((row) => <tr key={row.rowNumber}><td className="px-3 py-2 text-muted">{row.rowNumber}</td><td className="px-3 py-2 font-medium text-foreground">{row.data.name || "—"}</td><td className="px-3 py-2 text-muted">{row.data.nationalId || "—"}</td><td className="px-3 py-2 text-muted">{row.data.employeeNo || "—"}</td><td className="px-3 py-2 text-muted">{isoToLabel(row.data.birthDate) || "—"}</td><td className="px-3 py-2 text-muted">{row.data.title || "—"}</td><td className="px-3 py-2"><Badge tone={statusTone[row.data.status]}>{row.data.status}</Badge></td><td className="px-3 py-2 text-danger">{row.errors.join(" ") || "Uygun"}</td></tr>)}</tbody></table></div> : <div className="flex min-h-64 items-center justify-center rounded-xl border border-dashed border-border bg-card-muted p-8 text-center"><div><FileSpreadsheet className="mx-auto size-8 text-subtle" /><p className="mt-3 text-sm font-semibold text-foreground">Dosya seçilmeye hazır</p><p className="mt-1 text-xs leading-5 text-muted">Sol panelden Excel/CSV veya birden fazla Ek-2 PDF seçtiğinizde aktarım önizlemesi burada görünecek.</p></div></div>}{rows.length > 100 && <p className="text-xs text-muted">Önizleme ilk 100 satırı gösteriyor; geçerli tüm satırlar aktarılabilir.</p>}<p className="text-[11px] leading-5 text-muted">Öncelikli alanlar: Ad Soyad, TC / yabancı kimlik no (opsiyonel), Sicil No, Doğum Tarihi, Görev / Unvan ve Departman. PDF’de telefon ve formdaki tarih okunabildiği ölçüde alınır.</p></section></div></Modal>;
+  return <Modal className="max-w-6xl" description="Sol panelden aktarım ayarlarını yapın, sağ panelden dosya sonuçlarını kontrol edin." footer={<><Button onClick={onClose} variant="outline">Vazgeç</Button><Button disabled={!valid.length || isReading || !companyId} onClick={onConfirm}><Check /> {valid.length} geçerli satırı aktar</Button></>} icon={FileSpreadsheet} onClose={onClose} open={open} size="xl" title="Toplu personel ekle"><div className="grid gap-5 lg:grid-cols-[250px_minmax(0,1fr)]"><aside className="h-fit space-y-4 rounded-2xl border border-border bg-card-muted p-4"><div><p className="text-brand text-[10px] font-bold tracking-[0.14em] uppercase">Aktarım ayarları</p><p className="text-muted mt-1 text-xs leading-5">Firma ve tarih bilgisi seçilen tüm dosyalara uygulanır.</p></div><Field label="Firma" required><SearchableCompanySelect companies={companies} onChange={(value) => onCompanyChange(Number(value ?? 0))} value={companyId} /></Field><Field label="Varsayılan işe giriş tarihi"><Input aria-label="Varsayılan işe giriş tarihi" onChange={(event) => onDateChange(event.target.value)} type="date" value={date} /></Field><div className="space-y-2 border-t border-divider pt-4"><Button className="w-full justify-start" disabled={!companyId || isReading} onClick={onPickExcel} variant="secondary"><FileSpreadsheet /> Excel / CSV seç</Button><Button className="w-full justify-start" disabled={!companyId || isReading} onClick={onPickPdf} variant="secondary"><FileText /> Ek-2 PDF seç</Button>{isReading && <p className="text-xs text-muted">Dosyalar okunuyor…</p>}</div><p className="rounded-xl border border-border bg-card p-3 text-[11px] leading-5 text-muted">Excel / CSV tek dosya, PDF ise çoklu seçilebilir. Her PDF ayrı personel kaydı olarak okunur.</p></aside><section className="min-w-0 space-y-4">{error && <Alert icon={AlertTriangle} tone="danger">{error}</Alert>}<div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card-muted px-3 py-2.5"><Badge tone="brand">{valid.length} geçerli</Badge><Badge tone={invalid ? "danger" : "neutral"}>{invalid} hatalı</Badge><span className="min-w-0 truncate text-xs text-muted">{fileName || "Henüz dosya seçilmedi"}</span></div>{invalid > 0 && <Alert icon={AlertTriangle} tone="warning">Hatalı satırlar aktarılmaz. Ad Soyad zorunludur; TC numarasının boş olması hata değildir.</Alert>}{rows.length > 0 ? <div className="max-h-[50dvh] overflow-auto rounded-xl border border-border"><table className="w-full min-w-[900px] text-left text-xs"><thead className="sticky top-0 border-b border-divider bg-card-muted"><tr><th className="px-3 py-2">Satır</th><th className="px-3 py-2">Personel</th><th className="px-3 py-2">TC / kimlik</th><th className="px-3 py-2">Sicil no</th><th className="px-3 py-2">Doğum tarihi</th><th className="px-3 py-2">Görev</th><th className="px-3 py-2">Durum</th><th className="px-3 py-2">Kontrol</th></tr></thead><tbody className="divide-y divide-divider">{rows.slice(0, 100).map((row) => <tr key={row.rowNumber}><td className="px-3 py-2 text-muted">{row.rowNumber}</td><td className="px-3 py-2 font-medium text-foreground">{row.data.name || "—"}</td><td className="px-3 py-2 text-muted">{row.data.nationalId || "—"}</td><td className="px-3 py-2 text-muted">{row.data.employeeNo || "—"}</td><td className="px-3 py-2 text-muted">{isoToLabel(row.data.birthDate) || "—"}</td><td className="px-3 py-2 text-muted">{row.data.title || "—"}</td><td className="px-3 py-2"><Badge tone={statusTone[row.data.status]}>{row.data.status}</Badge></td><td className="px-3 py-2 text-danger">{row.errors.join(" ") || "Uygun"}</td></tr>)}</tbody></table></div> : <div className="flex min-h-64 items-center justify-center rounded-xl border border-dashed border-border bg-card-muted p-8 text-center"><div><FileSpreadsheet className="mx-auto size-8 text-subtle" /><p className="mt-3 text-sm font-semibold text-foreground">Dosya seçilmeye hazır</p><p className="mt-1 text-xs leading-5 text-muted">Sol panelden Excel/CSV veya birden fazla Ek-2 PDF seçtiğinizde aktarım önizlemesi burada görünecek.</p></div></div>}{rows.length > 100 && <p className="text-xs text-muted">Önizleme ilk 100 satırı gösteriyor; geçerli tüm satırlar aktarılabilir.</p>}<p className="text-[11px] leading-5 text-muted">Öncelikli alanlar: Ad Soyad, TC / yabancı kimlik no (opsiyonel), Sicil No, Doğum Tarihi, Görev / Unvan ve Departman. PDF’de telefon ve formdaki tarih okunabildiği ölçüde alınır.</p></section></div></Modal>;
 }
 
 function normalizedHeader(value: unknown) { return String(value ?? "").trim().toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i").replace(/[^a-z0-9]+/g, ""); }
@@ -348,16 +367,44 @@ function cleanPdfValue(value: string) {
   return value.replace(/^[:\-\s]+|[:\-\s]+$/g, "").replace(/\s+/g, " ").trim();
 }
 
-async function exportPersonnelExcel(items: Personnel[], companies: ReturnType<typeof useCompanies>[0], template: boolean) {
+async function exportPersonnelExcel(items: Personnel[], companies: ReturnType<typeof useCompanies>[0], template: boolean, context: [string, string][] = []) {
+  if (!template) {
+    await exportListToExcel({
+      filename: `personeller-${todayIso()}.xlsx`,
+      items,
+      sheetName: "Personeller",
+      title: "Personel kayıtları",
+      context,
+      columns: [
+        { header: "ID", width: 10, value: (item: Personnel) => item.id },
+        { header: "Firma", width: 28, value: (item: Personnel) => companies.find((company) => company.id === item.companyId)?.name ?? "Firma bulunamadı" },
+        { header: "Ad soyad", width: 24, value: (item: Personnel) => item.name },
+        { header: "TC / yabancı kimlik no", width: 24, value: (item: Personnel) => item.nationalId },
+        { header: "Sicil no", width: 16, value: (item: Personnel) => item.employeeNo },
+        { header: "Doğum tarihi", width: 18, value: (item: Personnel) => item.birthDate || "" },
+        { header: "Görev", width: 24, value: (item: Personnel) => item.title },
+        { header: "Departman", width: 22, value: (item: Personnel) => item.department },
+        { header: "E-posta", width: 28, value: (item: Personnel) => item.email },
+        { header: "Telefon", width: 18, value: (item: Personnel) => item.phone },
+        { header: "İşe giriş tarihi", width: 18, value: (item: Personnel) => item.startDate || "" },
+        { header: "Durum", width: 14, value: (item: Personnel) => item.status },
+        { header: "Notlar", width: 32, value: (item: Personnel) => item.notes || "" },
+      ],
+    });
+    return;
+  }
   const { Workbook } = await import("exceljs/dist/exceljs.min.js");
   const workbook = new Workbook();
+  workbook.creator = "HanTech OSGB Yönetim Sistemi";
+  workbook.created = new Date();
+  workbook.modified = new Date();
   const sheet = workbook.addWorksheet("Personeller");
   const headers = ["Firma", "Ad Soyad", "TC No", "Sicil No", "Doğum Tarihi", "Görev", "Departman", "E-posta", "Telefon", "İşe Giriş Tarihi", "Durum", "Not"];
   sheet.addRow(headers);
   if (!template) items.forEach((item) => sheet.addRow([companies.find((company) => company.id === item.companyId)?.name ?? "", item.name, item.nationalId, item.employeeNo, item.birthDate, item.title, item.department, item.email, item.phone, item.startDate, item.status, item.notes]));
-  sheet.getRow(1).font = { bold: true };
+  sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
   sheet.getRow(1).alignment = { vertical: "middle", wrapText: true };
-  sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "DCEAF5" } };
+  sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF477873" } };
   sheet.views = [{ state: "frozen", ySplit: 1 }];
   sheet.columns = headers.map((_, index) => ({ width: [28, 24, 18, 16, 18, 24, 22, 30, 18, 18, 14, 16, 34][index] }));
   sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: Math.max(1, items.length + 1), column: headers.length } };
@@ -377,8 +424,8 @@ async function exportPersonnelExcel(items: Personnel[], companies: ReturnType<ty
       ["Durum", "Aktif, İzinli veya Pasif değerlerinden biri kullanılmalıdır."],
       ["Aktarım", "Dosyayı kaydedin, Personeller > Toplu personel ekle penceresinden firmayı seçip dosyayı yükleyin."],
     ].forEach((row) => guide.addRow(row));
-    guide.getRow(1).font = { bold: true };
-    guide.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "DCEAF5" } };
+    guide.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+    guide.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF477873" } };
     guide.views = [{ state: "frozen", ySplit: 1 }];
   }
   const buffer = await workbook.xlsx.writeBuffer();

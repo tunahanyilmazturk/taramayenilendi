@@ -20,16 +20,17 @@ type Update = <K extends string>(key: K, value: unknown) => void;
 export default function ScreeningStepCompany({
   companies,
   draft,
+  onTitleEdited,
   update,
 }: {
   companies: Company[];
   draft: Draft;
+  onTitleEdited: () => void;
   update: Update;
 }) {
   const selected = companies.find((company) => company.id === draft.companyId);
   const chooseCompany = (company: Company) => {
     update("companyId", company.id);
-    update("title", draft.title || `${company.name} - ${draft.screeningType}`);
     update("contact", company.contact);
     update("email", company.email);
     update("location", draft.location || companyLocation(company));
@@ -37,7 +38,6 @@ export default function ScreeningStepCompany({
   };
   const chooseType = (type: Draft["screeningType"]) => {
     update("screeningType", type);
-    if (selected && !draft.title) update("title", `${selected.name} - ${type}`);
   };
   return (
     <section>
@@ -100,7 +100,10 @@ export default function ScreeningStepCompany({
             </Field>
             <Field label="Tarama başlığı" required>
               <Input
-                onChange={(event) => update("title", event.target.value)}
+                onChange={(event) => {
+                  onTitleEdited();
+                  update("title", event.target.value);
+                }}
                 placeholder="Firma ve tarama türünden otomatik oluşur"
                 value={draft.title}
               />

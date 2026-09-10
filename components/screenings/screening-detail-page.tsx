@@ -30,21 +30,21 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, StatTile } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Input } from "@/components/ui/field";
+import { Input, Select } from "@/components/ui/field";
 import { Alert, ConfirmDialog, Modal } from "@/components/ui/modal";
 import { Page } from "@/components/ui/page-header";
 import { useCompanies, useEquipment, useOrganization, useScreenings, useTeam, useTests } from "@/lib/data";
-import { type OfferAttachment, type Screening, type ScreeningStatus } from "@/lib/demo-data";
+import { screeningStatuses, type OfferAttachment, type Screening, type ScreeningStatus } from "@/lib/demo-data";
 import { money } from "@/lib/format";
-import { useConfirm, useNotice } from "@/lib/hooks";
+import { useCan, useConfirm, useNotice } from "@/lib/hooks";
 import { downloadScreeningPdf, previewScreeningPdf } from "@/lib/pdf/screening-pdf";
 import { cn, initials } from "@/lib/utils";
 
-const statusTone: Record<ScreeningStatus, "brand" | "warning" | "danger" | "neutral"> = {
+const statusTone: Record<ScreeningStatus, "brand" | "warning" | "danger" | "neutral" | "success"> = {
   Planlandı: "neutral",
   Hazırlanıyor: "warning",
   "Devam ediyor": "brand",
-  Tamamlandı: "brand",
+  Tamamlandı: "success",
   İptal: "danger",
 };
 type Tab = "overview" | "services" | "field" | "company" | "notes" | "activity";
@@ -63,6 +63,7 @@ export default function ScreeningDetailPage({ screeningId }: { screeningId: stri
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [notice, showNotice] = useNotice();
   const { request: confirmRequest, confirm, close: closeConfirm } = useConfirm();
+  const can = useCan();
   const [editingNotes, setEditingNotes] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [mailOpen, setMailOpen] = useState(false);
@@ -108,6 +109,7 @@ export default function ScreeningDetailPage({ screeningId }: { screeningId: stri
 
   const saveNotes = () => {
     if (!screening) return;
+    if (!can("screenings.write")) return showNotice("Tarama düzenleme yetkiniz yok.");
     setScreenings((current) =>
       current.map((item) =>
         item.id === screening.id
@@ -121,6 +123,7 @@ export default function ScreeningDetailPage({ screeningId }: { screeningId: stri
 
   const addAttachment = (file: File | undefined) => {
     if (!screening || !file) return;
+    if (!can("screenings.write")) return showNotice("Tarama belgesi ekleme yetkiniz yok.");
     if (file.size > 5 * 1024 * 1024) {
       showNotice("Dosya boyutu 5 MB'dan küçük olmalıdır.");
       return;
@@ -146,23 +149,78 @@ export default function ScreeningDetailPage({ screeningId }: { screeningId: stri
   };
 
   const removeAttachment = (attachmentId: string) => {
+    if (!can("screenings.delete")) return showNotice("Tarama belgesi silme yetkiniz yok.");
     if (!screening) return;
-    setScreenings((current) =>
-      current.map((item) =>
-        item.id === screening.id
-          ? { ...item, attachments: (item.attachments ?? []).filter((attachment) => attachment.id !== attachmentId) }
-          : item,
-      ),
-    );
-    showNotice("Ek dosya kaldırıldı.");
+    const attachment = screening.attachments?.find((item) => item.id === attachmentId);
+    confirm({
+      title: "Ek dosyayı kaldır",
+      description: `${attachment?.name ?? "Bu dosya"} tarama kaydından kaldırılacak.`,
+      confirmLabel: "Dosyayı kaldır",
+      onConfirm: () => {
+        setScreenings((current) =>
+          current.map((item) =>
+            item.id === screening.id
+              ? { ...item, attachments: (item.attachments ?? []).filter((entry) => entry.id !== attachmentId) }
+              : item,
+          ),
+        );
+        showNotice("Ek dosya kaldırıldı.");
+      },
+    });
   };
   const updateCompleted = (value: number) => {
+    if (!can("screenings.write")) return showNotice("Tarama ilerlemesini güncelleme yetkiniz yok.");
     if (!screening) return;
     const completed = Math.min(Math.max(0, Math.round(value) || 0), screening.participants);
-    setScreenings((current) => current.map((item) => item.id === screening.id ? { ...item, completed } : item));
+    setScreenings((current) => current.map((item) => {
+      if (item.id !== screening.id) return item;
+      const status = item.status === "İptal"
+        ? item.status
+        : completed === item.participants && item.participants > 0
+          ? "Tamamlandı"
+          : item.status === "Tamamlandı"
+            ? "Devam ediyor"
+            : item.status;
+      return { ...item, completed, status };
+    }));
   };
-  const cancelScreening = () => confirm({ title: "Taramayı iptal et", description: `${screening?.title ?? "Bu tarama"} planı iptal edilecek.`, confirmLabel: "Taramayı iptal et", onConfirm: () => { if (!screening) return; setScreenings((current) => current.map((item) => item.id === screening.id ? { ...item, status: "İptal" } : item)); showNotice("Tarama iptal edildi."); } });
-  const removeScreening = () => confirm({ title: "Taramayı sil", description: `${screening?.title ?? "Bu tarama"} kaydı kalıcı olarak silinecek.`, confirmLabel: "Taramayı sil", onConfirm: () => { if (!screening) return; setScreenings((current) => current.filter((item) => item.id !== screening.id)); showNotice("Tarama silindi."); window.setTimeout(() => router.push("/taramalar"), 400); } });
+  const updateStatus = (status: ScreeningStatus) => {
+    if (!can("screenings.write")) return showNotice("Tarama durumunu değiştirme yetkiniz yok.");
+    if (!screening) return;
+    setScreenings((current) => current.map((item) =>
+      item.id === screening.id
+        ? { ...item, status, completed: status === "Tamamlandı" ? item.participants : item.completed }
+        : item,
+    ));
+    showNotice(status === "Tamamlandı" ? "Tarama tamamlandı olarak işaretlendi." : "Tarama durumu güncellendi.");
+  };
+  const cancelScreening = () =>
+    !can("screenings.write") ? showNotice("Tarama iptal etme yetkiniz yok.") :
+    confirm({
+      title: "Taramayı iptal et",
+      description: `${screening?.title ?? "Bu tarama"} planı iptal edilecek.`,
+      confirmLabel: "Taramayı iptal et",
+      onConfirm: () => {
+        if (!screening) return;
+        setScreenings((current) =>
+          current.map((item) => (item.id === screening.id ? { ...item, status: "İptal" } : item)),
+        );
+        showNotice("Tarama iptal edildi.");
+      },
+    });
+  const removeScreening = () =>
+    !can("screenings.delete") ? showNotice("Tarama silme yetkiniz yok.") :
+    confirm({
+      title: "Taramayı sil",
+      description: `${screening?.title ?? "Bu tarama"} kaydı kalıcı olarak silinecek.`,
+      confirmLabel: "Taramayı sil",
+      onConfirm: () => {
+        if (!screening) return;
+        setScreenings((current) => current.filter((item) => item.id !== screening.id));
+        showNotice("Tarama silindi.");
+        window.setTimeout(() => router.push("/taramalar"), 400);
+      },
+    });
   if (!screening)
     return (
       <Page>
@@ -462,8 +520,14 @@ export default function ScreeningDetailPage({ screeningId }: { screeningId: stri
             >
               <Link href={`/taramalar/yeni?edit=${screening.id}`}>Düzenle</Link>
             </Button>
-            {screening.status !== "İptal" && screening.status !== "Tamamlandı" && <Button onClick={cancelScreening} size="sm" variant="outline"><XCircle /> İptal et</Button>}
-            <Button onClick={removeScreening} size="sm" variant="danger"><Trash2 /> Sil</Button>
+            {screening.status !== "İptal" && screening.status !== "Tamamlandı" && (
+              <Button onClick={cancelScreening} size="sm" variant="outline">
+                <XCircle /> İptal et
+              </Button>
+            )}
+            <Button onClick={removeScreening} size="sm" variant="danger">
+              <Trash2 /> Sil
+            </Button>
           </div>
         </div>
         <div className="relative z-10 mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -474,7 +538,7 @@ export default function ScreeningDetailPage({ screeningId }: { screeningId: stri
         </div>
       </Card>
       <div className="border-divider mt-6 flex gap-2 overflow-x-auto border-b pb-1">
-        {tab("overview", "Genel bakış")}
+        {tab("overview", "Tarama özeti")}
         {tab("services", "Hizmetler")}
         {tab("field", "Saha planı")}
         {tab("company", "Firma bilgileri")}
@@ -482,7 +546,15 @@ export default function ScreeningDetailPage({ screeningId }: { screeningId: stri
         {tab("activity", "Aktivite geçmişi")}
       </div>
       {activeTab === "overview" && (
-        <Overview screening={screening} company={company} lines={lines} total={total} progress={progress} onUpdateCompleted={updateCompleted} />
+        <Overview
+          screening={screening}
+          company={company}
+          lines={lines}
+          total={total}
+          progress={progress}
+          onUpdateCompleted={updateCompleted}
+          onUpdateStatus={updateStatus}
+        />
       )}
       {activeTab === "services" && <Services lines={lines} total={total} />}
       {activeTab === "field" && <FieldPlan screening={screening} team={team} equipment={equipment} />}
@@ -522,8 +594,8 @@ export default function ScreeningDetailPage({ screeningId }: { screeningId: stri
         size="xl"
         title="Tarama e-postası hazırla"
       >
-        <div className="grid gap-4 lg:gap-6 lg:grid-cols-[270px_minmax(0,1fr)]">
-          <div className="space-y-4 rounded-2xl border border-border bg-card-muted/35 p-4 sm:p-5 lg:sticky lg:top-0 lg:self-start">
+        <div className="grid gap-4 lg:grid-cols-[270px_minmax(0,1fr)] lg:gap-6">
+          <div className="border-border bg-card-muted/35 space-y-4 rounded-2xl border p-4 sm:p-5 lg:sticky lg:top-0 lg:self-start">
             <div>
               <p className="text-foreground text-xs font-semibold">Gönderim ayarları</p>
               <p className="text-muted mt-1 text-[11px]">Alıcı ve e-posta bilgilerini gönderimden önce güncelleyin.</p>
@@ -605,7 +677,7 @@ export default function ScreeningDetailPage({ screeningId }: { screeningId: stri
             </div>
           </div>
 
-          <div className="min-w-0 rounded-2xl border border-border bg-card-muted/35 p-3 sm:p-4">
+          <div className="border-border bg-card-muted/35 min-w-0 rounded-2xl border p-3 sm:p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <p className="text-foreground text-xs font-semibold">E-posta önizlemesi</p>
@@ -868,6 +940,7 @@ function Overview({
   total,
   progress,
   onUpdateCompleted,
+  onUpdateStatus,
 }: {
   screening: Screening;
   company?: { name: string; sector: string; contact: string; phone: string; email: string; employees: number };
@@ -875,6 +948,7 @@ function Overview({
   total: number;
   progress: number;
   onUpdateCompleted: (value: number) => void;
+  onUpdateStatus: (status: ScreeningStatus) => void;
 }) {
   return (
     <div className="mt-6 grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
@@ -890,13 +964,36 @@ function Overview({
             <Info label="Konum" value={screening.location} />
             <Info label="Katılımcı" value={`${screening.participants} kişi`} />
           </div>
+          <div className="border-divider mt-5 flex flex-col gap-2 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-muted text-xs font-semibold">Operasyon durumu</p>
+              <p className="text-subtle mt-1 text-[11px]">Saha planının güncel aşamasını burada yönetin.</p>
+            </div>
+            <Select aria-label="Tarama operasyon durumu" className="h-10 w-full sm:w-48" onChange={(event) => onUpdateStatus(event.target.value as ScreeningStatus)} value={screening.status}>
+              {screeningStatuses.map((status) => <option key={status}>{status}</option>)}
+            </Select>
+          </div>
           <div className="bg-card-muted mt-5 rounded-xl p-4">
             <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
-              <div><span className="text-muted block font-semibold">Tamamlanma</span><span className="text-subtle mt-1 block text-[11px]">Tamamlanan kişi sayısını güncelleyin.</span></div>
-              <label className="flex items-center gap-2"><Input aria-label="Tamamlanan katılımcı sayısı" className="h-9 w-24 text-right" max={screening.participants} min={0} onChange={(event) => onUpdateCompleted(Number(event.target.value))} type="number" value={screening.completed} /><span className="text-muted">/ {screening.participants} kişi</span></label>
+              <div>
+                <span className="text-muted block font-semibold">Tamamlanma</span>
+                <span className="text-subtle mt-1 block text-[11px]">Tamamlanan kişi sayısını güncelleyin.</span>
+              </div>
+              <label className="flex items-center gap-2">
+                <Input
+                  aria-label="Tamamlanan katılımcı sayısı"
+                  className="h-9 w-24 text-right"
+                  max={screening.participants}
+                  min={0}
+                  onChange={(event) => onUpdateCompleted(Number(event.target.value))}
+                  type="number"
+                  value={screening.completed}
+                />
+                <span className="text-muted">/ {screening.participants} kişi</span>
+              </label>
             </div>
             <div className="bg-background mt-3 h-3 overflow-hidden rounded-full">
-              <div className="bg-brand h-full rounded-full" style={{ width: `${progress}%` }} />
+              <div className={cn("h-full rounded-full", progress === 100 ? "bg-success" : "bg-brand")} style={{ width: `${progress}%` }} />
             </div>
           </div>
         </Card>

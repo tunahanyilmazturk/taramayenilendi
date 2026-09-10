@@ -29,7 +29,7 @@ export function Field({ label, hint, error, required, className, children }: Fie
       )}
       {children}
       {typeof error === "string" || (error && typeof error !== "boolean") ? (
-        <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-danger">
+        <p aria-live="polite" className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-danger" role="alert">
           <span className="inline-block size-1 rounded-full bg-danger" />
           {error}
         </p>

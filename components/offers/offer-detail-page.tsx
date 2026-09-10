@@ -41,13 +41,13 @@ import { Badge, offerTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, StatTile } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Alert, Modal } from "@/components/ui/modal";
+import { Alert, ConfirmDialog, Modal } from "@/components/ui/modal";
 import { Page } from "@/components/ui/page-header";
 import { Avatar } from "@/components/ui/table";
 import { useCompanies, useOffers, useOrganization } from "@/lib/data";
 import { offerStatuses, type Offer, type OfferStatus } from "@/lib/demo-data";
 import { labelToIso, money, todayIso } from "@/lib/format";
-import { useNotice } from "@/lib/hooks";
+import { useCan, useConfirm, useNotice } from "@/lib/hooks";
 import { useHydrated } from "@/lib/storage";
 import { cn, initials } from "@/lib/utils";
 import { downloadOfferPdf, downloadServiceSummaryPdf, previewOfferPdf } from "@/lib/pdf/offer-pdf";
@@ -58,6 +58,8 @@ export default function OfferDetailPage({ offerId }: { offerId: string }) {
   const [companies] = useCompanies();
   const [organization] = useOrganization();
   const [notice, showNotice] = useNotice();
+  const { request: confirmRequest, confirm, close: closeConfirm } = useConfirm();
+  const can = useCan();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [activeTab, setActiveTab] = useState<
     "overview" | "services" | "response" | "activity" | "financial" | "company"
@@ -116,6 +118,7 @@ export default function OfferDetailPage({ offerId }: { offerId: string }) {
   };
 
   const updateStatus = (status: OfferStatus) => {
+    if (!can("offers.write")) return showNotice("Teklif durumunu değiştirme yetkiniz yok.");
     const createdAt = new Date().toLocaleString("tr-TR");
     setOffers((current) =>
       current.map((item) =>
@@ -141,6 +144,7 @@ export default function OfferDetailPage({ offerId }: { offerId: string }) {
   };
 
   const removeOffer = () => {
+    if (!can("offers.delete")) return showNotice("Teklif silme yetkiniz yok.");
     setOffers((current) => current.filter((item) => item.id !== offer.id));
     showNotice("Teklif silindi.");
     window.setTimeout(() => router.push("/teklifler"), 500);
@@ -299,6 +303,7 @@ export default function OfferDetailPage({ offerId }: { offerId: string }) {
     showNotice("Teklif gönderildi olarak işaretlendi.");
   };
   const saveReminder = () => {
+    if (!can("offers.write")) return showNotice("Teklif hatırlatıcısını düzenleme yetkiniz yok.");
     setOffers((current) =>
       current.map((item) =>
         item.id === offer.id ? { ...item, reminder: { date: reminderDate, note: reminderNote } } : item,
@@ -307,7 +312,12 @@ export default function OfferDetailPage({ offerId }: { offerId: string }) {
     showNotice("Teklif hatırlatıcısı kaydedildi.");
   };
   const addAttachment = (file: File | undefined) => {
+    if (!can("offers.write")) return showNotice("Teklif eki ekleme yetkiniz yok.");
     if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      showNotice("Dosya boyutu en fazla 5 MB olabilir.");
+      return;
+    }
     const reader = new FileReader();
     reader.addEventListener("load", () => {
       const attachment = {
@@ -328,6 +338,7 @@ export default function OfferDetailPage({ offerId }: { offerId: string }) {
     reader.readAsDataURL(file);
   };
   const saveOfferNotes = () => {
+    if (!can("offers.write")) return showNotice("Teklif notlarını düzenleme yetkiniz yok.");
     setOffers((current) => current.map((item) => (item.id === offer.id ? { ...item, notes: offerNotesDraft } : item)));
     setEditingOfferNotes(false);
     showNotice("Teklif notu kaydedildi.");
@@ -337,17 +348,27 @@ export default function OfferDetailPage({ offerId }: { offerId: string }) {
     setEditingOfferNotes(false);
   };
   const removeAttachment = (attachmentId: string) => {
-    setOffers((current) =>
-      current.map((item) =>
-        item.id === offer.id
-          ? { ...item, attachments: (item.attachments ?? []).filter((attachment) => attachment.id !== attachmentId) }
-          : item,
-      ),
-    );
-    showNotice("Ek dosya kaldırıldı.");
+    if (!can("offers.delete")) return showNotice("Teklif eki silme yetkiniz yok.");
+    const attachment = offer.attachments?.find((item) => item.id === attachmentId);
+    if (!attachment) return;
+    confirm({
+      title: "Ek dosyayı kaldır",
+      description: `${attachment.name} teklif kaydından kaldırılacak.`,
+      confirmLabel: "Dosyayı kaldır",
+      onConfirm: () => {
+        setOffers((current) =>
+          current.map((item) =>
+            item.id === offer.id
+              ? { ...item, attachments: (item.attachments ?? []).filter((item) => item.id !== attachmentId) }
+              : item,
+          ),
+        );
+        showNotice("Ek dosya kaldırıldı.");
+      },
+    });
   };
   const tabItems = [
-    ["overview", "Genel bakış", LayoutDashboard],
+    ["overview", "Teklif özeti", LayoutDashboard],
     ["services", "Hizmetler", ListChecks],
     ["financial", "Finans", WalletCards],
     ["company", "Firma bilgileri", Building2],
@@ -419,6 +440,13 @@ export default function OfferDetailPage({ offerId }: { offerId: string }) {
             <Button onClick={openMailComposer} size="sm" variant="outline">
               <Mail /> E-posta gönder
             </Button>
+            {offer.status === "Onaylandı" && (
+              <Button asChild size="sm" variant="secondary">
+                <Link href={`/taramalar/yeni?teklif=${offer.id}`}>
+                  <ClipboardList /> Saha planı oluştur
+                </Link>
+              </Button>
+            )}
             <Button
               asChild
               className="border-sidebar-border bg-sidebar-hover text-sidebar-fg-strong hover:bg-sidebar-active hover:text-sidebar-fg-strong"
@@ -1018,6 +1046,7 @@ export default function OfferDetailPage({ offerId }: { offerId: string }) {
           </p>
         </Modal>
       )}
+      <ConfirmDialog onClose={closeConfirm} request={confirmRequest} />
     </Page>
   );
 }

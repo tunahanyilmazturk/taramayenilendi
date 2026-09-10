@@ -3,13 +3,13 @@
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useRef, useState } from "react";
+import { Suspense, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Alert } from "@/components/ui/modal";
 import { Page } from "@/components/ui/page-header";
 import { useCompanies, useOffers, useTests } from "@/lib/data";
-import { nextOfferNumber, type Company, type Offer, type OfferType, type TestItem } from "@/lib/demo-data";
+import { nextOfferNumber, type Company, type Offer, type TestItem } from "@/lib/demo-data";
 import { isoToLabel, labelToIso, todayIso } from "@/lib/format";
 import { useNotice } from "@/lib/hooks";
 import { useHydrated } from "@/lib/storage";
@@ -102,18 +102,18 @@ function OfferWizard({
   const [wizard, setWizard] = useState<WizardState>(() => existingOffer ? wizardFromOffer(existingOffer, tests) : initialWizard(preselected));
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
-  const titleEdited = useRef(false);
+  const [titleEdited, setTitleEdited] = useState(Boolean(existingOffer));
   const price = calculatePrice(wizard);
 
   const update = <K extends keyof WizardState>(key: K, value: WizardState[K]) =>
-    setWizard((current) => ({ ...current, [key]: value }));
-  const generateTitle = (company: string, offerType: OfferType | "", validUntil: string) => {
-    if (titleEdited.current || !company || !offerType || !validUntil) return;
-    const monthYear = new Intl.DateTimeFormat("tr-TR", { month: "long", year: "numeric" }).format(
-      new Date(`${validUntil}T12:00:00`),
-    );
-    update("title", `${company} - ${offerType} - ${monthYear} teklifi`);
-  };
+    setWizard((current) => {
+      const next = { ...current, [key]: value };
+      if (key === "title" || titleEdited || !next.company || !next.offerType || !next.validUntil) return next;
+      const monthYear = new Intl.DateTimeFormat("tr-TR", { month: "long", year: "numeric" }).format(
+        new Date(`${next.validUntil}T12:00:00`),
+      );
+      return { ...next, title: `${next.company} - ${next.offerType} - ${monthYear} teklifi` };
+    });
   const isStepValid = (current: Step) => {
     if (current === 1)
       return Boolean(wizard.companyId && wizard.offerType && wizard.title.trim() && wizard.validUntil);
@@ -214,8 +214,14 @@ function OfferWizard({
               </Link>
             </Button>
             <p className="mt-4 text-xs font-medium text-muted">Teklif ve fiyatlandırma merkezi</p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-heading">Yeni teklif oluştur</h1>
-            <p className="mt-2 text-xs leading-5 text-muted">Hizmet kapsamını adım adım tamamlayın.</p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-heading">
+              {existingOffer ? "Teklifi düzenle" : "Yeni teklif oluştur"}
+            </h1>
+            <p className="mt-2 text-xs leading-5 text-muted">
+              {existingOffer
+                ? "Hizmet kapsamını güncelleyin; kayıt yeni bir revizyon olarak saklanır."
+                : "Hizmet kapsamını adım adım tamamlayın."}
+            </p>
           </Card>
           <WizardStepper current={step} onStep={goTo} />
         </aside>
@@ -224,9 +230,8 @@ function OfferWizard({
             {step === 1 && (
               <StepCompany
                 companies={companies}
-                onGenerateTitle={generateTitle}
                 onTitleEdited={() => {
-                  titleEdited.current = true;
+                  setTitleEdited(true);
                 }}
                 submitted={submitted}
                 update={update}

@@ -16,6 +16,7 @@ import { Field, Input } from "@/components/ui/field";
 import { companyLocation, type Company, type OfferType } from "@/lib/demo-data";
 import { todayIso } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { isValidEmail } from "@/lib/validation";
 import CompanyPicker from "./company-picker";
 import { StepHeading } from "./step-heading";
 import type { UpdateWizard, WizardState } from "./types";
@@ -41,28 +42,25 @@ export default function StepCompany({
   companies,
   update,
   submitted,
-  onGenerateTitle,
   onTitleEdited,
 }: {
   wizard: WizardState;
   companies: Company[];
   update: UpdateWizard;
   submitted: boolean;
-  onGenerateTitle: (company: string, offerType: OfferType | "", validUntil: string) => void;
   onTitleEdited: () => void;
 }) {
   const selected = companies.find((company) => company.id === wizard.companyId);
+  const emailError = submitted && wizard.email.trim() && !isValidEmail(wizard.email) ? "Geçerli bir e-posta adresi girin." : "";
   const chooseCompany = (company: Company) => {
     update("companyId", company.id);
     update("company", company.name);
     update("employeeCount", Math.max(1, company.employees));
     update("contact", company.contact);
     update("email", company.email);
-    onGenerateTitle(company.name, wizard.offerType, wizard.validUntil);
   };
   const chooseDate = (value: string) => {
     update("validUntil", value);
-    onGenerateTitle(wizard.company, wizard.offerType, value);
   };
   const syncEmployeeCount = (value: number) => {
     const count = Math.max(1, value || 1);
@@ -111,9 +109,10 @@ export default function StepCompany({
                   value={wizard.contact}
                 />
               </Field>
-              <Field label="Yetkili e-posta">
+              <Field error={emailError} label="Yetkili e-posta">
                 <Input
                   icon={Mail}
+                  invalid={Boolean(emailError)}
                   onChange={(event) => update("email", event.target.value)}
                   placeholder="yetkili@firma.com"
                   type="email"
@@ -143,7 +142,6 @@ export default function StepCompany({
                     key={card.type}
                     onClick={() => {
                       update("offerType", card.type);
-                      onGenerateTitle(wizard.company, card.type, wizard.validUntil);
                     }}
                     type="button"
                   >
